@@ -68,9 +68,6 @@
 /* Define if you have the GNU dld library. */
 #undef HAVE_DLD
 
-/* Define to 1 if you have the <dld.h> header file. */
-#cmakedefine HAVE_DLD_H ${HAVE_DLD_H}
-
 /* Define to 1 if you have the `dlerror' function. */
 #cmakedefine HAVE_DLERROR ${HAVE_DLERROR}
 
@@ -79,9 +76,6 @@
 
 /* Define if dlopen() is available on this platform. */
 #cmakedefine HAVE_DLOPEN ${HAVE_DLOPEN}
-
-/* Define to 1 if you have the <dl.h> header file. */
-#cmakedefine HAVE_DL_H ${HAVE_DL_H}
 
 /* Define if the dot program is available */
 #cmakedefine HAVE_DOT ${HAVE_DOT}
@@ -218,9 +212,6 @@
 /* Define if you can use -Wl,-export-dynamic. */
 #define HAVE_LINK_EXPORT_DYNAMIC 1
 
-/* Define to 1 if you have the <link.h> header file. */
-#cmakedefine HAVE_LINK_H ${HAVE_LINK_H}
-
 /* Define if you can use -Wl,-R. to pass -R. to the linker, in order to add
    the current directory to the dynamic linker search path. */
 #undef HAVE_LINK_R
@@ -245,9 +236,6 @@
 
 /* Define to 1 if you have the `malloc_zone_statistics' function. */
 #cmakedefine HAVE_MALLOC_ZONE_STATISTICS ${HAVE_MALLOC_ZONE_STATISTICS}
-
-/* Define to 1 if you have the <memory.h> header file. */
-#cmakedefine HAVE_MEMORY_H ${HAVE_MEMORY_H}
 
 /* Define to 1 if you have the `mkdtemp' function. */
 #cmakedefine HAVE_MKDTEMP ${HAVE_MKDTEMP}
@@ -334,9 +322,6 @@
 /* Define to 1 if you have the `setjmp' function. */
 #cmakedefine HAVE_SETJMP ${HAVE_SETJMP}
 
-/* Define to 1 if you have the <setjmp.h> header file. */
-#cmakedefine HAVE_SETJMP_H ${HAVE_SETJMP_H}
-
 /* Define to 1 if you have the `setrlimit' function. */
 #cmakedefine HAVE_SETRLIMIT ${HAVE_SETRLIMIT}
 
@@ -385,9 +370,6 @@
 /* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
    */
 #cmakedefine HAVE_SYS_DIR_H ${HAVE_SYS_DIR_H}
-
-/* Define to 1 if you have the <sys/dl.h> header file. */
-#cmakedefine HAVE_SYS_DL_H ${HAVE_SYS_DL_H}
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #cmakedefine HAVE_SYS_IOCTL_H ${HAVE_SYS_IOCTL_H}
@@ -440,9 +422,6 @@
 
 /* Define to 1 if you have the <valgrind/valgrind.h> header file. */
 #cmakedefine HAVE_VALGRIND_VALGRIND_H ${HAVE_VALGRIND_VALGRIND_H}
-
-/* Define to 1 if you have the <windows.h> header file. */
-#cmakedefine HAVE_WINDOWS_H ${HAVE_WINDOWS_H}
 
 /* Define to 1 if you have the `writev' function. */
 #cmakedefine HAVE_WRITEV ${HAVE_WRITEV}

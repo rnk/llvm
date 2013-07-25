@@ -73,9 +73,6 @@
 /* Define if you have the GNU dld library. */
 #undef HAVE_DLD
 
-/* Define to 1 if you have the <dld.h> header file. */
-#undef HAVE_DLD_H
-
 /* Define to 1 if you have the `dlerror' function. */
 #undef HAVE_DLERROR
 
@@ -84,9 +81,6 @@
 
 /* Define if dlopen() is available on this platform. */
 #undef HAVE_DLOPEN
-
-/* Define to 1 if you have the <dl.h> header file. */
-#undef HAVE_DL_H
 
 /* Define if the dot program is available */
 #undef HAVE_DOT
@@ -214,9 +208,6 @@
 /* Define if you can use -Wl,-export-dynamic. */
 #undef HAVE_LINK_EXPORT_DYNAMIC
 
-/* Define to 1 if you have the <link.h> header file. */
-#undef HAVE_LINK_H
-
 /* Define if you can use -Wl,-R. to pass -R. to the linker, in order to add
    the current directory to the dynamic linker search path. */
 #undef HAVE_LINK_R
@@ -250,9 +241,6 @@
 
 /* Define to 1 if you have the `malloc_zone_statistics' function. */
 #undef HAVE_MALLOC_ZONE_STATISTICS
-
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
 
 /* Define to 1 if you have the `mkdtemp' function. */
 #undef HAVE_MKDTEMP
@@ -342,9 +330,6 @@
 /* Define to 1 if you have the `setjmp' function. */
 #undef HAVE_SETJMP
 
-/* Define to 1 if you have the <setjmp.h> header file. */
-#undef HAVE_SETJMP_H
-
 /* Define to 1 if you have the `setrlimit' function. */
 #undef HAVE_SETRLIMIT
 
@@ -362,12 +347,6 @@
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
-
-/* Define to 1 if you have the <stdio.h> header file. */
-#undef HAVE_STDIO_H
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#undef HAVE_STDLIB_H
 
 /* Set to 1 if the std::isinf function is found in <cmath> */
 #undef HAVE_STD_ISINF_IN_CMATH
@@ -396,9 +375,6 @@
 /* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
    */
 #undef HAVE_SYS_DIR_H
-
-/* Define to 1 if you have the <sys/dl.h> header file. */
-#undef HAVE_SYS_DL_H
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
@@ -448,9 +424,6 @@
 
 /* Define to 1 if you have the <valgrind/valgrind.h> header file. */
 #undef HAVE_VALGRIND_VALGRIND_H
-
-/* Define to 1 if you have the <windows.h> header file. */
-#undef HAVE_WINDOWS_H
 
 /* Define to 1 if you have the `writev' function. */
 #undef HAVE_WRITEV
