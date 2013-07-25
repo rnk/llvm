@@ -33,27 +33,6 @@
 /* Define to 1 if you have the `arc4random' function. */
 #cmakedefine HAVE_ARC4RANDOM
 
-/* Define to 1 if you have the `argz_append' function. */
-#cmakedefine HAVE_ARGZ_APPEND ${HAVE_ARGZ_APPEND}
-
-/* Define to 1 if you have the `argz_create_sep' function. */
-#cmakedefine HAVE_ARGZ_CREATE_SEP ${HAVE_ARGZ_CREATE_SEP}
-
-/* Define to 1 if you have the <argz.h> header file. */
-#cmakedefine HAVE_ARGZ_H ${HAVE_ARGZ_H}
-
-/* Define to 1 if you have the `argz_insert' function. */
-#cmakedefine HAVE_ARGZ_INSERT ${HAVE_ARGZ_INSERT}
-
-/* Define to 1 if you have the `argz_next' function. */
-#cmakedefine HAVE_ARGZ_NEXT ${HAVE_ARGZ_NEXT}
-
-/* Define to 1 if you have the `argz_stringify' function. */
-#cmakedefine HAVE_ARGZ_STRINGIFY ${HAVE_ARGZ_STRINGIFY}
-
-/* Define to 1 if you have the <assert.h> header file. */
-#cmakedefine HAVE_ASSERT_H ${HAVE_ASSERT_H}
-
 /* Define to 1 if you have the `backtrace' function. */
 #cmakedefine HAVE_BACKTRACE ${HAVE_BACKTRACE}
 
@@ -77,9 +56,6 @@
 
 /* can use __crashreporter_info__ */
 #undef HAVE_CRASHREPORTER_INFO
-
-/* Define to 1 if you have the <ctype.h> header file. */
-#cmakedefine HAVE_CTYPE_H ${HAVE_CTYPE_H}
 
 /* Define to 1 if you have the declaration of `strerror_s', and to 0 if you
    don't. */
@@ -118,9 +94,6 @@
 
 /* Define to 1 if you have the <errno.h> header file. */
 #cmakedefine HAVE_ERRNO_H ${HAVE_ERRNO_H}
-
-/* Define to 1 if the system has the type `error_t'. */
-#cmakedefine HAVE_ERROR_T ${HAVE_ERROR_T}
 
 /* Define to 1 if you have the <execinfo.h> header file. */
 #cmakedefine HAVE_EXECINFO_H ${HAVE_EXECINFO_H}
@@ -196,9 +169,6 @@
 
 /* Define if the gv program is available */
 #cmakedefine HAVE_GV ${HAVE_GV}
-
-/* Define to 1 if you have the `index' function. */
-#cmakedefine HAVE_INDEX ${HAVE_INDEX}
 
 /* Define to 1 if the system has the type `int64_t'. */
 #cmakedefine HAVE_INT64_T ${HAVE_INT64_T}
@@ -276,12 +246,6 @@
 /* Define to 1 if you have the `malloc_zone_statistics' function. */
 #cmakedefine HAVE_MALLOC_ZONE_STATISTICS ${HAVE_MALLOC_ZONE_STATISTICS}
 
-/* Define to 1 if you have the `memcpy' function. */
-#cmakedefine HAVE_MEMCPY ${HAVE_MEMCPY}
-
-/* Define to 1 if you have the `memmove' function. */
-#cmakedefine HAVE_MEMMOVE ${HAVE_MEMMOVE}
-
 /* Define to 1 if you have the <memory.h> header file. */
 #cmakedefine HAVE_MEMORY_H ${HAVE_MEMORY_H}
 
@@ -352,9 +316,6 @@
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
 
-/* Define to 1 if you have the `rindex' function. */
-#cmakedefine HAVE_RINDEX ${HAVE_RINDEX}
-
 /* Define to 1 if you have the `rintf' function. */
 #undef HAVE_RINTF
 
@@ -394,23 +355,11 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #cmakedefine HAVE_STDINT_H ${HAVE_STDINT_H}
 
-/* Define to 1 if you have the <stdio.h> header file. */
-#cmakedefine HAVE_STDIO_H ${HAVE_STDIO_H}
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#cmakedefine HAVE_STDLIB_H ${HAVE_STDLIB_H}
-
 /* Set to 1 if the std::isinf function is found in <cmath> */
 #undef HAVE_STD_ISINF_IN_CMATH
 
 /* Set to 1 if the std::isnan function is found in <cmath> */
 #undef HAVE_STD_ISNAN_IN_CMATH
-
-/* Define to 1 if you have the `strchr' function. */
-#cmakedefine HAVE_STRCHR ${HAVE_STRCHR}
-
-/* Define to 1 if you have the `strcmp' function. */
-#cmakedefine HAVE_STRCMP ${HAVE_STRCMP}
 
 /* Define to 1 if you have the `strdup' function. */
 #cmakedefine HAVE_STRDUP ${HAVE_STRDUP}
@@ -420,15 +369,6 @@
 
 /* Define to 1 if you have the `strerror_r' function. */
 #cmakedefine HAVE_STRERROR_R ${HAVE_STRERROR_R}
-
-/* Define to 1 if you have the <strings.h> header file. */
-#cmakedefine HAVE_STRINGS_H ${HAVE_STRINGS_H}
-
-/* Define to 1 if you have the <string.h> header file. */
-#cmakedefine HAVE_STRING_H ${HAVE_STRING_H}
-
-/* Define to 1 if you have the `strrchr' function. */
-#cmakedefine HAVE_STRRCHR ${HAVE_STRRCHR}
 
 /* Define to 1 if you have the `strtof' function. */
 #cmakedefine HAVE_STRTOF ${HAVE_STRTOF}
