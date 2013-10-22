@@ -808,26 +808,21 @@ void Verifier::VerifyParameterAttrs(AttributeSet Attrs, unsigned Idx, Type *Ty,
             !Attrs.hasAttribute(Idx, Attribute::Nest) &&
             !Attrs.hasAttribute(Idx, Attribute::StructRet) &&
             !Attrs.hasAttribute(Idx, Attribute::NoCapture) &&
-            !Attrs.hasAttribute(Idx, Attribute::Returned),
-            "Attribute 'byval', 'nest', 'sret', 'nocapture', and 'returned' "
-            "do not apply to return values!", V);
+            !Attrs.hasAttribute(Idx, Attribute::Returned) &&
+            !Attrs.hasAttribute(Idx, Attribute::InAlloca),
+            "Attribute 'byval', 'inalloca', 'nest', 'sret', 'nocapture', and "
+            "'returned' do not apply to return values!", V);
 
-  // Check for mutually incompatible attributes.
-  Assert1(!((Attrs.hasAttribute(Idx, Attribute::ByVal) &&
-             Attrs.hasAttribute(Idx, Attribute::Nest)) ||
-            (Attrs.hasAttribute(Idx, Attribute::ByVal) &&
-             Attrs.hasAttribute(Idx, Attribute::StructRet)) ||
-            (Attrs.hasAttribute(Idx, Attribute::Nest) &&
-             Attrs.hasAttribute(Idx, Attribute::StructRet))), "Attributes "
-          "'byval, nest, and sret' are incompatible!", V);
-
-  Assert1(!((Attrs.hasAttribute(Idx, Attribute::ByVal) &&
-             Attrs.hasAttribute(Idx, Attribute::Nest)) ||
-            (Attrs.hasAttribute(Idx, Attribute::ByVal) &&
-             Attrs.hasAttribute(Idx, Attribute::InReg)) ||
-            (Attrs.hasAttribute(Idx, Attribute::Nest) &&
-             Attrs.hasAttribute(Idx, Attribute::InReg))), "Attributes "
-          "'byval, nest, and inreg' are incompatible!", V);
+  // Check for mutually incompatible attributes.  Only inreg is compatible with
+  // sret.
+  unsigned AttrCount = 0;
+  AttrCount += Attrs.hasAttribute(Idx, Attribute::ByVal);
+  AttrCount += Attrs.hasAttribute(Idx, Attribute::InAlloca);
+  AttrCount += Attrs.hasAttribute(Idx, Attribute::StructRet) ||
+               Attrs.hasAttribute(Idx, Attribute::InReg);
+  AttrCount += Attrs.hasAttribute(Idx, Attribute::Nest);
+  Assert1(AttrCount <= 1, "Attributes 'byval', 'inalloca', 'inreg', 'nest', "
+                          "and 'sret' are incompatible!", V);
 
   Assert1(!(Attrs.hasAttribute(Idx, Attribute::StructRet) &&
             Attrs.hasAttribute(Idx, Attribute::Returned)), "Attributes "
@@ -850,14 +845,18 @@ void Verifier::VerifyParameterAttrs(AttributeSet Attrs, unsigned Idx, Type *Ty,
           "Wrong types for attribute: " +
           AttributeFuncs::typeIncompatible(Ty, Idx).getAsString(Idx), V);
 
-  if (PointerType *PTy = dyn_cast<PointerType>(Ty))
-    Assert1(!Attrs.hasAttribute(Idx, Attribute::ByVal) ||
-            PTy->getElementType()->isSized(),
-            "Attribute 'byval' does not support unsized types!", V);
-  else
+  if (PointerType *PTy = dyn_cast<PointerType>(Ty)) {
+    if (!PTy->getElementType()->isSized()) {
+      Assert1(!Attrs.hasAttribute(Idx, Attribute::ByVal) &&
+              !Attrs.hasAttribute(Idx, Attribute::InAlloca),
+              "Attribute 'byval' and 'inalloca' do not support unsized types!",
+              V);
+    }
+  } else {
     Assert1(!Attrs.hasAttribute(Idx, Attribute::ByVal),
             "Attribute 'byval' only applies to parameters with pointer type!",
             V);
+  }
 }
 
 // VerifyFunctionAttrs - Check parameter attributes against a function type.
