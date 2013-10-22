@@ -700,6 +700,27 @@ Currently, only the following parameter attributes are defined:
     site. If the alignment is not specified, then the code generator
     makes a target-specific assumption.
 
+``inalloca``
+    The ``inalloca`` argument attribute allows the caller to get the
+    address of an outgoing argument to a ``call`` or ``invoke`` before
+    it executes.  It is similar to ``byval`` in that it is used to pass
+    arguments by value, but it guarantees that the argument will not be
+    copied.  The caller must pass in an alloca value into an
+    ``inalloca`` parameter, and that alloca will take on the address of
+    the stack space used for the outgoing argument to the call.  An
+    alloca may only be used as an ``inalloca`` argument at most once,
+    and ``inalloca`` may only be applied to parameters that are not
+    passed in registers according to the target's ABI.
+
+    To resolve lifetime issues between multiple call sites, each call
+    site with ``inalloca`` parameters must have a ``stackrestore`` value
+    produced by a call to the :ref:`llvm.stacksave <int_stacksave>`
+    intrinsic.  The allocas are dead after the call site, even if an
+    ``invoke`` unwinds to a :ref:`landingpad <i_landingpad>`.
+
+.. warning:: This feature is still under development and is not yet
+    functional.
+
 ``sret``
     This indicates that the pointer parameter specifies the address of a
     structure that is the return value of the function in the source

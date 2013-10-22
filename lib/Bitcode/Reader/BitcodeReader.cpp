@@ -523,6 +523,9 @@ bool BitcodeReader::ParseAttrKind(uint64_t Code, Attribute::AttrKind *Kind) {
   case bitc::ATTR_KIND_BY_VAL:
     *Kind = Attribute::ByVal;
     return false;
+  case bitc::ATTR_KIND_IN_ALLOCA:
+    *Kind = Attribute::InAlloca;
+    return false;
   case bitc::ATTR_KIND_COLD:
     *Kind = Attribute::Cold;
     return false;
