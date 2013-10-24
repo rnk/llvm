@@ -711,12 +711,13 @@ Currently, only the following parameter attributes are defined:
     alloca may be used as an ``inalloca`` argument at most once, and
     ``inalloca`` may only be applied to parameters that are not passed
     in registers according to the target's ABI.  If a call site has
-    ``inalloca`` arguments, no additional allocas can dynamically occur
-    between the call site and the first alloca used by the call, unless
-    they are cleared with calls to :ref:`llvm.stacksave <int_stacksave>`
-    and :ref:`llvm.stackrestore <int_stackrestore>`.  After the call,
-    any ``inalloca`` arguments are considered to contain :ref:`undef
-    values <undefvalues>`, and so they can never be ``readonly``.
+    ``inalloca`` arguments, no additional allocas can occur between the
+    call site and the first alloca used by the call, unless they are
+    cleared with calls to :ref:`llvm.stacksave <int_stacksave>` and
+    :ref:`llvm.stackrestore <int_stackrestore>`.  Doing so causes
+    undefined behavior.  After the call, any ``inalloca`` arguments are
+    considered to contain :ref:`undef values <undefvalues>`, and so they
+    can never be ``readonly``.
 
 ``sret``
     This indicates that the pointer parameter specifies the address of a
