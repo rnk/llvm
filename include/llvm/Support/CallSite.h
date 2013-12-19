@@ -334,6 +334,7 @@ private:
 class ImmutableCallSite : public CallSiteBase<> {
   typedef CallSiteBase<> Base;
 public:
+  ImmutableCallSite() {}
   ImmutableCallSite(const Value* V) : Base(V) {}
   ImmutableCallSite(const CallInst *CI) : Base(CI) {}
   ImmutableCallSite(const InvokeInst *II) : Base(II) {}

@@ -916,7 +916,31 @@ bool AllocaInst::isStaticAlloca() const {
   
   // Must be in the entry block.
   const BasicBlock *Parent = getParent();
-  return Parent == &Parent->getParent()->front();
+  return Parent == &Parent->getParent()->front() && !isUsedWithInAlloca();
+}
+
+bool AllocaInst::isUsedWithInAlloca() const {
+  // TODO: Cache the result in getSubclassDataFromInstruction().  If the bit is
+  // off, we know this isn't used with inalloca.  If it's on, we have to iterate
+  // to confirm that it's still used.  Make the construction of a CallInst with
+  // inalloca flip the bit on, but don't worry about making ArgPromotion or
+  // Inlining flip the bit off.  This may mean the alloca is can be magically
+  // promoted from a dynamic to static alloca.
+  //
+  // TODO: Measure perf.
+  return bool(getInAllocaCallSite());
+}
+
+ImmutableCallSite AllocaInst::getInAllocaCallSite() const {
+  for (const_use_iterator UI = use_begin(), UE = use_end(); UI != UE; ++UI) {
+    ImmutableCallSite CS(*UI);
+    if (!CS)
+      continue;
+    unsigned ArgNo = CS.getArgumentNo(UI);
+    if (CS.paramHasAttr(1 + ArgNo, Attribute::InAlloca))
+      return CS;
+  }
+  return ImmutableCallSite();
 }
 
 //===----------------------------------------------------------------------===//

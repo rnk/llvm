@@ -32,6 +32,7 @@ class ConstantInt;
 class ConstantRange;
 class DataLayout;
 class LLVMContext;
+class ImmutableCallSite;
 
 enum AtomicOrdering {
   NotAtomic = 0,
@@ -109,6 +110,14 @@ public:
   /// function and is a constant size.  If so, the code generator will fold it
   /// into the prolog/epilog code, so it is basically free.
   bool isStaticAlloca() const;
+
+  /// isUsedWithInAlloca - Return true if this alloca is used as an inalloca
+  /// argument to a call.  Such allocas are never considered static.
+  bool isUsedWithInAlloca() const;
+
+  /// getInAllocaCallSite - Get the call site which uses this alloca with the
+  /// InAlloca attribute, or nothing.  There can be zero or one such call sites.
+  ImmutableCallSite getInAllocaCallSite() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static inline bool classof(const Instruction *I) {
