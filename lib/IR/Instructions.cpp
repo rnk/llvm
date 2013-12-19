@@ -920,14 +920,9 @@ bool AllocaInst::isStaticAlloca() const {
 }
 
 bool AllocaInst::isUsedWithInAlloca() const {
-  // TODO: Cache the result in getSubclassDataFromInstruction().  If the bit is
-  // off, we know this isn't used with inalloca.  If it's on, we have to iterate
-  // to confirm that it's still used.  Make the construction of a CallInst with
-  // inalloca flip the bit on, but don't worry about making ArgPromotion or
-  // Inlining flip the bit off.  This may mean the alloca is can be magically
-  // promoted from a dynamic to static alloca.
-  //
-  // TODO: Measure perf.
+  // This is linear in the number of uses.  If it becomes hot, we can cache the
+  // result in Instruction's free subclass bits and require passes forming
+  // inalloca arguments to invalidate the cache.
   return bool(getInAllocaCallSite());
 }
 
