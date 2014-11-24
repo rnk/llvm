@@ -862,6 +862,12 @@ def LOAD_STACK_GUARD : Instruction {
   let hasSideEffects = 0;
   bit isPseudo = 1;
 }
+def FRAME_ALLOC : Instruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins ptr_rc:$symbol, i32imm:$id);
+  let hasSideEffects = 0;
+  let hasCtrlDep = 1;
+}
 }
 
 //===----------------------------------------------------------------------===//

@@ -116,7 +116,9 @@ enum {
   /// of live pointers for relocation by the garbage collector.  It is
   /// intended to support garbage collection with fully precise relocating
   /// collectors and deoptimizations in either the callee or caller.
-  STATEPOINT = 20
+  STATEPOINT = 20,
+
+  FRAME_ALLOC = 21,
 };
 } // end namespace TargetOpcode
 } // end namespace llvm

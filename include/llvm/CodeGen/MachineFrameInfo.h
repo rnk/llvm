@@ -158,6 +158,10 @@ class MachineFrameInfo {
   /// to builtin \@llvm.experimental.patchpoint.
   bool HasPatchPoint;
 
+  /// Size of the frame allocation requested by a call to @llvm.frameallocate,
+  /// if one is present in the function. Zero otherwise.
+  uint64_t FrameAllocationSize;
+
   /// StackSize - The prolog/epilog code inserter calculates the final stack
   /// offsets for all of the fixed size objects, updating the Objects list
   /// above.  It then updates StackSize to contain the number of bytes that need
@@ -252,6 +256,7 @@ public:
       : StackAlignment(StackAlign), StackRealignable(isStackRealign),
         RealignOption(RealignOpt) {
     StackSize = NumFixedObjects = OffsetAdjustment = MaxAlignment = 0;
+    FrameAllocationSize = 0;
     HasVarSizedObjects = false;
     FrameAddressTaken = false;
     ReturnAddressTaken = false;
@@ -281,6 +286,11 @@ public:
   /// contains any variable sized objects.
   ///
   bool hasVarSizedObjects() const { return HasVarSizedObjects; }
+
+  /// Return true if the function contained a call to @llvm.frameallocate with a
+  /// non-zero size argument.
+  bool hasFrameAllocation() const { return FrameAllocationSize != 0; }
+  uint64_t getFrameAllocationSize() const { return FrameAllocationSize; }
 
   /// getStackProtectorIndex/setStackProtectorIndex - Return the index for the
   /// stack protector object.
@@ -515,6 +525,10 @@ public:
   /// CreateFixedSpillStackObject - Create a spill slot at a fixed location
   /// on the stack.  Returns an index with a negative value.
   int CreateFixedSpillStackObject(uint64_t Size, int64_t SPOffset);
+
+  /// Allocates memory at a fixed, target-specific offset from the frame
+  /// pointer. Marks the function as having its frame address taken.
+  int CreateFrameAllocation(uint64_t Size);
 
   /// isFixedObjectIndex - Returns true if the specified index corresponds to a
   /// fixed stack object.

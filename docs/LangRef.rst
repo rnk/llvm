@@ -7261,6 +7261,54 @@ Note that calling this intrinsic does not prevent function inlining or
 other aggressive transformations, so the value returned may not be that
 of the obvious source-language caller.
 
+'``llvm.frameallocate``' and '``llvm.recoverframeallocation``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i8* @llvm.frameallocate(i32 %size)
+      declare i8* @llvm.recoverframeallocation(i8* %func, i8* %fp)
+
+Overview:
+"""""""""
+
+The '``llvm.frameallocate``' intrinsic allocates stack memory at some fixed
+offset from the frame pointer, and the '``llvm.recoverframeallocation``'
+intrinsic applies that offset to a live frame pointer to recover the address of
+the allocation.
+
+Arguments:
+""""""""""
+
+The ``size`` argument to '``llvm.frameallocate``' must be a constant integer
+indicating the amount of stack memory to allocate.
+
+The ``func`` argument to '``llvm.recoverframeallocation``' must be a constant
+bitcasted pointer to a function defined in the current module. The code
+generator cannot determine the frame allocation offset of functions defined in
+other modules.
+
+The ``fp`` argument to '``llvm.recoverframeallocation``' must be a frame
+pointer of a call frame that is currently live. The return value of
+'``llvm.frameaddress``' is one way to produce such a value, but most platforms
+also expose the frame pointer through stack unwinding mechanisms.
+
+Semantics:
+""""""""""
+
+These intrinsics allow a group of functions to share the stack memory
+allocation of an ancestor stack frame. The memory returned from
+'``llvm.frameallocate``' is allocated prior to stack realignment to produce a
+fixed offset from the frame pointer, so the memory is only aligned to the
+ABI-required stack alignment.  Each function may only call
+'``llvm.frameallocate``' one or zero times from the function entry block.  The
+frame allocation intrinsic inhibits inlining, as any frame allocations in the
+inlined function frame are likely to be at a different offset from the one used
+by '``llvm.recoverframeallocation``' called with the uninlined function.
+
 .. _int_read_register:
 .. _int_write_register:
 
