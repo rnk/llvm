@@ -10,6 +10,12 @@ define internal void @f() {
 }
 ; CHECK: multiple calls to llvm.frameallocate in one function
 
+define internal void @f_a(i32 %n) {
+  call i8* @llvm.frameallocate(i32 %n)
+  ret void
+}
+; CHECK: llvm.frameallocate argument must be constant integer size
+
 define internal void @g() {
 entry:
   br label %not_entry

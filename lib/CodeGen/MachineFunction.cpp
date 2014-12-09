@@ -592,7 +592,6 @@ int MachineFrameInfo::CreateFrameAllocation(uint64_t Size) {
   // used in conjunction with unwind mechanisms that leak the frame pointer.
   setFrameAddressIsTaken(true);
   Size = RoundUpToAlignment(Size, StackAlignment);
-  FrameAllocationSize = Size;
   return CreateStackObject(Size, StackAlignment, false);
 }
 

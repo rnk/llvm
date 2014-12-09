@@ -7278,13 +7278,15 @@ Overview:
 The '``llvm.frameallocate``' intrinsic allocates stack memory at some fixed
 offset from the frame pointer, and the '``llvm.recoverframeallocation``'
 intrinsic applies that offset to a live frame pointer to recover the address of
-the allocation.
+the allocation. The offset is computed during frame layout of the caller of
+``llvm.frameallocate``.
 
 Arguments:
 """"""""""
 
 The ``size`` argument to '``llvm.frameallocate``' must be a constant integer
-indicating the amount of stack memory to allocate.
+indicating the amount of stack memory to allocate. As with allocas, allocating
+zero bytes is legal, but the result is undefined.
 
 The ``func`` argument to '``llvm.recoverframeallocation``' must be a constant
 bitcasted pointer to a function defined in the current module. The code
@@ -7299,8 +7301,8 @@ also expose the frame pointer through stack unwinding mechanisms.
 Semantics:
 """"""""""
 
-These intrinsics allow a group of functions to share the stack memory
-allocation of an ancestor stack frame. The memory returned from
+These intrinsics allow a group of functions to access one stack memory
+allocation in an ancestor stack frame. The memory returned from
 '``llvm.frameallocate``' is allocated prior to stack realignment to produce a
 fixed offset from the frame pointer, so the memory is only aligned to the
 ABI-required stack alignment.  Each function may only call

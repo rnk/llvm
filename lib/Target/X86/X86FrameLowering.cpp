@@ -943,8 +943,6 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
       MaxAlign = MaxAlign ? MaxAlign : 4;
   }
 
-  MachineBasicBlock::iterator PopFP;
-
   if (hasFP(MF)) {
     // Calculate required stack adjustment.
     uint64_t FrameSize = StackSize - SlotSize;
@@ -958,8 +956,8 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     }
 
     // Pop EBP.
-    PopFP = BuildMI(MBB, MBBI, DL, TII.get(Is64Bit ? X86::POP64r : X86::POP32r),
-                    MachineFramePtr);
+    BuildMI(MBB, MBBI, DL,
+            TII.get(Is64Bit ? X86::POP64r : X86::POP32r), MachineFramePtr);
   } else {
     NumBytes = StackSize - CSSize;
   }
