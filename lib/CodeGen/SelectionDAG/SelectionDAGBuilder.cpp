@@ -5605,8 +5605,6 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   case Intrinsic::recoverframeallocation: {
     // i8* @llvm.recoverframeallocation(i8* %fn, i8* %fp)
     MachineFunction &MF = DAG.getMachineFunction();
-    MachineRegisterInfo &MRI = MF.getRegInfo();
-    const TargetInstrInfo *TII = DAG.getSubtarget().getInstrInfo();
     MVT PtrVT = TLI.getPointerTy(0);
 
     // Get the symbol that defines the frame offset.

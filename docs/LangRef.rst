@@ -7303,13 +7303,13 @@ Semantics:
 
 These intrinsics allow a group of functions to access one stack memory
 allocation in an ancestor stack frame. The memory returned from
-'``llvm.frameallocate``' is allocated prior to stack realignment to produce a
-fixed offset from the frame pointer, so the memory is only aligned to the
-ABI-required stack alignment.  Each function may only call
-'``llvm.frameallocate``' one or zero times from the function entry block.  The
-frame allocation intrinsic inhibits inlining, as any frame allocations in the
-inlined function frame are likely to be at a different offset from the one used
-by '``llvm.recoverframeallocation``' called with the uninlined function.
+'``llvm.frameallocate``' may be allocated prior to stack realignment, so the
+memory is only aligned to the ABI-required stack alignment.  Each function may
+only call '``llvm.frameallocate``' one or zero times from the function entry
+block.  The frame allocation intrinsic inhibits inlining, as any frame
+allocations in the inlined function frame are likely to be at a different
+offset from the one used by '``llvm.recoverframeallocation``' called with the
+uninlined function.
 
 .. _int_read_register:
 .. _int_write_register:

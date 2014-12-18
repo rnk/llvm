@@ -863,6 +863,9 @@ def LOAD_STACK_GUARD : Instruction {
   bit isPseudo = 1;
 }
 def FRAME_ALLOC : Instruction {
+  // This instruction is really just a label. It has to be part of the chain so
+  // that it doesn't get dropped from the DAG, but it produces nothing and has
+  // no side effects.
   let OutOperandList = (outs);
   let InOperandList = (ins ptr_rc:$symbol, i32imm:$id);
   let hasSideEffects = 0;
