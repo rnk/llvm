@@ -122,7 +122,9 @@ public:
       : TM(std::move(TM)), MM(std::move(MM)),
         Mang(this->TM->getSubtargetImpl()->getDataLayout()),
         NotifyObjectLoaded(*this), NotifyFinalized(*this),
-        ObjectLayer(NotifyObjectLoaded, NotifyFinalized),
+        ObjectLayer(NotifyObjectLoaded,
+                    std::function<void(ObjectLinkingLayerBase::ObjSetHandleT)>(
+                        NotifyFinalized)),
         CompileLayer(ObjectLayer, SimpleCompiler(*this->TM)),
         LazyEmitLayer(CompileLayer) {
     setDataLayout(this->TM->getSubtargetImpl()->getDataLayout());
@@ -257,7 +259,7 @@ private:
                     const ObjListT &Objects,
                     const LoadedObjInfoListT &Infos) const {
       M.UnfinalizedSections[H] = std::move(M.SectionsAllocatedSinceLastLoad);
-      M.SectionsAllocatedSinceLastLoad = {};
+      M.SectionsAllocatedSinceLastLoad = SectionAddrSet{};
       assert(Objects.size() == Infos.size() &&
              "Incorrect number of Infos for Objects.");
       for (unsigned I = 0; I < Objects.size(); ++I)
