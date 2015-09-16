@@ -167,6 +167,17 @@ bool WinEHStatePass::runOnFunction(Function &F) {
   if (!isMSVCEHPersonality(Personality))
     return false;
 
+  // See if there are any EH pads. Do nothing if there are none.
+  bool HasPads = false;
+  for (BasicBlock &BB : F) {
+    if (BB.isEHPad()) {
+      HasPads = true;
+      break;
+    }
+  }
+  if (!HasPads)
+    return false;
+
   // Disable frame pointer elimination in this function.
   // FIXME: Do the nested handlers need to keep the parent ebp in ebp, or can we
   // use an arbitrary register?
