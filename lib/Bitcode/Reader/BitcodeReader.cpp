@@ -42,14 +42,6 @@ enum {
   SWITCH_INST_MAGIC = 0x4B5 // May 2012 => 1205 => Hex
 };
 
-/// Indicates which operator an operand allows (for the few operands that may
-/// only reference a certain operator).
-enum OperatorConstraint {
-  OC_None = 0,  // No constraint
-  OC_CatchPad,  // Must be CatchPadInst
-  OC_CleanupPad // Must be CleanupPadInst
-};
-
 class BitcodeReaderValueList {
   std::vector<WeakVH> ValuePtrs;
 
@@ -93,10 +85,9 @@ public:
   }
 
   Constant *getConstantFwdRef(unsigned Idx, Type *Ty);
-  Value *getValueFwdRef(unsigned Idx, Type *Ty,
-                        OperatorConstraint OC = OC_None);
+  Value *getValueFwdRef(unsigned Idx, Type *Ty);
 
-  bool assignValue(Value *V, unsigned Idx);
+  void assignValue(Value *V, unsigned Idx);
 
   /// Once all constants are read, this method bulk resolves any forward
   /// references.
@@ -297,11 +288,10 @@ private:
   StructType *createIdentifiedStructType(LLVMContext &Context);
 
   Type *getTypeByID(unsigned ID);
-  Value *getFnValueByID(unsigned ID, Type *Ty,
-                        OperatorConstraint OC = OC_None) {
+  Value *getFnValueByID(unsigned ID, Type *Ty) {
     if (Ty && Ty->isMetadataTy())
       return MetadataAsValue::get(Ty->getContext(), getFnMetadataByID(ID));
-    return ValueList.getValueFwdRef(ID, Ty, OC);
+    return ValueList.getValueFwdRef(ID, Ty);
   }
   Metadata *getFnMetadataByID(unsigned ID) {
     return MDValueList.getValueFwdRef(ID);
@@ -344,9 +334,8 @@ private:
   /// past the number of slots used by the value in the record. Return true if
   /// there is an error.
   bool popValue(SmallVectorImpl<uint64_t> &Record, unsigned &Slot,
-                unsigned InstNum, Type *Ty, Value *&ResVal,
-                OperatorConstraint OC = OC_None) {
-    if (getValue(Record, Slot, InstNum, Ty, ResVal, OC))
+                unsigned InstNum, Type *Ty, Value *&ResVal) {
+    if (getValue(Record, Slot, InstNum, Ty, ResVal))
       return true;
     // All values currently take a single record slot.
     ++Slot;
@@ -355,34 +344,32 @@ private:
 
   /// Like popValue, but does not increment the Slot number.
   bool getValue(SmallVectorImpl<uint64_t> &Record, unsigned Slot,
-                unsigned InstNum, Type *Ty, Value *&ResVal,
-                OperatorConstraint OC = OC_None) {
-    ResVal = getValue(Record, Slot, InstNum, Ty, OC);
+                unsigned InstNum, Type *Ty, Value *&ResVal) {
+    ResVal = getValue(Record, Slot, InstNum, Ty);
     return ResVal == nullptr;
   }
 
   /// Version of getValue that returns ResVal directly, or 0 if there is an
   /// error.
   Value *getValue(SmallVectorImpl<uint64_t> &Record, unsigned Slot,
-                  unsigned InstNum, Type *Ty, OperatorConstraint OC = OC_None) {
+                  unsigned InstNum, Type *Ty) {
     if (Slot == Record.size()) return nullptr;
     unsigned ValNo = (unsigned)Record[Slot];
     // Adjust the ValNo, if it was encoded relative to the InstNum.
     if (UseRelativeIDs)
       ValNo = InstNum - ValNo;
-    return getFnValueByID(ValNo, Ty, OC);
+    return getFnValueByID(ValNo, Ty);
   }
 
   /// Like getValue, but decodes signed VBRs.
   Value *getValueSigned(SmallVectorImpl<uint64_t> &Record, unsigned Slot,
-                        unsigned InstNum, Type *Ty,
-                        OperatorConstraint OC = OC_None) {
+                        unsigned InstNum, Type *Ty) {
     if (Slot == Record.size()) return nullptr;
     unsigned ValNo = (unsigned)decodeSignRotatedValue(Record[Slot]);
     // Adjust the ValNo, if it was encoded relative to the InstNum.
     if (UseRelativeIDs)
       ValNo = InstNum - ValNo;
-    return getFnValueByID(ValNo, Ty, OC);
+    return getFnValueByID(ValNo, Ty);
   }
 
   /// Converts alignment exponent (i.e. power of two (or zero)) to the
@@ -898,10 +885,10 @@ struct OperandTraits<ConstantPlaceHolder> :
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ConstantPlaceHolder, Value)
 }
 
-bool BitcodeReaderValueList::assignValue(Value *V, unsigned Idx) {
+void BitcodeReaderValueList::assignValue(Value *V, unsigned Idx) {
   if (Idx == size()) {
     push_back(V);
-    return false;
+    return;
   }
 
   if (Idx >= size())
@@ -910,7 +897,7 @@ bool BitcodeReaderValueList::assignValue(Value *V, unsigned Idx) {
   WeakVH &OldV = ValuePtrs[Idx];
   if (!OldV) {
     OldV = V;
-    return false;
+    return;
   }
 
   // Handle constants and non-constants (e.g. instrs) differently for
@@ -921,26 +908,11 @@ bool BitcodeReaderValueList::assignValue(Value *V, unsigned Idx) {
   } else {
     // If there was a forward reference to this value, replace it.
     Value *PrevVal = OldV;
-    // Check operator constraints.  We only put cleanuppads or catchpads in
-    // the forward value map if the value is constrained to match.
-    if (CatchPadInst *CatchPad = dyn_cast<CatchPadInst>(PrevVal)) {
-      if (!isa<CatchPadInst>(V))
-        return true;
-      // Delete the dummy basic block that was created with the sentinel
-      // catchpad.
-      BasicBlock *DummyBlock = CatchPad->getUnwindDest();
-      assert(DummyBlock == CatchPad->getNormalDest());
-      CatchPad->dropAllReferences();
-      delete DummyBlock;
-    } else if (isa<CleanupPadInst>(PrevVal)) {
-      if (!isa<CleanupPadInst>(V))
-        return true;
-    }
     OldV->replaceAllUsesWith(V);
     delete PrevVal;
   }
 
-  return false;
+  return;
 }
 
 
@@ -961,8 +933,7 @@ Constant *BitcodeReaderValueList::getConstantFwdRef(unsigned Idx,
   return C;
 }
 
-Value *BitcodeReaderValueList::getValueFwdRef(unsigned Idx, Type *Ty,
-                                              OperatorConstraint OC) {
+Value *BitcodeReaderValueList::getValueFwdRef(unsigned Idx, Type *Ty) {
   // Bail out for a clearly invalid value. This would make us call resize(0)
   if (Idx == UINT_MAX)
     return nullptr;
@@ -974,39 +945,14 @@ Value *BitcodeReaderValueList::getValueFwdRef(unsigned Idx, Type *Ty,
     // If the types don't match, it's invalid.
     if (Ty && Ty != V->getType())
       return nullptr;
-    if (!OC)
-      return V;
-    // Use dyn_cast to enforce operator constraints
-    switch (OC) {
-    case OC_CatchPad:
-      return dyn_cast<CatchPadInst>(V);
-    case OC_CleanupPad:
-      return dyn_cast<CleanupPadInst>(V);
-    default:
-      llvm_unreachable("Unexpected operator constraint");
-    }
+    return V;
   }
 
   // No type specified, must be invalid reference.
   if (!Ty) return nullptr;
 
   // Create and return a placeholder, which will later be RAUW'd.
-  Value *V;
-  switch (OC) {
-  case OC_None:
-    V = new Argument(Ty);
-    break;
-  case OC_CatchPad: {
-    BasicBlock *BB = BasicBlock::Create(Context);
-    V = CatchPadInst::Create(BB, BB, {});
-    break;
-  }
-  default:
-    assert(OC == OC_CleanupPad && "unexpected operator constraint");
-    V = CleanupPadInst::Create(Context, {});
-    break;
-  }
-
+  Value *V = new Argument(Ty);
   ValuePtrs[Idx] = V;
   return V;
 }
@@ -2999,8 +2945,7 @@ std::error_code BitcodeReader::parseConstants() {
     }
     }
 
-    if (ValueList.assignValue(V, NextCstNo))
-      return error("Invalid forward reference");
+    ValueList.assignValue(V, NextCstNo);
     ++NextCstNo;
   }
 }
@@ -4446,8 +4391,8 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != 1 && Record.size() != 2)
         return error("Invalid record");
       unsigned Idx = 0;
-      Value *CleanupPad = getValue(Record, Idx++, NextValueNo,
-                                   Type::getTokenTy(Context), OC_CleanupPad);
+      Value *CleanupPad =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
       if (!CleanupPad)
         return error("Invalid record");
       BasicBlock *UnwindDest = nullptr;
@@ -4466,8 +4411,8 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != 2)
         return error("Invalid record");
       unsigned Idx = 0;
-      Value *CatchPad = getValue(Record, Idx++, NextValueNo,
-                                 Type::getTokenTy(Context), OC_CatchPad);
+      Value *CatchPad =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
       if (!CatchPad)
         return error("Invalid record");
       BasicBlock *BB = getBasicBlock(Record[Idx++]);
@@ -4478,15 +4423,13 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CATCHPAD: { // CATCHPAD: [bb#,bb#,num,(ty,val)*]
-      if (Record.size() < 3)
+    case bitc::FUNC_CODE_INST_CATCHPAD: { // CATCHPAD: [val,num,(ty,val)*]
+      if (Record.size() < 2)
         return error("Invalid record");
       unsigned Idx = 0;
-      BasicBlock *NormalBB = getBasicBlock(Record[Idx++]);
-      if (!NormalBB)
-        return error("Invalid record");
-      BasicBlock *UnwindBB = getBasicBlock(Record[Idx++]);
-      if (!UnwindBB)
+      Value *CatchSwitch =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
+      if (!CatchSwitch)
         return error("Invalid record");
       unsigned NumArgOperands = Record[Idx++];
       SmallVector<Value *, 2> Args;
@@ -4499,14 +4442,16 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != Idx)
         return error("Invalid record");
 
-      I = CatchPadInst::Create(NormalBB, UnwindBB, Args);
+      I = CatchPadInst::Create(cast<CatchSwitchInst>(CatchSwitch), Args);
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_TERMINATEPAD: { // TERMINATEPAD: [bb#,num,(ty,val)*]
-      if (Record.size() < 1)
+    case bitc::FUNC_CODE_INST_TERMINATEPAD: { // TERMINATEPAD: [outer_scope,bb#,num,(ty,val)*]
+      if (Record.size() < 2)
         return error("Invalid record");
       unsigned Idx = 0;
+      Value *OuterScope =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
       bool HasUnwindDest = !!Record[Idx++];
       BasicBlock *UnwindDest = nullptr;
       if (HasUnwindDest) {
@@ -4527,7 +4472,7 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != Idx)
         return error("Invalid record");
 
-      I = TerminatePadInst::Create(Context, UnwindDest, Args);
+      I = TerminatePadInst::Create(OuterScope, UnwindDest, Args);
       InstructionList.push_back(I);
       break;
     }
@@ -4535,6 +4480,8 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() < 1)
         return error("Invalid record");
       unsigned Idx = 0;
+      Value *OuterScope =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
       unsigned NumArgOperands = Record[Idx++];
       SmallVector<Value *, 2> Args;
       for (unsigned Op = 0; Op != NumArgOperands; ++Op) {
@@ -4546,20 +4493,25 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != Idx)
         return error("Invalid record");
 
-      I = CleanupPadInst::Create(Context, Args);
+      I = CleanupPadInst::Create(OuterScope, Args);
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CATCHENDPAD: { // CATCHENDPADINST: [bb#] or []
-      if (Record.size() > 1)
+    case bitc::FUNC_CODE_INST_CATCHENDPAD: { // CATCHENDPADINST: [val,bb#] or [val]
+      if (Record.size() != 1 && Record.size() != 2)
+        return error("Invalid record");
+      unsigned Idx = 0;
+      Value *CatchSwitch =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
+      if (!CatchSwitch)
         return error("Invalid record");
       BasicBlock *BB = nullptr;
-      if (Record.size() == 1) {
-        BB = getBasicBlock(Record[0]);
+      if (Record.size() == 2) {
+        BB = getBasicBlock(Record[Idx++]);
         if (!BB)
           return error("Invalid record");
       }
-      I = CatchEndPadInst::Create(Context, BB);
+      I = CatchEndPadInst::Create(cast<CatchSwitchInst>(CatchSwitch), BB);
       InstructionList.push_back(I);
       break;
     }
@@ -4567,8 +4519,8 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (Record.size() != 1 && Record.size() != 2)
         return error("Invalid record");
       unsigned Idx = 0;
-      Value *CleanupPad = getValue(Record, Idx++, NextValueNo,
-                                   Type::getTokenTy(Context), OC_CleanupPad);
+      Value *CleanupPad =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
       if (!CleanupPad)
         return error("Invalid record");
 
@@ -5200,8 +5152,7 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
 
     // Non-void values get registered in the value table for future use.
     if (I && !I->getType()->isVoidTy())
-      if (ValueList.assignValue(I, NextValueNo++))
-        return error("Invalid forward reference");
+      ValueList.assignValue(I, NextValueNo++);
   }
 
 OutOfRecordLoop:

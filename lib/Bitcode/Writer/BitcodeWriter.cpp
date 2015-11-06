@@ -1972,12 +1972,10 @@ static void WriteInstruction(const Instruction &I, unsigned InstID,
   case Instruction::CatchPad: {
     Code = bitc::FUNC_CODE_INST_CATCHPAD;
     const auto &CPI = cast<CatchPadInst>(I);
-    Vals.push_back(VE.getValueID(CPI.getNormalDest()));
-    Vals.push_back(VE.getValueID(CPI.getUnwindDest()));
-    unsigned NumArgOperands = CPI.getNumArgOperands();
-    Vals.push_back(NumArgOperands);
-    for (unsigned Op = 0; Op != NumArgOperands; ++Op)
-      PushValueAndType(CPI.getArgOperand(Op), InstID, Vals, VE);
+    unsigned NumOperands = CPI.getNumOperands();
+    Vals.push_back(NumOperands);
+    for (unsigned Op = 0; Op != NumOperands; ++Op)
+      PushValueAndType(CPI.getOperand(Op), InstID, Vals, VE);
     break;
   }
   case Instruction::TerminatePad: {

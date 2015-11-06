@@ -739,6 +739,7 @@ private:
   void visitCleanupEndPad(const CleanupEndPadInst &I);
   void visitCleanupRet(const CleanupReturnInst &I);
   void visitCatchEndPad(const CatchEndPadInst &I);
+  void visitCatchSwitch(const CatchSwitchInst &I);
   void visitCatchRet(const CatchReturnInst &I);
   void visitCatchPad(const CatchPadInst &I);
   void visitTerminatePad(const TerminatePadInst &TPI);

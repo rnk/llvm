@@ -1330,17 +1330,19 @@ void llvm::removeUnwindEdge(BasicBlock *BB) {
     NewTI = CleanupReturnInst::Create(CRI->getCleanupPad(), nullptr, CRI);
     UnwindDest = CRI->getUnwindDest();
   } else if (auto *CEP = dyn_cast<CleanupEndPadInst>(TI)) {
-    NewTI = CleanupEndPadInst::Create(CEP->getCleanupPad(), nullptr, CEP);
+    NewTI = CleanupEndPadInst::Create(CEP->getCleanupPad(), nullptr,
+                                      CEP->getName(), CEP);
     UnwindDest = CEP->getUnwindDest();
   } else if (auto *CEP = dyn_cast<CatchEndPadInst>(TI)) {
-    NewTI = CatchEndPadInst::Create(CEP->getContext(), nullptr, CEP);
+    NewTI = CatchEndPadInst::Create(CEP->getCatchSwitch(), nullptr,
+                                    CEP->getName(), CEP);
     UnwindDest = CEP->getUnwindDest();
   } else if (auto *TPI = dyn_cast<TerminatePadInst>(TI)) {
     SmallVector<Value *, 3> TerminatePadArgs;
     for (Value *Operand : TPI->arg_operands())
       TerminatePadArgs.push_back(Operand);
-    NewTI = TerminatePadInst::Create(TPI->getContext(), nullptr,
-                                     TerminatePadArgs, TPI);
+    NewTI = TerminatePadInst::Create(TPI->getOuterScope(), nullptr,
+                                     TerminatePadArgs, TPI->getName(), TPI);
     UnwindDest = TPI->getUnwindDest();
   } else {
     llvm_unreachable("Could not find unwind successor");

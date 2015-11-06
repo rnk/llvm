@@ -223,7 +223,8 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
         MMI.setHasEHFunclets(true);
         MF->getFrameInfo()->setHasOpaqueSPAdjustment(true);
       }
-      if (isa<CatchEndPadInst>(I) || isa<CleanupEndPadInst>(I)) {
+      if (isa<CatchEndPadInst>(I) || isa<CleanupEndPadInst>(I) ||
+          isa<CatchSwitchInst>(I)) {
         assert(&*BB->begin() == I &&
                "WinEHPrepare failed to remove PHIs from imaginary BBs");
         continue;

@@ -481,7 +481,7 @@ private:
   void visitInsertValueInst(InsertValueInst &IVI);
   void visitLandingPadInst(LandingPadInst &I) { markAnythingOverdefined(&I); }
   void visitCleanupPadInst(CleanupPadInst &CPI) { markAnythingOverdefined(&CPI); }
-  void visitCatchPadInst(CatchPadInst &CPI) {
+  void visitCatchSwitchInst(CatchSwitchInst &CPI) {
     markAnythingOverdefined(&CPI);
     visitTerminatorInst(CPI);
   }

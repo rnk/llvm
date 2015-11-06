@@ -88,6 +88,7 @@ struct ClrEHUnwindMapEntry {
 
 struct WinEHFuncInfo {
   DenseMap<const Instruction *, int> EHPadStateMap;
+  DenseMap<const FuncletPadInst *, int> FuncletBaseStateMap;
   DenseMap<const CatchReturnInst *, const BasicBlock *>
       CatchRetSuccessorColorMap;
   DenseMap<MCSymbol *, std::pair<int, MCSymbol *>> InvokeToStateMap;

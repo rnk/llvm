@@ -202,6 +202,7 @@ const char *Instruction::getOpcodeName(unsigned OpCode) {
   case CatchEndPad: return "catchendpad";
   case CatchRet: return "catchret";
   case CatchPad: return "catchpad";
+  case CatchSwitch: return "catchswitch";
   case TerminatePad: return "terminatepad";
 
   // Standard binary operators...
