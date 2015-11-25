@@ -32,15 +32,15 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
-
 using namespace llvm;
 
 #define DEBUG_TYPE "wasm-lower"
 
 namespace {
 // Diagnostic information for unimplemented or unsupported feature reporting.
-// FIXME copied from BPF and AMDGPU.
-class DiagnosticInfoUnsupported : public DiagnosticInfo {
+// TODO: This code is copied from BPF and AMDGPU; consider factoring it out
+// and sharing code.
+class DiagnosticInfoUnsupported final : public DiagnosticInfo {
 private:
   // Debug location where this diagnostic is triggered.
   DebugLoc DLoc;
@@ -115,6 +115,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
   computeRegisterProperties(Subtarget->getRegisterInfo());
 
   setOperationAction(ISD::GlobalAddress, MVTPtr, Custom);
+  setOperationAction(ISD::ExternalSymbol, MVTPtr, Custom);
   setOperationAction(ISD::JumpTable, MVTPtr, Custom);
 
   for (auto T : {MVT::f32, MVT::f64}) {
@@ -387,7 +388,8 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
       fail(DL, DAG, "WebAssembly hasn't implemented cons regs arguments");
     if (In.Flags.isInConsecutiveRegsLast())
       fail(DL, DAG, "WebAssembly hasn't implemented cons regs last arguments");
-    // FIXME Do something with In.getOrigAlign()?
+    // Ignore In.getOrigAlign() because all our arguments are passed in
+    // registers.
     InVals.push_back(
         In.Used
             ? DAG.getNode(WebAssemblyISD::ARGUMENT, DL, In.VT,
@@ -413,6 +415,8 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
     return SDValue();
   case ISD::GlobalAddress:
     return LowerGlobalAddress(Op, DAG);
+  case ISD::ExternalSymbol:
+    return LowerExternalSymbol(Op, DAG);
   case ISD::JumpTable:
     return LowerJumpTable(Op, DAG);
   case ISD::BR_JT:
@@ -432,6 +436,16 @@ SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
     fail(DL, DAG, "WebAssembly only expects the 0 address space");
   return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
                      DAG.getTargetGlobalAddress(GA->getGlobal(), DL, VT));
+}
+
+SDValue WebAssemblyTargetLowering::LowerExternalSymbol(SDValue Op,
+                                                       SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  const auto *ES = cast<ExternalSymbolSDNode>(Op);
+  EVT VT = Op.getValueType();
+  assert(ES->getTargetFlags() == 0 && "WebAssembly doesn't set target flags");
+  return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
+                     DAG.getTargetExternalSymbol(ES->getSymbol(), VT));
 }
 
 SDValue WebAssemblyTargetLowering::LowerJumpTable(SDValue Op,
