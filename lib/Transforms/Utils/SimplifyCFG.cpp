@@ -3255,8 +3255,8 @@ bool SimplifyCFGOpt::SimplifyCleanupReturn(CleanupReturnInst *RI) {
   // updated to continue to the unwind destination of the cleanup pad being
   // simplified.
   BasicBlock *BB = RI->getParent();
-  Instruction *CPInst = dyn_cast<CleanupPadInst>(BB->getFirstNonPHI());
-  if (!CPInst)
+  CleanupPadInst *CPInst = RI->getCleanupPad();
+  if (CPInst->getParent() != BB)
     // This isn't an empty cleanup.
     return false;
 
