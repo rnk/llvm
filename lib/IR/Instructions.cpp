@@ -932,7 +932,7 @@ void CatchSwitchInst::addHandler(BasicBlock *Handler) {
 }
 
 bool CatchSwitchInst::inOutermostScope() const {
-  return isa<ConstantTokenNone>(getOuterScope());
+  return isa<ConstantTokenNone>(getOuterScope()) && unwindsToCaller();
 }
 
 BasicBlock *CatchSwitchInst::getSuccessorV(unsigned idx) const {
@@ -987,7 +987,15 @@ FuncletPadInst::FuncletPadInst(Instruction::FuncletPadOps Op, Value *OuterScope,
 //                        CleanupPadInst Implementation
 //===----------------------------------------------------------------------===//
 bool CleanupPadInst::inOutermostScope() const {
-  return isa<ConstantTokenNone>(getOuterScope());
+  if (!isa<ConstantTokenNone>(getOuterScope()))
+    return false;
+  for (const User *U : users()) {
+    if (const auto *CRI = dyn_cast<CleanupReturnInst>(U))
+      return CRI->unwindsToCaller();
+  }
+  // If we don't have a cleanupret use, then consider this pad to be in the
+  // outermost scope.
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

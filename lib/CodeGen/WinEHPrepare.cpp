@@ -228,14 +228,13 @@ static void calculateSEHStateNumbers(WinEHFuncInfo &FuncInfo,
 
     // It's possible for a cleanup to be visited twice: it might have multiple
     // cleanupret instructions.
-    auto CleanupStatePair = FuncInfo.EHPadStateMap.find(CleanupPad);
-    if (CleanupStatePair != FuncInfo.EHPadStateMap.end()) {
-      assert(CleanupStatePair->second == ParentState);
+    if (FuncInfo.EHPadStateMap.count(CleanupPad)) {
+      assert(FuncInfo.EHPadStateMap[CleanupPad] == ParentState);
       return;
     }
 
     int CleanupState = addSEHFinally(FuncInfo, ParentState, BB);
-    CleanupStatePair->second = CleanupState;
+    FuncInfo.EHPadStateMap[CleanupPad] = CleanupState;
     DEBUG(dbgs() << "Assigning state #" << CleanupState << " to BB "
                  << BB->getName() << '\n');
     for (const BasicBlock *PredBlock : predecessors(BB))
@@ -320,14 +319,13 @@ static void calculateCXXStateNumbers(WinEHFuncInfo &FuncInfo,
 
     // It's possible for a cleanup to be visited twice: it might have multiple
     // cleanupret instructions.
-    auto CleanupStatePair = FuncInfo.EHPadStateMap.find(CleanupPad);
-    if (CleanupStatePair != FuncInfo.EHPadStateMap.end()) {
-      assert(CleanupStatePair->second == ParentState);
+    if (FuncInfo.EHPadStateMap.count(CleanupPad)) {
+      assert(FuncInfo.EHPadStateMap[CleanupPad] == ParentState);
       return;
     }
 
     int CleanupState = addUnwindMapEntry(FuncInfo, ParentState, BB);
-    CleanupStatePair->second = CleanupState;
+    FuncInfo.EHPadStateMap[CleanupPad] = CleanupState;
     DEBUG(dbgs() << "Assigning state #" << CleanupState << " to BB "
                  << BB->getName() << '\n');
     for (const BasicBlock *PredBlock : predecessors(BB))
@@ -474,7 +472,7 @@ void WinEHPrepare::replaceTerminatePadWithCleanup(Function &F) {
 }
 
 void WinEHPrepare::colorFunclets(Function &F) {
-  llvm::colorEHFunclets(F, BlockColors, FuncletBlocks);
+  ::colorEHFunclets(F, BlockColors, FuncletBlocks);
 }
 
 void llvm::calculateCatchReturnSuccessorColors(const Function *Fn,
