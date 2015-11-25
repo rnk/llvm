@@ -20,19 +20,17 @@ throw:                                            ; preds = %throw, %entry
 
 pad:                                              ; preds = %throw
   %phi2 = phi i8* [ %tmp96, %throw ]
-  terminatepad [] unwind label %blah
+  terminatepad none [] unwind label %blah
 
 blah:
-  catchpad [] to label %unreachable unwind label %blah3
+  %cs = catchswitch none, unwind label %blah2 [label %unreachable]
 
 unreachable:
+  catchpad %cs []
   unreachable
 
-blah3:
-  catchendpad unwind label %blah2
-
 blah2:
-  %cleanuppadi4.i.i.i = cleanuppad []
+  %cleanuppadi4.i.i.i = cleanuppad none []
   br label %loop_body
 
 loop_body:                                        ; preds = %iter, %pad
@@ -49,7 +47,7 @@ unwind_out:                                       ; preds = %iter, %loop_body
 }
 
 ; CHECK-LABEL: define void @f(
-; CHECK: cleanuppad []
+; CHECK: cleanuppad none []
 ; CHECK-NEXT: ptrtoint i8* %phi2 to i32
 
 define void @g() personality i32 (...)* @_except_handler3 {
@@ -63,17 +61,15 @@ throw:                                            ; preds = %throw, %entry
 
 pad:
   %phi2 = phi i8* [ %tmp96, %throw ]
-  catchpad [] to label %unreachable unwind label %blah
+  %cs = catchswitch none, unwind to caller [label %unreachable, label %blah]
 
 unreachable:
+  catchpad %cs []
   unreachable
 
 blah:
-  %catchpad = catchpad [] to label %loop_body unwind label %blah3
-
-
-blah3:
-  catchendpad unwind to caller ;label %blah2
+  %catchpad = catchpad %cs []
+  br label %loop_body
 
 unwind_out:
   catchret %catchpad to label %leave
@@ -93,10 +89,7 @@ iter:                                             ; preds = %loop_body
 
 ; CHECK-LABEL: define void @g(
 ; CHECK: blah:
-; CHECK-NEXT: catchpad []
-; CHECK-NEXT: to label %loop_body.preheader
-
-; CHECK: loop_body.preheader:
+; CHECK-NEXT: catchpad %cs []
 ; CHECK-NEXT: ptrtoint i8* %phi2 to i32
 
 
@@ -110,20 +103,16 @@ throw:                                            ; preds = %throw, %entry
           to label %throw unwind label %pad
 
 pad:
-  catchpad [] to label %unreachable unwind label %blug
+  %cs = catchswitch none, unwind to caller [label %unreachable, label %blug]
 
 unreachable:
+  catchpad %cs []
   unreachable
 
 blug:
   %phi2 = phi i8* [ %tmp96, %pad ]
-  %catchpad = catchpad [] to label %blah2 unwind label %blah3
-
-blah2:
+  %catchpad = catchpad %cs []
   br label %loop_body
-
-blah3:
-  catchendpad unwind to caller ;label %blah2
 
 unwind_out:
   catchret %catchpad to label %leave
@@ -132,7 +121,7 @@ leave:
   ret void
 
 loop_body:                                        ; preds = %iter, %pad
-  %tmp99 = phi i8* [ %tmp101, %iter ], [ %phi2, %blah2 ]
+  %tmp99 = phi i8* [ %tmp101, %iter ], [ %phi2, %blug ]
   %tmp100 = icmp eq i8* %tmp99, undef
   br i1 %tmp100, label %unwind_out, label %iter
 
@@ -143,10 +132,7 @@ iter:                                             ; preds = %loop_body
 
 ; CHECK-LABEL: define void @h(
 ; CHECK: blug:
-; CHECK: catchpad []
-; CHECK-NEXT: to label %blah2
-
-; CHECK: blah2:
+; CHECK: catchpad %cs []
 ; CHECK-NEXT: ptrtoint i8* %phi2 to i32
 
 define void @i() personality i32 (...)* @_except_handler3 {
@@ -160,16 +146,14 @@ throw:                                            ; preds = %throw, %entry
 
 catchpad:                                              ; preds = %throw
   %phi2 = phi i8* [ %tmp96, %throw ]
-  catchpad [] to label %cp_body unwind label %catchendpad
+  %cs = catchswitch none, unwind label %cleanuppad [label %cp_body]
 
 cp_body:
+  catchpad %cs []
   br label %loop_head
 
-catchendpad:
-  catchendpad unwind label %cleanuppad
-
 cleanuppad:
-  cleanuppad []
+  cleanuppad none []
   br label %loop_head
 
 loop_head:
@@ -205,13 +189,10 @@ for.inc:                                          ; preds = %for.cond
   br label %for.cond
 
 catch.dispatch:                                   ; preds = %for.cond
-  %0 = catchpad [i8* null, i32 64, i8* null]
-          to label %catch unwind label %catchendblock
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind label %catch.dispatch.2
+  %cs = catchswitch none, unwind label %catch.dispatch.2 [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %0 = catchpad %cs [i8* null, i32 64, i8* null]
   catchret %0 to label %try.cont
 
 try.cont:                                         ; preds = %catch
@@ -219,25 +200,20 @@ try.cont:                                         ; preds = %catch
           to label %try.cont.7 unwind label %catch.dispatch.2
 
 catch.dispatch.2:                                 ; preds = %try.cont, %catchendblock
-  %e.0 = phi i32* [ %c, %try.cont ], [ %b, %catchendblock ]
-  %1 = catchpad [i8* null, i32 64, i8* null]
-          to label %catch.4 unwind label %catchendblock.3
+  %e.0 = phi i32* [ %c, %try.cont ], [ %b, %catch.dispatch ]
+  %cs2 = catchswitch none, unwind to caller [label %catch.4]
 
 catch.4:                                          ; preds = %catch.dispatch.2
+  catchpad %cs2 [i8* null, i32 64, i8* null]
   unreachable
 
 try.cont.7:                                       ; preds = %try.cont
   ret void
-
-catchendblock.3:                                  ; preds = %catch.dispatch.2
-  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: define void @test1(
 ; CHECK: for.cond:
 ; CHECK:   %d.0 = phi i32* [ %b, %entry ], [ %incdec.ptr, %for.inc ]
 
-; CHECK: catchendpad unwind label %catch.dispatch.2
-
 ; CHECK: catch.dispatch.2:
-; CHECK: %e.0 = phi i32* [ %c, %try.cont ], [ %b, %catchendblock ]
+; CHECK: %e.0 = phi i32* [ %c, %try.cont ], [ %b, %catch.dispatch ]
