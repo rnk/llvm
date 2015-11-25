@@ -2934,17 +2934,17 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " void";
   } else if (const auto *CRI = dyn_cast<CatchReturnInst>(&I)) {
     Out << ' ';
-    writeOperand(CRI->getCatchPad(), /*PrintType=*/false);
+    writeOperand(CRI->getOperand(0), /*PrintType=*/false);
 
     Out << " to ";
-    writeOperand(CRI->getSuccessor(), /*PrintType=*/true);
+    writeOperand(CRI->getOperand(1), /*PrintType=*/true);
   } else if (const auto *CRI = dyn_cast<CleanupReturnInst>(&I)) {
     Out << ' ';
-    writeOperand(CRI->getCleanupPad(), /*PrintType=*/false);
+    writeOperand(CRI->getOperand(0), /*PrintType=*/false);
 
     Out << " unwind ";
     if (CRI->hasUnwindDest())
-      writeOperand(CRI->getUnwindDest(), /*PrintType=*/true);
+      writeOperand(CRI->getOperand(1), /*PrintType=*/true);
     else
       Out << "to caller";
   } else if (const CallInst *CI = dyn_cast<CallInst>(&I)) {

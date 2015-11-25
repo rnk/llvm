@@ -2424,17 +2424,6 @@ bool LLParser::PerFunctionState::SetInstName(int NameID,
       if (Sentinel->getType() != Inst->getType())
         return P.Error(NameLoc, "instruction forward referenced with type '" +
                        getTypeString(FI->second.first->getType()) + "'");
-      // Check operator constraints.  We only put cleanuppads or catchpads in
-      // the forward value map if the value is constrained to match.
-      if (isa<CatchPadInst>(Sentinel)) {
-        if (!isa<CatchPadInst>(Inst))
-          return P.Error(FI->second.second,
-                         "'%" + Twine(NameID) + "' is not a catchpad");
-      } else if (isa<CleanupPadInst>(Sentinel)) {
-        if (!isa<CleanupPadInst>(Inst))
-          return P.Error(FI->second.second,
-                         "'%" + Twine(NameID) + "' is not a cleanuppad");
-      }
 
       Sentinel->replaceAllUsesWith(Inst);
       delete Sentinel;
@@ -2452,17 +2441,6 @@ bool LLParser::PerFunctionState::SetInstName(int NameID,
     if (Sentinel->getType() != Inst->getType())
       return P.Error(NameLoc, "instruction forward referenced with type '" +
                      getTypeString(FI->second.first->getType()) + "'");
-    // Check operator constraints.  We only put cleanuppads or catchpads in
-    // the forward value map if the value is constrained to match.
-    if (isa<CatchPadInst>(Sentinel)) {
-      if (!isa<CatchPadInst>(Inst))
-        return P.Error(FI->second.second,
-                       "'%" + NameStr + "' is not a catchpad");
-    } else if (isa<CleanupPadInst>(Sentinel)) {
-      if (!isa<CleanupPadInst>(Inst))
-        return P.Error(FI->second.second,
-                       "'%" + NameStr + "' is not a cleanuppad");
-    }
 
     Sentinel->replaceAllUsesWith(Inst);
     delete Sentinel;

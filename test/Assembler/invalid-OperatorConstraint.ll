@@ -11,13 +11,15 @@
 ;T1: define void @f() {
 ;T1:   entry:
 ;T1:     ; operator constraint requires an operator
-;T1:     catchret undef to label %entry
-;T1:     ; CHECK1: [[@LINE-1]]:15: error: Catchpad value required in this position
+;T1:     catchret undef to label %next
+;T1:     ; CHECK1: CatchReturnInst needs to be provided a CatchPad
+;T1:   next:
+;T1:     unreachable
 ;T1: }
 
 ;T2: define void @f() {
 ;T2:   entry:
-;T2:     %x = cleanuppad []
+;T2:     %x = cleanuppad none []
 ;T2:     ; catchret's first operand's operator must be catchpad
 ;T2:     catchret %x to label %entry
 ;T2:     ; CHECK2: [[@LINE-1]]:15: error: '%x' is not a catchpad

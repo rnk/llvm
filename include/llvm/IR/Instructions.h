@@ -4281,22 +4281,22 @@ public:
 
   /// Convenience accessor.
   CleanupPadInst *getCleanupPad() const {
-    return cast<CleanupPadInst>(Op<-1>());
+    return cast<CleanupPadInst>(Op<0>());
   }
   void setCleanupPad(CleanupPadInst *CleanupPad) {
     assert(CleanupPad);
-    Op<-1>() = CleanupPad;
+    Op<0>() = CleanupPad;
   }
 
   unsigned getNumSuccessors() const { return hasUnwindDest() ? 1 : 0; }
 
   BasicBlock *getUnwindDest() const {
-    return hasUnwindDest() ? cast<BasicBlock>(Op<-2>()) : nullptr;
+    return hasUnwindDest() ? cast<BasicBlock>(Op<1>()) : nullptr;
   }
   void setUnwindDest(BasicBlock *NewDest) {
     assert(NewDest);
     assert(hasUnwindDest());
-    Op<-2>() = NewDest;
+    Op<1>() = NewDest;
   }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:

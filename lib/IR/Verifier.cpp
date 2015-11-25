@@ -390,8 +390,9 @@ private:
   void visitEHPadPredecessors(Instruction &I);
   void visitLandingPadInst(LandingPadInst &LPI);
   void visitCatchPadInst(CatchPadInst &CPI);
+  void visitCatchReturnInst(CatchReturnInst &CatchReturn);
   void visitCleanupPadInst(CleanupPadInst &CPI);
-  void visitCatchSwitchInst(CatchSwitchInst &CatchSwitchInst);
+  void visitCatchSwitchInst(CatchSwitchInst &CatchSwitch);
   void visitCleanupReturnInst(CleanupReturnInst &CRI);
   void visitTerminatePadInst(TerminatePadInst &TPI);
 
@@ -2910,6 +2911,14 @@ void Verifier::visitCatchPadInst(CatchPadInst &CPI) {
   visitInstruction(CPI);
 }
 
+void Verifier::visitCatchReturnInst(CatchReturnInst &CatchReturn) {
+  Assert(isa<CatchPadInst>(CatchReturn.getOperand(0)),
+         "CatchReturnInst needs to be provided a CatchPad", &CatchReturn,
+         CatchReturn.getOperand(0));
+
+  visitTerminatorInst(CatchReturn);
+}
+
 void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
   visitEHPadPredecessors(CPI);
 
@@ -2923,6 +2932,14 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
   // block.
   Assert(BB->getFirstNonPHI() == &CPI,
          "CleanupPadInst not the first non-PHI instruction in the block.",
+         &CPI);
+
+  auto *OuterScope = CPI.getOuterScope();
+  Assert(isa<CatchSwitchInst>(OuterScope) ||
+         isa<ConstantTokenNone>(OuterScope) ||
+         isa<CleanupPadInst>(OuterScope) ||
+         isa<CatchPadInst>(OuterScope),
+         "CleanupPadInst has an invalid outer scope.",
          &CPI);
 
   User *FirstUser = nullptr;
@@ -2969,10 +2986,22 @@ void Verifier::visitCatchSwitchInst(CatchSwitchInst &CatchSwitch) {
          "CatchSwitchInst not the first non-PHI instruction in the block.",
          &CatchSwitch);
 
+  auto *OuterScope = CatchSwitch.getOuterScope();
+  Assert(isa<CatchSwitchInst>(OuterScope) ||
+         isa<ConstantTokenNone>(OuterScope) ||
+         isa<CleanupPadInst>(OuterScope) ||
+         isa<CatchPadInst>(OuterScope),
+         "CatchSwitchInst has an invalid outer scope.",
+         OuterScope);
+
   visitTerminatorInst(CatchSwitch);
 }
 
 void Verifier::visitCleanupReturnInst(CleanupReturnInst &CRI) {
+  Assert(isa<CleanupPadInst>(CRI.getOperand(0)),
+         "CleanupReturnInst needs to be provided a CleanupPad", &CRI,
+         CRI.getOperand(0));
+
   if (BasicBlock *UnwindDest = CRI.getUnwindDest()) {
     Instruction *I = UnwindDest->getFirstNonPHI();
     Assert(I->isEHPad() && !isa<LandingPadInst>(I),
@@ -3006,6 +3035,14 @@ void Verifier::visitTerminatePadInst(TerminatePadInst &TPI) {
            "landingpad.",
            &TPI);
   }
+
+  auto *OuterScope = TPI.getOuterScope();
+  Assert(isa<CatchSwitchInst>(OuterScope) ||
+         isa<ConstantTokenNone>(OuterScope) ||
+         isa<CleanupPadInst>(OuterScope) ||
+         isa<CatchPadInst>(OuterScope),
+         "TerminatePadInst has an invalid outer scope.",
+         OuterScope);
 
   visitTerminatorInst(TPI);
 }

@@ -773,18 +773,18 @@ CleanupReturnInst::CleanupReturnInst(const CleanupReturnInst &CRI)
                          CRI.getNumOperands(),
                      CRI.getNumOperands()) {
   setInstructionSubclassData(CRI.getSubclassDataFromInstruction());
-  Op<-1>() = CRI.Op<-1>();
+  Op<0>() = CRI.Op<0>();
   if (CRI.hasUnwindDest())
-    Op<-2>() = CRI.Op<-2>();
+    Op<1>() = CRI.Op<1>();
 }
 
 void CleanupReturnInst::init(Value *CleanupPad, BasicBlock *UnwindBB) {
   if (UnwindBB)
     setInstructionSubclassData(getSubclassDataFromInstruction() | 1);
 
-  Op<-1>() = CleanupPad;
+  Op<0>() = CleanupPad;
   if (UnwindBB)
-    Op<-2>() = UnwindBB;
+    Op<1>() = UnwindBB;
 }
 
 CleanupReturnInst::CleanupReturnInst(Value *CleanupPad, BasicBlock *UnwindBB,
