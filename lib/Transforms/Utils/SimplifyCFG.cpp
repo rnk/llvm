@@ -3501,10 +3501,6 @@ bool SimplifyCFGOpt::SimplifyUnreachable(UnreachableInst *UI) {
       TI->eraseFromParent();
       Changed = true;
     }
-    // TODO: If TI is a CatchPadInst, then (BB must be its normal dest and)
-    // we can eliminate it, redirecting its preds to its unwind successor,
-    // or to the next outer handler if the removed catch is the last for its
-    // catchendpad.
   }
 
   // If this block is now dead, remove it.

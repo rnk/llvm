@@ -361,7 +361,7 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
           UpdatePHINodes(&*BB);
         }
       } else {
-        assert(isa<CatchPadInst>(I) || isa<CleanupPadInst>(I));
+        assert(isa<FuncletPadInst>(I));
       }
     }
 
