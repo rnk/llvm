@@ -5162,7 +5162,6 @@ bool LLParser::ParseCatchRet(Instruction *&Inst, PerFunctionState &PFS) {
 ///   ::= 'catchswitch'
 bool LLParser::ParseCatchSwitch(Instruction *&Inst, PerFunctionState &PFS) {
   Value *OuterScope;
-  BasicBlock *DefaultBB;
   LocTy BBLoc;
 
   if (ParseValue(Type::getTokenTy(Context), OuterScope, PFS) ||
@@ -5171,34 +5170,30 @@ bool LLParser::ParseCatchSwitch(Instruction *&Inst, PerFunctionState &PFS) {
     return true;
 
   BasicBlock *UnwindBB = nullptr;
-  if (Lex.getKind() == lltok::kw_to) {
-    Lex.Lex();
-    if (ParseToken(lltok::kw_caller, "expected 'caller' in catchswitch")) {
+  if (EatIfPresent(lltok::kw_to)) {
+    if (ParseToken(lltok::kw_caller, "expected 'caller' in catchswitch"))
       return true;
-    }
   } else {
-    if (ParseTypeAndBasicBlock(UnwindBB, PFS)) {
+    if (ParseTypeAndBasicBlock(UnwindBB, PFS))
       return true;
-    }
   }
 
-  if (ParseTypeAndBasicBlock(DefaultBB, BBLoc, PFS) ||
-      ParseToken(lltok::lsquare, "expected '[' with catchswitch table"))
+  if (ParseToken(lltok::lsquare, "expected '[' with catchswitch labels"))
     return true;
 
   SmallVector<BasicBlock *, 32> Table;
-  while (Lex.getKind() != lltok::rsquare) {
+  do {
     BasicBlock *DestBB;
-
     if (ParseTypeAndBasicBlock(DestBB, PFS))
       return true;
-
     Table.push_back(DestBB);
-  }
+  } while (EatIfPresent(lltok::comma));
 
-  Lex.Lex(); // Eat the ']'.
+  if (ParseToken(lltok::rsquare, "expected ']' after catchswitch labels"))
+    return true;
+
   auto *CatchSwitch =
-      CatchSwitchInst::Create(OuterScope, DefaultBB, Table.size());
+      CatchSwitchInst::Create(OuterScope, UnwindBB, Table.size());
   for (BasicBlock *DestBB : Table)
     CatchSwitch->addHandler(DestBB);
   Inst = CatchSwitch;

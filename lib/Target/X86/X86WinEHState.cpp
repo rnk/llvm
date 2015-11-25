@@ -16,6 +16,7 @@
 
 #include "X86.h"
 #include "llvm/Analysis/LibCallSemantics.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
@@ -416,14 +417,32 @@ void WinEHStatePass::addStateStores(Function &F, WinEHFuncInfo &FuncInfo) {
     calculateWinCXXEHStateNumbers(&F, FuncInfo);
 
   // Iterate all the instructions and emit state number stores.
+  std::map<BasicBlock *, SetVector<BasicBlock *>> BlockColors;
+  std::map<BasicBlock *, std::set<BasicBlock *>> FuncletBlocks;
+  colorEHFunclets(F, BlockColors, FuncletBlocks);
   for (BasicBlock &BB : F) {
+    // Figure out what state we should assign calls in this block.
+    int BaseState = -1;
+    auto BBColors = BlockColors.find(&BB);
+    if (BBColors != BlockColors.end()) {
+      assert(BBColors->second.size() == 1 &&
+             "multi-color BB not removed by preparation");
+      BasicBlock *FuncletEntryBB = BBColors->second[0];
+      if (auto *FuncletPad =
+              dyn_cast<FuncletPadInst>(FuncletEntryBB->getFirstNonPHI())) {
+        auto BaseStateI = FuncInfo.FuncletBaseStateMap.find(FuncletPad);
+        if (BaseStateI != FuncInfo.FuncletBaseStateMap.end())
+          BaseState = BaseStateI->second;
+      }
+    }
+
     for (Instruction &I : BB) {
       if (auto *CI = dyn_cast<CallInst>(&I)) {
         // Possibly throwing call instructions have no actions to take after
         // an unwind. Ensure they are in the -1 state.
         if (CI->doesNotThrow())
           continue;
-        insertStateNumberStore(RegNode, CI, -1);
+        insertStateNumberStore(RegNode, CI, BaseState);
       } else if (auto *II = dyn_cast<InvokeInst>(&I)) {
         // Look up the state number of the landingpad this unwinds to.
         Instruction *PadInst = II->getUnwindDest()->getFirstNonPHI();
