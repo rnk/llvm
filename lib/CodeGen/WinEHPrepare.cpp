@@ -188,12 +188,6 @@ static void calculateSEHStateNumbers(WinEHFuncInfo &FuncInfo,
   const BasicBlock *BB = FirstNonPHI->getParent();
   assert(BB->isEHPad() && "no a funclet!");
 
-  // FIXME: Remove me when FuncletEndPadInst is no longer with us!
-  if (isa<CatchEndPadInst>(FirstNonPHI)) {
-    FuncInfo.EHPadStateMap[FirstNonPHI] = ParentState;
-    return;
-  }
-
   if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(FirstNonPHI)) {
     assert(FuncInfo.EHPadStateMap.count(CatchSwitch) == 0 &&
            "shouldn't revist catch funclets!");
@@ -250,10 +244,7 @@ static void calculateSEHStateNumbers(WinEHFuncInfo &FuncInfo,
                                  CleanupState);
     for (const User *U : CleanupPad->users()) {
       const auto *UserI = cast<Instruction>(U);
-      // Anything unwinding through CleanupEndPadInst is in ParentState.
-      if (auto *CleanupEndPad = dyn_cast<CleanupEndPadInst>(UserI))
-        FuncInfo.EHPadStateMap[CleanupEndPad] = ParentState;
-      else if (UserI->isEHPad())
+      if (UserI->isEHPad())
         report_fatal_error("Cleanup funclets for the SEH personality cannot "
                            "contain exceptional actions");
     }
@@ -289,16 +280,6 @@ static void calculateCXXStateNumbers(WinEHFuncInfo &FuncInfo,
                                      int ParentState) {
   const BasicBlock *BB = FirstNonPHI->getParent();
   assert(BB->isEHPad() && "no a funclet!");
-
-  // FIXME: Remove me when FuncletEndPadInst is no longer with us!
-  if (isa<CatchEndPadInst>(FirstNonPHI)) {
-    FuncInfo.EHPadStateMap[FirstNonPHI] = ParentState;
-    return;
-  }
-
-  if (isa<CleanupEndPadInst>(FirstNonPHI)) {
-    return;
-  }
 
   if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(FirstNonPHI)) {
     assert(FuncInfo.EHPadStateMap.count(CatchSwitch) == 0 &&
@@ -355,9 +336,7 @@ static void calculateCXXStateNumbers(WinEHFuncInfo &FuncInfo,
                                  CleanupState);
     for (const User *U : CleanupPad->users()) {
       const auto *UserI = cast<Instruction>(U);
-      if (auto *CleanupEndPad = dyn_cast<CleanupEndPadInst>(UserI))
-        FuncInfo.EHPadStateMap[CleanupEndPad] = -1;
-      else if (UserI->isEHPad())
+      if (UserI->isEHPad())
         report_fatal_error("Cleanup funclets for the MSVC++ personality cannot "
                            "contain exceptional actions");
     }
@@ -420,13 +399,7 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
     std::tie(Pad, ParentState) = Worklist.pop_back_val();
 
     int PredState;
-    if (const CleanupEndPadInst *EndPad = dyn_cast<CleanupEndPadInst>(Pad)) {
-      FuncInfo.EHPadStateMap[EndPad] = ParentState;
-      // Queue the cleanuppad, in case it doesn't have a cleanupret.
-      Worklist.emplace_back(EndPad->getCleanupPad(), ParentState);
-      // Preds of the endpad should get the parent state.
-      PredState = ParentState;
-    } else if (const CleanupPadInst *Cleanup = dyn_cast<CleanupPadInst>(Pad)) {
+    if (const CleanupPadInst *Cleanup = dyn_cast<CleanupPadInst>(Pad)) {
       // A cleanup can have multiple exits; don't re-process after the first.
       if (FuncInfo.EHPadStateMap.count(Pad))
         continue;
@@ -440,16 +413,12 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
       FuncInfo.EHPadStateMap[Cleanup] = NewState;
       // Propagate the new state to all preds of the cleanup
       PredState = NewState;
-    } else if (const CatchEndPadInst *EndPad = dyn_cast<CatchEndPadInst>(Pad)) {
-      FuncInfo.EHPadStateMap[EndPad] = ParentState;
-      // Preds of the endpad should get the parent state.
-      PredState = ParentState;
     } else if (const CatchPadInst *Catch = dyn_cast<CatchPadInst>(Pad)) {
       const BasicBlock *PadBlock = Catch->getParent();
       uint32_t TypeToken = static_cast<uint32_t>(
           cast<ConstantInt>(Catch->getArgOperand(0))->getZExtValue());
-      int NewState = addClrEHHandler(FuncInfo, ParentState,
-                                     ClrHandlerType::Catch, TypeToken, PadBlock);
+      int NewState = addClrEHHandler(
+          FuncInfo, ParentState, ClrHandlerType::Catch, TypeToken, PadBlock);
       FuncInfo.EHPadStateMap[Catch] = NewState;
       // Preds of the catch get its state
       PredState = NewState;
@@ -537,11 +506,8 @@ colorFunclets(Function &F,
                     dbgs() << "Visiting " << Visiting->getName() << ", "
                            << Color->getName() << "\n");
     Instruction *VisitingHead = Visiting->getFirstNonPHI();
-    if (auto *EndPad = dyn_cast<FuncletEndPadInst>(VisitingHead)) {
-      // Pad's terminating their funclet are always a member of their scope.
-      Color = cast<Instruction>(EndPad->getScope())->getParent();
-    } else if (VisitingHead->isEHPad()) {
-      // Mark this as a funclet head as a member of itself.
+    if (VisitingHead->isEHPad()) {
+      // Mark this funclet head as a member of itself.
       Color = Visiting;
     }
     // Note that this is a member of the given color.
@@ -789,34 +755,16 @@ void WinEHPrepare::removeImplausibleTerminators(Function &F) {
       bool IsUnreachableCleanupret = false;
       if (auto *CRI = dyn_cast<CleanupReturnInst>(TI))
         IsUnreachableCleanupret = CRI->getCleanupPad() != CleanupPad;
-      // The token consumed by a CleanupEndPadInst must match the funclet token.
-      bool IsUnreachableCleanupendpad = false;
-      if (auto *CEPI = dyn_cast<CleanupEndPadInst>(TI))
-        IsUnreachableCleanupendpad = CEPI->getCleanupPad() != CleanupPad;
       if (IsUnreachableRet || IsUnreachableCatchret ||
-          IsUnreachableCleanupret || IsUnreachableCleanupendpad) {
+          IsUnreachableCleanupret) {
         // Loop through all of our successors and make sure they know that one
         // of their predecessors is going away.
         for (BasicBlock *SuccBB : TI->successors())
           SuccBB->removePredecessor(BB);
 
-        if (IsUnreachableCleanupendpad) {
-          // We can't simply replace a cleanupendpad with unreachable, because
-          // its predecessor edges are EH edges and unreachable is not an EH
-          // pad.  Change all predecessors to the "unwind to caller" form.
-          for (pred_iterator PI = pred_begin(BB), PE = pred_end(BB);
-               PI != PE;) {
-            BasicBlock *Pred = *PI++;
-            removeUnwindEdge(Pred);
-          }
-        }
-
         new UnreachableInst(BB->getContext(), TI);
         TI->eraseFromParent();
       }
-      // FIXME: Check for invokes/cleanuprets/cleanupendpads which unwind to
-      // implausible catchendpads (i.e. catchendpad not in immediate parent
-      // funclet).
     }
   }
 }

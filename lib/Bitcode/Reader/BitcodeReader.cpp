@@ -4497,43 +4497,6 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CATCHENDPAD: { // CATCHENDPADINST: [val,bb#] or [val]
-      if (Record.size() != 1 && Record.size() != 2)
-        return error("Invalid record");
-      unsigned Idx = 0;
-      Value *CatchSwitch =
-          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
-      if (!CatchSwitch)
-        return error("Invalid record");
-      BasicBlock *BB = nullptr;
-      if (Record.size() == 2) {
-        BB = getBasicBlock(Record[Idx++]);
-        if (!BB)
-          return error("Invalid record");
-      }
-      I = CatchEndPadInst::Create(cast<CatchSwitchInst>(CatchSwitch), BB);
-      InstructionList.push_back(I);
-      break;
-    }
-    case bitc::FUNC_CODE_INST_CLEANUPENDPAD: { // CLEANUPENDPADINST: [val] or [val,bb#]
-      if (Record.size() != 1 && Record.size() != 2)
-        return error("Invalid record");
-      unsigned Idx = 0;
-      Value *CleanupPad =
-          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
-      if (!CleanupPad)
-        return error("Invalid record");
-
-      BasicBlock *BB = nullptr;
-      if (Record.size() == 2) {
-        BB = getBasicBlock(Record[Idx++]);
-        if (!BB)
-          return error("Invalid record");
-      }
-      I = CleanupEndPadInst::Create(cast<CleanupPadInst>(CleanupPad), BB);
-      InstructionList.push_back(I);
-      break;
-    }
     case bitc::FUNC_CODE_INST_SWITCH: { // SWITCH: [opty, op0, op1, ...]
       // Check magic
       if ((Record[0] >> 16) == SWITCH_INST_MAGIC) {

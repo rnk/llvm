@@ -387,9 +387,7 @@ public:
     switch (getOpcode()) {
     case Instruction::CatchSwitch:
     case Instruction::CatchPad:
-    case Instruction::CatchEndPad:
     case Instruction::CleanupPad:
-    case Instruction::CleanupEndPad:
     case Instruction::LandingPad:
     case Instruction::TerminatePad:
       return true;

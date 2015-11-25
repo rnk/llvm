@@ -818,64 +818,6 @@ void CleanupReturnInst::setSuccessorV(unsigned Idx, BasicBlock *B) {
 }
 
 //===----------------------------------------------------------------------===//
-//                        FuncletEndPadInst Implementation
-//===----------------------------------------------------------------------===//
-void FuncletEndPadInst::init(Value *Scope, BasicBlock *UnwindBB) {
-  setScope(Scope);
-  if (UnwindBB) {
-    setInstructionSubclassData(getSubclassDataFromInstruction() | 1);
-    setUnwindDest(UnwindBB);
-  }
-}
-
-FuncletEndPadInst::FuncletEndPadInst(const FuncletEndPadInst &FEPI)
-    : TerminatorInst(FEPI.getType(),
-                     static_cast<Instruction::TermOps>(FEPI.getOpcode()),
-                     OperandTraits<FuncletEndPadInst>::op_end(this) -
-                         FEPI.getNumOperands(),
-                     FEPI.getNumOperands()) {
-  init(FEPI.getScope(), FEPI.getUnwindDest());
-}
-
-FuncletEndPadInst::FuncletEndPadInst(Instruction::TermOps Op, Value *Scope,
-                                     BasicBlock *UnwindBB, unsigned Values,
-                                     const Twine &NameStr,
-                                     Instruction *InsertBefore)
-    : TerminatorInst(Type::getVoidTy(Scope->getContext()), Op,
-                     OperandTraits<FuncletEndPadInst>::op_end(this) - Values,
-                     Values, InsertBefore) {
-  init(Scope, UnwindBB);
-  setName(NameStr);
-}
-
-FuncletEndPadInst::FuncletEndPadInst(Instruction::TermOps Op, Value *Scope,
-                                     BasicBlock *UnwindBB, unsigned Values,
-                                     const Twine &NameStr,
-                                     BasicBlock *InsertAtEnd)
-    : TerminatorInst(Type::getVoidTy(Scope->getContext()), Op,
-                     OperandTraits<FuncletEndPadInst>::op_end(this) - Values,
-                     Values, InsertAtEnd) {
-  init(Scope, UnwindBB);
-  setName(NameStr);
-}
-void FuncletEndPadInst::setUnwindDest(BasicBlock *NewDest) {
-  assert(hasUnwindDest());
-  assert(NewDest);
-  Op<-2>() = NewDest;
-}
-BasicBlock *FuncletEndPadInst::getSuccessorV(unsigned Idx) const {
-  assert(Idx == 0);
-  return getUnwindDest();
-}
-unsigned FuncletEndPadInst::getNumSuccessorsV() const {
-  return getNumSuccessors();
-}
-void FuncletEndPadInst::setSuccessorV(unsigned Idx, BasicBlock *B) {
-  assert(Idx == 0);
-  setUnwindDest(B);
-}
-
-//===----------------------------------------------------------------------===//
 //                        CatchReturnInst Implementation
 //===----------------------------------------------------------------------===//
 void CatchReturnInst::init(Value *CatchPad, BasicBlock *BB) {
@@ -928,7 +870,9 @@ CatchSwitchInst::CatchSwitchInst(Value *OuterScope, BasicBlock *UnwindDest,
                                  Instruction *InsertBefore)
     : TerminatorInst(OuterScope->getType(), Instruction::CatchSwitch, nullptr,
                      0, InsertBefore) {
-  init(OuterScope, UnwindDest, NumReservedValues + 2);
+  if (UnwindDest)
+    ++NumReservedValues;
+  init(OuterScope, UnwindDest, NumReservedValues + 1);
   setName(NameStr);
 }
 
@@ -937,7 +881,9 @@ CatchSwitchInst::CatchSwitchInst(Value *OuterScope, BasicBlock *UnwindDest,
                                  const Twine &NameStr, BasicBlock *InsertAtEnd)
     : TerminatorInst(OuterScope->getType(), Instruction::CatchSwitch, nullptr,
                      0, InsertAtEnd) {
-  init(OuterScope, UnwindDest, NumReservedValues + 2);
+  if (UnwindDest)
+    ++NumReservedValues;
+  init(OuterScope, UnwindDest, NumReservedValues + 1);
   setName(NameStr);
 }
 
@@ -948,19 +894,23 @@ CatchSwitchInst::CatchSwitchInst(const CatchSwitchInst &CSI)
   setNumHungOffUseOperands(ReservedSpace);
   Use *OL = getOperandList();
   const Use *InOL = CSI.getOperandList();
-  for (unsigned I = 2, E = ReservedSpace; I != E; ++I)
+  for (unsigned I = 1, E = ReservedSpace; I != E; ++I)
     OL[I] = InOL[I];
 }
 
 void CatchSwitchInst::init(Value *OuterScope, BasicBlock *UnwindDest,
                            unsigned NumReservedValues) {
-  assert(OuterScope && UnwindDest && NumReservedValues);
+  assert(OuterScope && NumReservedValues);
+
   ReservedSpace = NumReservedValues;
-  setNumHungOffUseOperands(2);
+  setNumHungOffUseOperands(UnwindDest ? 2 : 1);
   allocHungoffUses(ReservedSpace);
 
   Op<0>() = OuterScope;
-  Op<1>() = UnwindDest;
+  if (UnwindDest) {
+    setInstructionSubclassData(getSubclassDataFromInstruction() | 1);
+    setUnwindDest(UnwindDest);
+  }
 }
 
 /// growOperands - grow operands - This grows the operand list in response to a
@@ -4070,10 +4020,6 @@ ResumeInst *ResumeInst::cloneImpl() const { return new (1) ResumeInst(*this); }
 
 CleanupReturnInst *CleanupReturnInst::cloneImpl() const {
   return new (getNumOperands()) CleanupReturnInst(*this);
-}
-
-FuncletEndPadInst *FuncletEndPadInst::cloneImpl() const {
-  return new (getNumOperands()) FuncletEndPadInst(*this);
 }
 
 CatchReturnInst *CatchReturnInst::cloneImpl() const {

@@ -1329,14 +1329,6 @@ void llvm::removeUnwindEdge(BasicBlock *BB) {
   if (auto *CRI = dyn_cast<CleanupReturnInst>(TI)) {
     NewTI = CleanupReturnInst::Create(CRI->getCleanupPad(), nullptr, CRI);
     UnwindDest = CRI->getUnwindDest();
-  } else if (auto *CEP = dyn_cast<CleanupEndPadInst>(TI)) {
-    NewTI = CleanupEndPadInst::Create(CEP->getCleanupPad(), nullptr,
-                                      CEP->getName(), CEP);
-    UnwindDest = CEP->getUnwindDest();
-  } else if (auto *CEP = dyn_cast<CatchEndPadInst>(TI)) {
-    NewTI = CatchEndPadInst::Create(CEP->getCatchSwitch(), nullptr,
-                                    CEP->getName(), CEP);
-    UnwindDest = CEP->getUnwindDest();
   } else if (auto *TPI = dyn_cast<TerminatePadInst>(TI)) {
     SmallVector<Value *, 3> TerminatePadArgs;
     for (Value *Operand : TPI->arg_operands())
@@ -1344,6 +1336,15 @@ void llvm::removeUnwindEdge(BasicBlock *BB) {
     NewTI = TerminatePadInst::Create(TPI->getOuterScope(), nullptr,
                                      TerminatePadArgs, TPI->getName(), TPI);
     UnwindDest = TPI->getUnwindDest();
+  } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(TI)) {
+    auto *NewCatchSwitch = CatchSwitchInst::Create(
+        CatchSwitch->getOuterScope(), nullptr, CatchSwitch->getNumHandlers(),
+        CatchSwitch->getName(), CatchSwitch);
+    for (const llvm::Use &U : CatchSwitch->handlers())
+      NewCatchSwitch->addHandler(cast<BasicBlock>(U));
+
+    NewTI = NewCatchSwitch;
+    UnwindDest = CatchSwitch->getUnwindDest();
   } else {
     llvm_unreachable("Could not find unwind successor");
   }

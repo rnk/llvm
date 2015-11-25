@@ -197,9 +197,7 @@ const char *Instruction::getOpcodeName(unsigned OpCode) {
   case Invoke: return "invoke";
   case Resume: return "resume";
   case Unreachable: return "unreachable";
-  case CleanupEndPad: return "cleanupendpad";
   case CleanupRet: return "cleanupret";
-  case CatchEndPad: return "catchendpad";
   case CatchRet: return "catchret";
   case CatchPad: return "catchpad";
   case CatchSwitch: return "catchswitch";
@@ -472,10 +470,8 @@ bool Instruction::mayThrow() const {
     return !CI->doesNotThrow();
   if (const auto *CRI = dyn_cast<CleanupReturnInst>(this))
     return CRI->unwindsToCaller();
-  if (const auto *CEPI = dyn_cast<CleanupEndPadInst>(this))
-    return CEPI->unwindsToCaller();
-  if (const auto *CEPI = dyn_cast<CatchEndPadInst>(this))
-    return CEPI->unwindsToCaller();
+  if (const auto *CatchSwitch = dyn_cast<CatchSwitchInst>(this))
+    return CatchSwitch->unwindsToCaller();
   if (const auto *TPI = dyn_cast<TerminatePadInst>(this))
     return TPI->unwindsToCaller();
   return isa<ResumeInst>(this);

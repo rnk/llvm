@@ -81,10 +81,8 @@ public:
   // \brief Returns true if this terminator relates to exception handling.
   bool isExceptional() const {
     switch (getOpcode()) {
-    case Instruction::CatchPad:
-    case Instruction::CatchEndPad:
+    case Instruction::CatchSwitch:
     case Instruction::CatchRet:
-    case Instruction::CleanupEndPad:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
@@ -1174,77 +1172,6 @@ struct OperandTraits<FuncletPadInst>
     : public VariadicOperandTraits<FuncletPadInst, /*MINARITY=*/1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(FuncletPadInst, Value)
-
-//===----------------------------------------------------------------------===//
-//                               FuncletEndPad Class
-//===----------------------------------------------------------------------===//
-
-class FuncletEndPadInst : public TerminatorInst {
-private:
-  FuncletEndPadInst(const FuncletEndPadInst &RI);
-
-  void init(Value *Scope, BasicBlock *UnwindBB);
-  FuncletEndPadInst(Instruction::TermOps Op, Value *Scope, BasicBlock *UnwindBB,
-                    unsigned Values, const Twine &NameStr,
-                    Instruction *InsertBefore = nullptr);
-  FuncletEndPadInst(Instruction::TermOps Op, Value *Scope, BasicBlock *UnwindBB,
-                    unsigned Values, const Twine &NameStr,
-                    BasicBlock *InsertAtEnd);
-
-protected:
-  // Note: Instruction needs to be a friend here to call cloneImpl.
-  friend class Instruction;
-  friend class CatchEndPadInst;
-  friend class CleanupEndPadInst;
-  FuncletEndPadInst *cloneImpl() const;
-
-public:
-  /// Provide fast operand accessors
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
-
-  bool hasUnwindDest() const { return getSubclassDataFromInstruction() & 1; }
-  bool unwindsToCaller() const { return !hasUnwindDest(); }
-
-  unsigned getNumSuccessors() const { return hasUnwindDest() ? 1 : 0; }
-
-  /// Convenience accessor
-  Value *getScope() const { return Op<-1>(); }
-  void setScope(Value *Scope) {
-    assert(Scope);
-    Op<-1>() = Scope;
-  }
-
-  BasicBlock *getUnwindDest() const {
-    return hasUnwindDest() ? cast<BasicBlock>(Op<-2>()) : nullptr;
-  }
-  void setUnwindDest(BasicBlock *NewDest);
-
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
-  static inline bool classof(const Instruction *I) {
-    return I->getOpcode() == Instruction::CatchEndPad ||
-           I->getOpcode() == Instruction::CleanupEndPad;
-  }
-  static inline bool classof(const Value *V) {
-    return isa<Instruction>(V) && classof(cast<Instruction>(V));
-  }
-
-private:
-  BasicBlock *getSuccessorV(unsigned Idx) const override;
-  unsigned getNumSuccessorsV() const override;
-  void setSuccessorV(unsigned Idx, BasicBlock *B) override;
-
-  // Shadow Instruction::setInstructionSubclassData with a private forwarding
-  // method so that subclasses cannot accidentally use it.
-  void setInstructionSubclassData(unsigned short D) {
-    Instruction::setInstructionSubclassData(D);
-  }
-};
-
-template <>
-struct OperandTraits<FuncletEndPadInst>
-    : public VariadicOperandTraits<FuncletEndPadInst, /*MINARITY=*/1> {};
-
-DEFINE_TRANSPARENT_OPERAND_ACCESSORS(FuncletEndPadInst, Value)
 
 /// \brief A lightweight accessor for an operand bundle meant to be passed
 /// around by value.

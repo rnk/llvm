@@ -1220,10 +1220,6 @@ void SelectionDAGBuilder::visitCatchRet(const CatchReturnInst &I) {
   DAG.setRoot(Ret);
 }
 
-void SelectionDAGBuilder::visitCatchEndPad(const CatchEndPadInst &I) {
-  llvm_unreachable("should never codegen catchendpads");
-}
-
 void SelectionDAGBuilder::visitCleanupPad(const CleanupPadInst &CPI) {
   // Don't emit any special code for the cleanuppad instruction. It just marks
   // the start of a funclet.
@@ -1269,8 +1265,6 @@ static void findUnwindDestinations(
           UnwindDests.back().first->setIsEHFuncletEntry();
       }
       NewEHPadBB = CatchSwitch->getUnwindDest();
-    } else if (const auto *FuncletEndPad = dyn_cast<FuncletEndPadInst>(Pad)) {
-      NewEHPadBB = FuncletEndPad->getUnwindDest();
     } else {
       continue;
     }
@@ -1303,10 +1297,6 @@ void SelectionDAGBuilder::visitCleanupRet(const CleanupReturnInst &I) {
   SDValue Ret =
       DAG.getNode(ISD::CLEANUPRET, getCurSDLoc(), MVT::Other, getControlRoot());
   DAG.setRoot(Ret);
-}
-
-void SelectionDAGBuilder::visitCleanupEndPad(const CleanupEndPadInst &I) {
-  report_fatal_error("visitCleanupEndPad not yet implemented!");
 }
 
 void SelectionDAGBuilder::visitTerminatePad(const TerminatePadInst &TPI) {

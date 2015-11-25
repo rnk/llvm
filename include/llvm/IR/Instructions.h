@@ -3844,19 +3844,40 @@ public:
   bool inOutermostScope() const;
 
   // Accessor Methods for CatchSwitch stmt
-  BasicBlock *getUnwindDest() const { return cast<BasicBlock>(getOperand(1)); }
-  void setUnwindDest(BasicBlock *UnwindCase) { setOperand(1, UnwindCase); }
+  bool hasUnwindDest() const { return getSubclassDataFromInstruction() & 1; }
+  bool unwindsToCaller() const { return !hasUnwindDest(); }
+  BasicBlock *getUnwindDest() const { 
+    if (hasUnwindDest())
+      return cast<BasicBlock>(getOperand(1));
+    return nullptr;
+  }
+  void setUnwindDest(BasicBlock *UnwindCase) {
+    assert(hasUnwindDest());
+    setOperand(1, UnwindCase);
+  }
 
   /// getNumHandlers - return the number of 'handlers' in this catchswitch
   /// instruction, except the default handler
-  unsigned getNumHandlers() const { return getNumOperands() - 2; }
+  unsigned getNumHandlers() const {
+    if (hasUnwindDest())
+      return getNumOperands() - 2;
+    return getNumOperands() - 1;
+  }
 
   /// Returns a read/write iterator that points to the first
   /// handler in CatchSwitchInst.
-  op_iterator handler_begin() { return op_begin() + 2; }
+  op_iterator handler_begin() {
+    if (hasUnwindDest())
+      return op_begin() + 2;
+    return op_begin() + 1;
+  }
   /// Returns a read-only iterator that points to the first
   /// handler in the CatchSwitchInst.
-  const_op_iterator handler_begin() const { return op_begin() + 2; }
+  const_op_iterator handler_begin() const {
+    if (hasUnwindDest())
+      return op_begin() + 2;
+    return op_begin() + 1;
+  }
 
   /// Returns a read/write iterator that points one past the last
   /// in the CatchSwitchInst.
@@ -3909,62 +3930,6 @@ template <>
 struct OperandTraits<CatchSwitchInst> : public HungoffOperandTraits<2> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchSwitchInst, Value)
-
-//===----------------------------------------------------------------------===//
-//                               CatchEndPadInst Class
-//===----------------------------------------------------------------------===//
-
-class CatchEndPadInst : public FuncletEndPadInst {
-private:
-  explicit CatchEndPadInst(Value *CatchSwitch, BasicBlock *UnwindBB,
-                           unsigned Values, const Twine &NameStr,
-                           Instruction *InsertBefore)
-      : FuncletEndPadInst(Instruction::CatchEndPad, CatchSwitch, UnwindBB,
-                          Values, NameStr, InsertBefore) {}
-  explicit CatchEndPadInst(Value *CatchSwitch, BasicBlock *UnwindBB,
-                           unsigned Values, const Twine &NameStr,
-                           BasicBlock *InsertAtEnd)
-      : FuncletEndPadInst(Instruction::CatchEndPad, CatchSwitch, UnwindBB,
-                          Values, NameStr, InsertAtEnd) {}
-
-public:
-  static CatchEndPadInst *Create(Value *CatchSwitch,
-                                 BasicBlock *UnwindBB = nullptr,
-                                 const Twine &NameStr = "",
-                                 Instruction *InsertBefore = nullptr) {
-    unsigned Values = UnwindBB ? 2 : 1;
-    return new (Values)
-        CatchEndPadInst(CatchSwitch, UnwindBB, Values, NameStr, InsertBefore);
-  }
-  static CatchEndPadInst *Create(Value *CatchSwitch, BasicBlock *UnwindBB,
-                                 const Twine &NameStr,
-                                 BasicBlock *InsertAtEnd) {
-    unsigned Values = UnwindBB ? 2 : 1;
-    return new (Values)
-        CatchEndPadInst(CatchSwitch, UnwindBB, Values, NameStr, InsertAtEnd);
-  }
-
-  /// Convenience accessor
-  CatchSwitchInst *getCatchSwitch() const {
-    return cast<CatchSwitchInst>(getScope());
-  }
-  void setCatchSwitch(Value *CatchSwitch) {
-    assert(CatchSwitch);
-    Op<-1>() = CatchSwitch;
-  }
-
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
-  static inline bool classof(const Instruction *I) {
-    return (I->getOpcode() == Instruction::CatchEndPad);
-  }
-  static inline bool classof(const Value *V) {
-    return isa<Instruction>(V) && classof(cast<Instruction>(V));
-  }
-};
-
-template <>
-struct OperandTraits<CatchEndPadInst>
-    : public VariadicOperandTraits<CatchEndPadInst, /*MINARITY=*/1> {};
 
 //===----------------------------------------------------------------------===//
 //                           TerminatePadInst Class
@@ -4267,62 +4232,6 @@ struct OperandTraits<CatchReturnInst>
     : public FixedNumOperandTraits<CatchReturnInst, 2> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchReturnInst, Value)
-
-//===----------------------------------------------------------------------===//
-//                               CleanupEndPadInst Class
-//===----------------------------------------------------------------------===//
-
-class CleanupEndPadInst : public FuncletEndPadInst {
-private:
-  explicit CleanupEndPadInst(Value *CleanupPad, BasicBlock *UnwindBB,
-                             unsigned Values, const Twine &NameStr,
-                             Instruction *InsertBefore)
-      : FuncletEndPadInst(Instruction::CleanupEndPad, CleanupPad, UnwindBB,
-                          Values, NameStr, InsertBefore) {}
-  explicit CleanupEndPadInst(Value *CleanupPad, BasicBlock *UnwindBB,
-                             unsigned Values, const Twine &NameStr,
-                             BasicBlock *InsertAtEnd)
-      : FuncletEndPadInst(Instruction::CleanupEndPad, CleanupPad, UnwindBB,
-                          Values, NameStr, InsertAtEnd) {}
-
-public:
-  static CleanupEndPadInst *Create(Value *CleanupPad,
-                                   BasicBlock *UnwindBB = nullptr,
-                                   const Twine &NameStr = "",
-                                   Instruction *InsertBefore = nullptr) {
-    unsigned Values = UnwindBB ? 2 : 1;
-    return new (Values)
-        CleanupEndPadInst(CleanupPad, UnwindBB, Values, NameStr, InsertBefore);
-  }
-  static CleanupEndPadInst *Create(Value *CleanupPad, BasicBlock *UnwindBB,
-                                   const Twine &NameStr,
-                                   BasicBlock *InsertAtEnd) {
-    unsigned Values = UnwindBB ? 2 : 1;
-    return new (Values)
-        CleanupEndPadInst(CleanupPad, UnwindBB, Values, NameStr, InsertAtEnd);
-  }
-
-  /// Convenience accessor
-  CleanupPadInst *getCleanupPad() const {
-    return cast<CleanupPadInst>(getScope());
-  }
-  void setCleanupPad(Value *CleanupPad) {
-    assert(CleanupPad);
-    Op<-1>() = CleanupPad;
-  }
-
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
-  static inline bool classof(const Instruction *I) {
-    return (I->getOpcode() == Instruction::CleanupEndPad);
-  }
-  static inline bool classof(const Value *V) {
-    return isa<Instruction>(V) && classof(cast<Instruction>(V));
-  }
-};
-
-template <>
-struct OperandTraits<CleanupEndPadInst>
-    : public VariadicOperandTraits<CleanupEndPadInst, /*MINARITY=*/1> {};
 
 //===----------------------------------------------------------------------===//
 //                               CleanupReturnInst Class
