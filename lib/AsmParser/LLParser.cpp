@@ -5158,7 +5158,7 @@ bool LLParser::ParseCatchRet(Instruction *&Inst, PerFunctionState &PFS) {
   return false;
 }
 
-/// ParseCatchswitch
+/// ParseCatchSwitch
 ///   ::= 'catchswitch'
 bool LLParser::ParseCatchSwitch(Instruction *&Inst, PerFunctionState &PFS) {
   Value *OuterScope;

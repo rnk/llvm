@@ -391,6 +391,7 @@ private:
   void visitLandingPadInst(LandingPadInst &LPI);
   void visitCatchPadInst(CatchPadInst &CPI);
   void visitCleanupPadInst(CleanupPadInst &CPI);
+  void visitCatchSwitchInst(CatchSwitchInst &CatchSwitchInst);
   void visitCleanupReturnInst(CleanupReturnInst &CRI);
   void visitTerminatePadInst(TerminatePadInst &TPI);
 
@@ -2896,6 +2897,10 @@ void Verifier::visitCatchPadInst(CatchPadInst &CPI) {
   Assert(F->hasPersonalityFn(),
          "CleanupPadInst needs to be in a function with a personality.", &CPI);
 
+  Assert(isa<CatchSwitchInst>(CPI.getOuterScope()),
+         "CleanupPadInst needs to be directly nested in a CatchSwitchInst.",
+         CPI.getOuterScope());
+
   // The catchpad instruction must be the first non-PHI instruction in the
   // block.
   Assert(BB->getFirstNonPHI() == &CPI,
@@ -2920,13 +2925,20 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
          "CleanupPadInst not the first non-PHI instruction in the block.",
          &CPI);
 
+  auto *OuterScope = CPI.getOuterScope();
+  if (!isa<CatchSwitchInst>(OuterScope) && !isa<CleanupPadInst>(OuterScope) &&
+      !isa<TerminatePadInst>(OuterScope) && !isa<ConstantTokenNone>(OuterScope))
+    Assert(false, "CleanupPadInst can only be directly nested by either a "
+                  "CleanupPadInst, CatchSwitchInst or a TerminatePadInst.",
+           OuterScope);
+
   User *FirstUser = nullptr;
   BasicBlock *FirstUnwindDest = nullptr;
   for (User *U : CPI.users()) {
     BasicBlock *UnwindDest;
     if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(U)) {
       UnwindDest = CRI->getUnwindDest();
-    } else if (isa<FuncletPadInst>(U) || isa<CatchSwitchInst>(U)) {
+    } else if (isa<CleanupPadInst>(U) || isa<CatchSwitchInst>(U)) {
       continue;
     } else {
       Assert(false, "bogus cleanuppad use", &CPI);
@@ -2936,14 +2948,41 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
       FirstUser = U;
       FirstUnwindDest = UnwindDest;
     } else {
-      Assert(UnwindDest == FirstUnwindDest,
-             "Cleanuprets/cleanupendpads from the same cleanuppad must "
-             "have the same unwind destination",
-             FirstUser, U);
+      Assert(
+          UnwindDest == FirstUnwindDest,
+          "cleanupret instructions from the same cleanuppad must have the same "
+          "unwind destination",
+          FirstUser, U);
     }
   }
 
   visitInstruction(CPI);
+}
+
+void Verifier::visitCatchSwitchInst(CatchSwitchInst &CatchSwitch) {
+  visitEHPadPredecessors(CatchSwitch);
+
+  BasicBlock *BB = CatchSwitch.getParent();
+
+  Function *F = BB->getParent();
+  Assert(F->hasPersonalityFn(),
+         "CatchSwitchInst needs to be in a function with a personality.",
+         &CatchSwitch);
+
+  // The catchswitch instruction must be the first non-PHI instruction in the
+  // block.
+  Assert(BB->getFirstNonPHI() == &CatchSwitch,
+         "CatchSwitchInst not the first non-PHI instruction in the block.",
+         &CatchSwitch);
+
+  auto *OuterScope = CatchSwitch.getOuterScope();
+  if (!isa<CatchSwitchInst>(OuterScope) && !isa<CleanupPadInst>(OuterScope) &&
+      !isa<TerminatePadInst>(OuterScope) && !isa<ConstantTokenNone>(OuterScope))
+    Assert(false, "CatchSwitchInst can only be directly nested by either a "
+                  "CleanupPadInst, CatchSwitchInst or a TerminatePadInst.",
+           OuterScope);
+
+  visitTerminatorInst(CatchSwitch);
 }
 
 void Verifier::visitCleanupReturnInst(CleanupReturnInst &CRI) {

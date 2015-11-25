@@ -2890,9 +2890,12 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
   } else if (const auto *CatchSwitch = dyn_cast<CatchSwitchInst>(&I)) {
     Out << ' ';
     writeOperand(CatchSwitch->getOuterScope(), /*PrintType=*/false);
-    Out << ", ";
-    writeOperand(CatchSwitch->getUnwindDest(), /*PrintType=*/true);
-    Out << ", [";
+    Out << ", unwind ";
+    if (const BasicBlock *UnwindDest = CatchSwitch->getUnwindDest())
+      writeOperand(UnwindDest, /*PrintType=*/true);
+    else
+      Out << "to caller";
+    Out << " [";
     unsigned Op = 0;
     for (const Use &U : CatchSwitch->handlers()) {
       if (Op > 0)
