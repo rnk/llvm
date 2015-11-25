@@ -228,10 +228,8 @@ static void calculateSEHStateNumbers(WinEHFuncInfo &FuncInfo,
 
     // It's possible for a cleanup to be visited twice: it might have multiple
     // cleanupret instructions.
-    if (FuncInfo.EHPadStateMap.count(CleanupPad)) {
-      assert(FuncInfo.EHPadStateMap[CleanupPad] == ParentState);
+    if (FuncInfo.EHPadStateMap.count(CleanupPad))
       return;
-    }
 
     int CleanupState = addSEHFinally(FuncInfo, ParentState, BB);
     FuncInfo.EHPadStateMap[CleanupPad] = CleanupState;
@@ -319,10 +317,8 @@ static void calculateCXXStateNumbers(WinEHFuncInfo &FuncInfo,
 
     // It's possible for a cleanup to be visited twice: it might have multiple
     // cleanupret instructions.
-    if (FuncInfo.EHPadStateMap.count(CleanupPad)) {
-      assert(FuncInfo.EHPadStateMap[CleanupPad] == ParentState);
+    if (FuncInfo.EHPadStateMap.count(CleanupPad))
       return;
-    }
 
     int CleanupState = addUnwindMapEntry(FuncInfo, ParentState, BB);
     FuncInfo.EHPadStateMap[CleanupPad] = CleanupState;
@@ -399,7 +395,7 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
     int PredState;
     if (const CleanupPadInst *Cleanup = dyn_cast<CleanupPadInst>(Pad)) {
       // A cleanup can have multiple exits; don't re-process after the first.
-      if (FuncInfo.EHPadStateMap.count(Pad))
+      if (FuncInfo.EHPadStateMap.count(Cleanup))
         continue;
       // CoreCLR personality uses arity to distinguish faults from finallies.
       const BasicBlock *PadBlock = Cleanup->getParent();
@@ -411,14 +407,32 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
       FuncInfo.EHPadStateMap[Cleanup] = NewState;
       // Propagate the new state to all preds of the cleanup
       PredState = NewState;
-    } else if (const CatchPadInst *Catch = dyn_cast<CatchPadInst>(Pad)) {
-      const BasicBlock *PadBlock = Catch->getParent();
-      uint32_t TypeToken = static_cast<uint32_t>(
-          cast<ConstantInt>(Catch->getArgOperand(0))->getZExtValue());
-      int NewState = addClrEHHandler(
-          FuncInfo, ParentState, ClrHandlerType::Catch, TypeToken, PadBlock);
-      FuncInfo.EHPadStateMap[Catch] = NewState;
-      // Preds of the catch get its state
+    } else if (const auto *CatchSwitch = dyn_cast<CatchSwitchInst>(Pad)) {
+      SmallVector<const CatchPadInst *, 1> Handlers;
+      for (const Use &U : CatchSwitch->handlers()) {
+        const auto *Catch =
+            cast<CatchPadInst>(cast<BasicBlock>(U)->getFirstNonPHI());
+        Handlers.push_back(Catch);
+      }
+      FuncInfo.EHPadStateMap[CatchSwitch] = ParentState;
+      int NewState = ParentState;
+      for (auto HandlerI = Handlers.rbegin(), HandlerE = Handlers.rend();
+           HandlerI != HandlerE; ++HandlerI) {
+        const CatchPadInst *Catch = *HandlerI;
+        const BasicBlock *PadBlock = Catch->getParent();
+        uint32_t TypeToken = static_cast<uint32_t>(
+            cast<ConstantInt>(Catch->getArgOperand(0))->getZExtValue());
+        NewState = addClrEHHandler(FuncInfo, NewState, ClrHandlerType::Catch,
+                                   TypeToken, PadBlock);
+        FuncInfo.EHPadStateMap[Catch] = NewState;
+      }
+      for (const auto *CatchPad : Handlers) {
+        for (const User *U : CatchPad->users()) {
+          const auto *UserI = cast<Instruction>(U);
+          if (UserI->isEHPad())
+            Worklist.emplace_back(UserI, ParentState);
+        }
+      }
       PredState = NewState;
     } else {
       llvm_unreachable("Unexpected EH pad");

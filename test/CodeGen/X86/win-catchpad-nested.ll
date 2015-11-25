@@ -36,7 +36,7 @@ inner.catch:
 ; CHECK-NEXT:                  # %outer.ret
 ; CHECK-NEXT: leaq [[Exit]](%rip), %rax
 ; CHECK:      retq   # CATCHRET
-; CHECK: {{^[^: ]+}}: # %inner.pad
+; CHECK: {{^[^: ]+}}: # %inner.catch
 ; CHECK: .seh_endprolog
 ; CHECK-NEXT: leaq [[OuterRet]](%rip), %rax
 ; CHECK:      retq   # CATCHRET
