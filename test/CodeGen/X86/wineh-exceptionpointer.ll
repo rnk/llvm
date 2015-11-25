@@ -11,18 +11,16 @@ entry:
   invoke void @f()
     to label %exit unwind label %catch.pad
 catch.pad:
-; CHECK: {{^[^: ]+}}: # %catch.pad
-  %catch = catchpad [i32 5]
-    to label %catch.body unwind label %catch.end
+  %cs1 = catchswitch none, unwind to caller [label %catch.body]
 catch.body:
-  %exn = call i8 addrspace(1)* @llvm.eh.exceptionpointer.p1i8(token %catch)
-  %cast_exn = bitcast i8 addrspace(1)* %exn to i32 addrspace(1)*
+  ; CHECK: {{^[^: ]+}}: # %catch.body
   ; CHECK: movq %rdx, %rcx
   ; CHECK-NEXT: callq g
+  %catch = catchpad %cs1 [i32 5]
+  %exn = call i8 addrspace(1)* @llvm.eh.exceptionpointer.p1i8(token %catch)
+  %cast_exn = bitcast i8 addrspace(1)* %exn to i32 addrspace(1)*
   call void @g(i32 addrspace(1)* %cast_exn)
   catchret %catch to label %exit
-catch.end:
-  catchendpad unwind to caller
 exit:
   ret void
 }

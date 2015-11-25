@@ -409,29 +409,23 @@ block3:
   ret void
 
 catch:
-  %c = catchpad []
-    to label %catch.dispatch unwind label %catchend
+  %cs1 = catchswitch none, unwind label %cleanup2 [label %catch]
 
 catch.dispatch:
+  %c = catchpad %cs1 []
   catchret %c to label %block2
 
-; CHECK: catchend:
-; CHECK-NOT: load
-; CHECK-NEXT: catchendpad
-catchend:
-  catchendpad unwind label %cleanup2
-
 cleanup:
-  %c1 = cleanuppad []
+  %c1 = cleanuppad none []
   store i32 0, i32* %p
   cleanupret %c1 unwind label %cleanup2
 
 ; CHECK: cleanup2:
 ; CHECK-NOT: phi
-; CHECK-NEXT: %c2 = cleanuppad []
+; CHECK-NEXT: %c2 = cleanuppad none []
 ; CHECK-NEXT: %NOTPRE = load i32, i32* %p
 cleanup2:
-  %c2 = cleanuppad []
+  %c2 = cleanuppad none []
   %NOTPRE = load i32, i32* %p
   call void @g(i32 %NOTPRE)
   cleanupret %c2 unwind to caller

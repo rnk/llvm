@@ -23,11 +23,11 @@ invoke.cont2:
           to label %exit unwind label %inner
 
 left:
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   br label %shared
 
 right:
-  %1 = cleanuppad []
+  %1 = cleanuppad none []
   br label %shared
 
 shared:
@@ -40,7 +40,7 @@ shared.cont:
 
 inner:
   %phi = phi i32 [ %x, %shared ], [ 0, %invoke.cont2 ]
-  %i = cleanuppad []
+  %i = cleanuppad none []
   call void @h(i32 %phi)
   unreachable
 
@@ -68,11 +68,11 @@ invoke.cont:
           to label %exit unwind label %right
 
 left:
-  cleanuppad []
+  cleanuppad none []
   br label %shared
 
 right:
-  cleanuppad []
+  cleanuppad none []
   br label %shared
 
 shared:
@@ -84,7 +84,7 @@ shared.cont:
   unreachable
 
 inner:
-  %i = cleanuppad []
+  %i = cleanuppad none []
   call void @h(i32 %x)
   unreachable
 
@@ -108,10 +108,10 @@ invoke.cont:
   ret void
 
 terminate:
-; CHECK:  cleanuppad []
+; CHECK:  cleanuppad none []
 ; CHECK:  call void @__std_terminate()
 ; CHECK:  unreachable
-  terminatepad [void ()* @__std_terminate] unwind to caller
+  terminatepad none [void ()* @__std_terminate] unwind to caller
 }
 
 declare void @__std_terminate()

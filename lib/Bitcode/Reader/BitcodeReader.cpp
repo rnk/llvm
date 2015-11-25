@@ -4402,8 +4402,7 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
           return error("Invalid record");
       }
 
-      I = CleanupReturnInst::Create(cast<CleanupPadInst>(CleanupPad),
-                                    UnwindDest);
+      I = CleanupReturnInst::Create(CleanupPad, UnwindDest);
       InstructionList.push_back(I);
       break;
     }
@@ -4419,7 +4418,7 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       if (!BB)
         return error("Invalid record");
 
-      I = CatchReturnInst::Create(cast<CatchPadInst>(CatchPad), BB);
+      I = CatchReturnInst::Create(CatchPad, BB);
       InstructionList.push_back(I);
       break;
     }

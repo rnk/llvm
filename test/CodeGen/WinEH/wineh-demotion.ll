@@ -36,17 +36,15 @@ merge:
   ; CHECK: merge:
   ; CHECK-NOT: = phi
   %phi = phi i32 [ %x, %left ], [ %y, %right ]
-  %cp = catchpad [] to label %catch unwind label %catchend
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:
+  %cp = catchpad %cs1 []
   ; CHECK: catch:
   ; CHECK: [[Reload:%[^ ]+]] = load i32, i32* [[Slot]]
   ; CHECK-NEXT: call void @h(i32 [[Reload]])
   call void @h(i32 %phi)
   catchret %cp to label %exit
-
-catchend:
-  catchendpad unwind to caller
 
 exit:
   ret void
@@ -75,38 +73,36 @@ right:
 merge.inner:
   ; CHECK: merge.inner:
   ; CHECK-NOT: = phi
-  ; CHECK: catchpad []
+  ; CHECK: catchswitch none
   %x = phi i32 [ 1, %left ], [ 2, %right ]
-  %cpinner = catchpad [] to label %catch.inner unwind label %catchend.inner
+  %cs1 = catchswitch none, unwind label %merge.outer [label %catch.inner]
 
 catch.inner:
+  %cpinner = catchpad %cs1 []
   ; Need just one store here because only %y is affected
   ; CHECK: catch.inner:
   %z = call i32 @g()
   ; CHECK:   store i32 %z
   ; CHECK-NEXT: invoke void @f
   invoke void @f()
-          to label %catchret.inner unwind label %catchend.inner
+          to label %catchret.inner unwind label %merge.outer
 
 catchret.inner:
   catchret %cpinner to label %exit
-catchend.inner:
-  ; CHECK-NOT: = phi
-  %y = phi i32 [ %x, %merge.inner ], [ %z, %catch.inner ]
-  catchendpad unwind label %merge.outer
 
 merge.outer:
+  %y = phi i32 [ %x, %merge.inner ], [ %z, %catch.inner ]
   ; CHECK: merge.outer:
-  ; CHECK: [[CatchPad:%[^ ]+]] = catchpad []
-  %cpouter = catchpad [] to label %catch.outer unwind label %catchend.outer
-
-catchend.outer:
-  catchendpad unwind to caller
+  ; CHECK-NOT: = phi
+  ; CHECK: catchswitch none
+  %cs2 = catchswitch none, unwind to caller [label %catch.outer]
 
 catch.outer:
+  %cpouter = catchpad %cs2 []
+  ; CHECK: catch.outer:
+  ; CHECK: [[CatchPad:%[^ ]+]] = catchpad %cs2 []
   ; Need to load x and y from two different slots since they're both live
   ; and can have different values (if we came from catch.inner)
-  ; CHECK: catch.outer:
   ; CHECK-DAG: load i32, i32* [[Slot1]]
   ; CHECK-DAG: load i32, i32* [[Slot2]]
   ; CHECK: catchret [[CatchPad]] to label
@@ -145,13 +141,12 @@ right:
           to label %join unwind label %catchpad.inner
 catchpad.inner:
    ; CHECK: catchpad.inner:
-   ; CHECK-NEXT: catchpad []
+   ; CHECK-NEXT: catchswitch none
    %phi.inner = phi i32 [ %l, %left ], [ %r, %right ]
-   %cp1 = catchpad [] to label %catch.inner unwind label %catchend.inner
+   %cs1 = catchswitch none, unwind label %catchpad.outer [label %catch.inner]
 catch.inner:
+   %cp1 = catchpad %cs1 []
    catchret %cp1 to label %join
-catchend.inner:
-   catchendpad unwind label  %catchpad.outer
 join:
   ; CHECK: join:
   ; CHECK-NOT: store
@@ -160,19 +155,19 @@ join:
    %j = call i32 @g()
    invoke void @f()
            to label %exit unwind label %catchpad.outer
+
 catchpad.outer:
    ; CHECK: catchpad.outer:
-   ; CHECK-NEXT: catchpad []
-   %phi.outer = phi i32 [ %phi.inner, %catchend.inner ], [ %j, %join ]
-   %cp2 = catchpad [] to label %catch.outer unwind label %catchend.outer
+   ; CHECK-NEXT: catchswitch none
+   %phi.outer = phi i32 [ %phi.inner, %catchpad.inner ], [ %j, %join ]
+   %cs2 = catchswitch none, unwind to caller [label %catch.outer]
 catch.outer:
    ; CHECK: catch.outer:
    ; CHECK:   [[Reload:%[^ ]+]] = load i32, i32* [[Slot]]
    ; CHECK:   call void @h(i32 [[Reload]])
+   %cp2 = catchpad %cs2 []
    call void @h(i32 %phi.outer)
    catchret %cp2 to label %exit
-catchend.outer:
-   catchendpad unwind to caller
 exit:
    ret void
 }
@@ -198,10 +193,10 @@ invoke.cont:
 cleanup:
   ; cleanup phi can be loaded at cleanup entry
   ; CHECK: cleanup:
-  ; CHECK-NEXT: cleanuppad []
+  ; CHECK-NEXT: cleanuppad none []
   ; CHECK: [[CleanupReload:%[^ ]+]] = load i32, i32* [[CleanupSlot]]
   %phi.cleanup = phi i32 [ 1, %entry ], [ 2, %invoke.cont ]
-  %cp = cleanuppad []
+  %cp = cleanuppad none []
   %b = call i1 @i()
   br i1 %b, label %left, label %right
 
@@ -222,7 +217,7 @@ merge:
   ; CHECK:      merge:
   ; CHECK-NEXT:   store i32 [[CleanupReload]], i32* [[CatchSlot:%[^ ]+]]
   ; CHECK-NEXT:   cleanupret
-  cleanupret %cp unwind label %catchpad
+  cleanupret %cp unwind label %catchswitch
 
 invoke.cont2:
   ; need store for %phi.catch
@@ -230,23 +225,22 @@ invoke.cont2:
   ; CHECK-NEXT:   store i32 3, i32* [[CatchSlot]]
   ; CHECK-NEXT:   invoke void @f
   invoke void @f()
-          to label %exit unwind label %catchpad
+          to label %exit unwind label %catchswitch
 
-catchpad:
-  ; CHECK: catchpad:
-  ; CHECK-NEXT: catchpad []
+catchswitch:
+  ; CHECK: catchswitch:
+  ; CHECK-NEXT: catchswitch none
   %phi.catch = phi i32 [ %phi.cleanup, %merge ], [ 3, %invoke.cont2 ]
-  %cp2 = catchpad [] to label %catch unwind label %catchend
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:
   ; CHECK: catch:
+  ; CHECK:   catchpad %cs1
   ; CHECK:   [[CatchReload:%[^ ]+]] = load i32, i32* [[CatchSlot]]
   ; CHECK:   call void @h(i32 [[CatchReload]]
+  %cp2 = catchpad %cs1 []
   call void @h(i32 %phi.catch)
   catchret %cp2 to label %exit
-
-catchend:
-  catchendpad unwind to caller
 
 exit:
   ret void
@@ -262,7 +256,7 @@ entry:
   %x = invoke i32 @g()
           to label %loop unwind label %to_caller
 to_caller:
-  %cp1 = cleanuppad []
+  %cp1 = cleanuppad none []
   cleanupret %cp1 unwind to caller
 loop:
   invoke void @f()
@@ -270,7 +264,7 @@ loop:
 cleanup:
   ; CHECK: cleanup:
   ; CHECK:   call void @h(i32 %x)
-  %cp2 = cleanuppad []
+  %cp2 = cleanuppad none []
   call void @h(i32 %x)
   cleanupret %cp2 unwind to caller
 }
@@ -294,10 +288,13 @@ invoke.cont:
 catchpad:
   ; %x phi should be eliminated
   ; CHECK: catchpad:
-  ; CHECK-NEXT: %[[CatchPad:[^ ]+]] = catchpad []
+  ; CHECK-NEXT: catchswitch none
   %x = phi i32 [ 1, %entry ], [ 2, %invoke.cont ]
-  %cp = catchpad [] to label %catch unwind label %catchend
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 catch:
+  ; CHECK: catch:
+  ; CHECK-NEXT: %[[CatchPad:[^ ]+]] = catchpad %cs1 []
+  %cp = catchpad %cs1 []
   %b = call i1 @i()
   br i1 %b, label %left, label %right
 left:
@@ -317,8 +314,6 @@ right:
   ; CHECK:   catchret %[[CatchPad]] to label %join
   %y = call i32 @g()
   catchret %cp to label %join
-catchend:
-  catchendpad unwind to caller
 join:
   ; CHECK: join:
   ; CHECK:   %phi = phi i32 [ [[LoadX]], %[[SplitLeft]] ], [ %y, %right ]
@@ -340,17 +335,17 @@ done:
   ret void
 
 cleanup1:
-  ; CHECK: [[CleanupPad1:%[^ ]+]] = cleanuppad []
+  ; CHECK: [[CleanupPad1:%[^ ]+]] = cleanuppad none []
   ; CHECK-NEXT: call void @f()
   ; CHECK-NEXT: cleanupret [[CleanupPad1]]
-  %cp0 = cleanuppad []
+  %cp0 = cleanuppad none []
   br label %cleanupexit
 
 cleanup2:
-  ; CHECK: cleanuppad []
+  ; CHECK: cleanuppad none []
   ; CHECK-NEXT: call void @f()
   ; CHECK-NEXT: unreachable
-  %cp1 = cleanuppad []
+  %cp1 = cleanuppad none []
   br label %cleanupexit
 
 cleanupexit:

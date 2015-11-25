@@ -799,9 +799,11 @@ bool WinEHPrepare::prepareExplicitEH(Function &F) {
 AllocaInst *WinEHPrepare::insertPHILoads(PHINode *PN, Function &F) {
   BasicBlock *PHIBlock = PN->getParent();
   AllocaInst *SpillSlot = nullptr;
+  Instruction *EHPad = PHIBlock->getFirstNonPHI();
 
-  if (isa<CleanupPadInst>(PHIBlock->getFirstNonPHI())) {
-    // Insert a load in place of the PHI and replace all uses.
+  if (!isa<TerminatorInst>(EHPad)) {
+    // If the EHPad isn't a terminator, then we can insert a load in this block
+    // that will dominate all uses.
     SpillSlot = new AllocaInst(PN->getType(), nullptr,
                                Twine(PN->getName(), ".wineh.spillslot"),
                                &F.getEntryBlock().front());
@@ -811,16 +813,16 @@ AllocaInst *WinEHPrepare::insertPHILoads(PHINode *PN, Function &F) {
     return SpillSlot;
   }
 
+  // Otherwise, we have a PHI on a terminator EHPad, and we give up and insert
+  // loads of the slot before every use.
   DenseMap<BasicBlock *, Value *> Loads;
   for (Value::use_iterator UI = PN->use_begin(), UE = PN->use_end();
        UI != UE;) {
     Use &U = *UI++;
     auto *UsingInst = cast<Instruction>(U.getUser());
-    BasicBlock *UsingBB = UsingInst->getParent();
-    if (UsingBB->isEHPad()) {
+    if (isa<PHINode>(UsingInst) && UsingInst->getParent()->isEHPad()) {
       // Use is on an EH pad phi.  Leave it alone; we'll insert loads and
       // stores for it separately.
-      assert(isa<PHINode>(UsingInst));
       continue;
     }
     replaceUseWithLoad(PN, U, SpillSlot, Loads, F);
@@ -874,7 +876,7 @@ void WinEHPrepare::insertPHIStore(
     SmallVectorImpl<std::pair<BasicBlock *, Value *>> &Worklist) {
 
   if (PredBlock->isEHPad() &&
-      !isa<CleanupPadInst>(PredBlock->getFirstNonPHI())) {
+      isa<TerminatorInst>(PredBlock->getFirstNonPHI())) {
     // Pred is unsplittable, so we need to queue it on the worklist.
     Worklist.push_back({PredBlock, PredVal});
     return;

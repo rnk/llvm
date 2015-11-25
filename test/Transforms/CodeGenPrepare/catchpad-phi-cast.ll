@@ -17,9 +17,6 @@ declare void @g(i8*)
 
 ; CHECK-LABEL: @test(
 define void @test(i32* %addr) personality i32 (...)* @__CxxFrameHandler3 {
-; CHECK: entry:
-; CHECK-NEXT: %x = getelementptr i32, i32* %addr, i32 1
-; CHECK-NEXT: %p1 = bitcast i32* %x to i8*
 entry:
   %x = getelementptr i32, i32* %addr, i32 1
   %p1 = bitcast i32* %x to i8*
@@ -28,7 +25,6 @@ entry:
 
 ; CHECK: invoke.cont:
 ; CHECK-NEXT: %y = getelementptr i32, i32* %addr, i32 2
-; CHECK-NEXT: %p2 = bitcast i32* %y to i8*
 invoke.cont:
   %y = getelementptr i32, i32* %addr, i32 2
   %p2 = bitcast i32* %y to i8*
@@ -39,21 +35,29 @@ done:
   ret void
 
 catch1:
-  %cp1 = catchpad [] to label %catch.dispatch unwind label %catchend1
+  %cs1 = catchswitch none, unwind to caller [label %handler1]
+
+handler1:
+  %cp1 = catchpad %cs1 []
+  br label %catch.shared
+; CHECK: handler1:
+; CHECK-NEXT: catchpad %cs1
+; CHECK: %[[p1:[0-9]+]] = bitcast i32* %x to i8*
 
 catch2:
-  %cp2 = catchpad [] to label %catch.dispatch unwind label %catchend2
+  %cs2 = catchswitch none, unwind to caller [label %handler2]
 
-; CHECK: catch.dispatch:
-; CHECK-NEXT: %p = phi i8* [ %p1, %catch1 ], [ %p2, %catch2 ]
-catch.dispatch:
-  %p = phi i8* [ %p1, %catch1 ], [ %p2, %catch2 ]
+handler2:
+  %cp2 = catchpad %cs2 []
+  br label %catch.shared
+; CHECK: handler2:
+; CHECK: catchpad %cs2
+; CHECK: %[[p2:[0-9]+]] = bitcast i32* %y to i8*
+
+; CHECK: catch.shared:
+; CHECK-NEXT: %p = phi i8* [ %[[p1]], %handler1 ], [ %[[p2]], %handler2 ]
+catch.shared:
+  %p = phi i8* [ %p1, %handler1 ], [ %p2, %handler2 ]
   call void @g(i8* %p)
   unreachable
-
-catchend1:
-  catchendpad unwind to caller
-
-catchend2:
-  catchendpad unwind to caller
 }
