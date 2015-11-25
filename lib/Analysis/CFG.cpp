@@ -238,9 +238,8 @@ bool llvm::isPotentiallyReachable(const Instruction *A, const Instruction *B,
       Worklist, const_cast<BasicBlock *>(B->getParent()), DT, LI);
 }
 
-void llvm::colorEHFunclets(
-    Function &F, std::map<BasicBlock *, SetVector<BasicBlock *>> &BlockColors,
-    std::map<BasicBlock *, std::set<BasicBlock *>> &FuncletBlocks) {
+void llvm::colorEHFunclets(Function &F,
+                           DenseMap<BasicBlock *, ColorVector> &BlockColors) {
   SmallVector<std::pair<BasicBlock *, BasicBlock *>, 16> Worklist;
   BasicBlock *EntryBlock = &F.getEntryBlock();
 
@@ -275,9 +274,12 @@ void llvm::colorEHFunclets(
       Color = Visiting;
     }
     // Note that this is a member of the given color.
-    if (!BlockColors[Visiting].insert(Color))
+    ColorVector &Colors = BlockColors[Visiting];
+    if (std::find(Colors.begin(), Colors.end(), Color) == Colors.end())
+      Colors.push_back(Color);
+    else
       continue;
-    FuncletBlocks[Color].insert(Visiting);
+
     DEBUG_WITH_TYPE("winehprepare-coloring",
                     dbgs() << "  Assigned color \'" << Color->getName()
                            << "\' to block \'" << Visiting->getName()

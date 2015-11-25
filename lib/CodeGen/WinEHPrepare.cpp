@@ -82,7 +82,7 @@ private:
   // All fields are reset by runOnFunction.
   EHPersonality Personality = EHPersonality::Unknown;
 
-  std::map<BasicBlock *, SetVector<BasicBlock *>> BlockColors;
+  DenseMap<BasicBlock *, ColorVector> BlockColors;
   std::map<BasicBlock *, std::set<BasicBlock *>> FuncletBlocks;
 };
 
@@ -486,7 +486,14 @@ void WinEHPrepare::replaceTerminatePadWithCleanup(Function &F) {
 }
 
 void WinEHPrepare::colorFunclets(Function &F) {
-  ::colorEHFunclets(F, BlockColors, FuncletBlocks);
+  ::colorEHFunclets(F, BlockColors);
+
+  // Invert the map from BB to colors to color to BBs.
+  for (auto BBAndColors : BlockColors) {
+    BasicBlock *BB = BBAndColors.first;
+    for (BasicBlock *Color : BBAndColors.second)
+      FuncletBlocks[Color].insert(BB);
+  }
 }
 
 void llvm::calculateCatchReturnSuccessorColors(const Function *Fn,
@@ -552,7 +559,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       // Increment the iterator inside the loop because we might be removing
       // blocks from the set.
       BasicBlock *BB = *BlockIt++;
-      SetVector<BasicBlock *> &ColorsForBB = BlockColors[BB];
+      ColorVector &ColorsForBB = BlockColors[BB];
       // We don't need to do anything if the block is monochromatic.
       size_t NumColorsForBB = ColorsForBB.size();
       if (NumColorsForBB == 1)
@@ -588,7 +595,10 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       BasicBlock *NewBlock = BBMapping.second;
 
       BlocksInFunclet.insert(NewBlock);
-      BlockColors[NewBlock].insert(FuncletPadBB);
+      ColorVector &NewColors = BlockColors[NewBlock];
+      if (std::find(NewColors.begin(), NewColors.end(), FuncletPadBB) ==
+          NewColors.end())
+        NewColors.push_back(FuncletPadBB);
 
       DEBUG_WITH_TYPE("winehprepare-coloring",
                       dbgs() << "  Assigned color \'" << FuncletPadBB->getName()
@@ -596,7 +606,10 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
                               << "\'.\n");
 
       BlocksInFunclet.erase(OldBlock);
-      BlockColors[OldBlock].remove(FuncletPadBB);
+      ColorVector &OldColors = BlockColors[OldBlock];
+      OldColors.erase(
+          std::remove(OldColors.begin(), OldColors.end(), FuncletPadBB),
+          OldColors.end());
 
       DEBUG_WITH_TYPE("winehprepare-coloring",
                       dbgs() << "  Removed color \'" << FuncletPadBB->getName()
@@ -659,7 +672,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       for (Use &U : OldI->uses()) {
         Instruction *UserI = cast<Instruction>(U.getUser());
         BasicBlock *UserBB = UserI->getParent();
-        SetVector<BasicBlock *> &ColorsForUserBB = BlockColors[UserBB];
+        ColorVector &ColorsForUserBB = BlockColors[UserBB];
         assert(!ColorsForUserBB.empty());
         if (ColorsForUserBB.size() > 1 ||
             *ColorsForUserBB.begin() != FuncletPadBB)
@@ -921,7 +934,7 @@ void WinEHPrepare::replaceUseWithLoad(Value *V, Use &U, AllocaInst *&SpillSlot,
       Goto->setSuccessor(0, PHIBlock);
       CatchRet->setSuccessor(NewBlock);
       // Update the color mapping for the newly split edge.
-      SetVector<BasicBlock *> &ColorsForPHIBlock = BlockColors[PHIBlock];
+      ColorVector &ColorsForPHIBlock = BlockColors[PHIBlock];
       BlockColors[NewBlock] = ColorsForPHIBlock;
       for (BasicBlock *FuncletPad : ColorsForPHIBlock)
         FuncletBlocks[FuncletPad].insert(NewBlock);
