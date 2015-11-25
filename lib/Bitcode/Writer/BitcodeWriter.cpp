@@ -1969,34 +1969,47 @@ static void WriteInstruction(const Instruction &I, unsigned InstID,
     Vals.push_back(VE.getValueID(CRI.getSuccessor()));
     break;
   }
+  case Instruction::CleanupPad:
   case Instruction::CatchPad: {
-    Code = bitc::FUNC_CODE_INST_CATCHPAD;
-    const auto &CPI = cast<CatchPadInst>(I);
-    unsigned NumOperands = CPI.getNumOperands();
-    Vals.push_back(NumOperands);
-    for (unsigned Op = 0; Op != NumOperands; ++Op)
-      PushValueAndType(CPI.getOperand(Op), InstID, Vals, VE);
+    const auto &FuncletPad = cast<FuncletPadInst>(I);
+    Code = isa<CatchPadInst>(FuncletPad) ? bitc::FUNC_CODE_INST_CATCHPAD
+                                         : bitc::FUNC_CODE_INST_CLEANUPPAD;
+    pushValue(FuncletPad.getOuterScope(), InstID, Vals, VE);
+
+    unsigned NumArgOperands = FuncletPad.getNumArgOperands();
+    Vals.push_back(NumArgOperands);
+    for (unsigned Op = 0; Op != NumArgOperands; ++Op)
+      PushValueAndType(FuncletPad.getArgOperand(Op), InstID, Vals, VE);
+    break;
+  }
+  case Instruction::CatchSwitch: {
+    Code = bitc::FUNC_CODE_INST_CATCHSWITCH;
+    const auto &CatchSwitch = cast<CatchSwitchInst>(I);
+
+    pushValue(CatchSwitch.getOuterScope(), InstID, Vals, VE);
+
+    unsigned NumHandlers = CatchSwitch.getNumHandlers();
+    Vals.push_back(NumHandlers);
+    for (const Use &U : CatchSwitch.handlers())
+      Vals.push_back(VE.getValueID(U));
+
+    if (CatchSwitch.hasUnwindDest())
+      Vals.push_back(VE.getValueID(CatchSwitch.getUnwindDest()));
     break;
   }
   case Instruction::TerminatePad: {
     Code = bitc::FUNC_CODE_INST_TERMINATEPAD;
     const auto &TPI = cast<TerminatePadInst>(I);
-    Vals.push_back(TPI.hasUnwindDest());
-    if (TPI.hasUnwindDest())
-      Vals.push_back(VE.getValueID(TPI.getUnwindDest()));
+
+    pushValue(TPI.getOuterScope(), InstID, Vals, VE);
+
     unsigned NumArgOperands = TPI.getNumArgOperands();
     Vals.push_back(NumArgOperands);
     for (unsigned Op = 0; Op != NumArgOperands; ++Op)
       PushValueAndType(TPI.getArgOperand(Op), InstID, Vals, VE);
-    break;
-  }
-  case Instruction::CleanupPad: {
-    Code = bitc::FUNC_CODE_INST_CLEANUPPAD;
-    const auto &CPI = cast<CleanupPadInst>(I);
-    unsigned NumOperands = CPI.getNumOperands();
-    Vals.push_back(NumOperands);
-    for (unsigned Op = 0; Op != NumOperands; ++Op)
-      PushValueAndType(CPI.getOperand(Op), InstID, Vals, VE);
+
+    if (TPI.hasUnwindDest())
+      Vals.push_back(VE.getValueID(TPI.getUnwindDest()));
     break;
   }
   case Instruction::Unreachable:

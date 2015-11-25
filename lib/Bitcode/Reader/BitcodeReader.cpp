@@ -4423,45 +4423,55 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CATCHPAD: { // CATCHPAD: [val,num,(ty,val)*]
+    case bitc::FUNC_CODE_INST_CATCHSWITCH: { // CATCHSWITCH: [tok,num,(bb)*,bb?]
+      // We must have, at minimum, the outer scope and the number of arguments.
       if (Record.size() < 2)
-        return error("Invalid record");
-      unsigned Idx = 0;
-      Value *CatchSwitch =
-          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
-      if (!CatchSwitch)
-        return error("Invalid record");
-      unsigned NumArgOperands = Record[Idx++];
-      SmallVector<Value *, 2> Args;
-      for (unsigned Op = 0; Op != NumArgOperands; ++Op) {
-        Value *Val;
-        if (getValueTypePair(Record, Idx, NextValueNo, Val))
-          return error("Invalid record");
-        Args.push_back(Val);
-      }
-      if (Record.size() != Idx)
         return error("Invalid record");
 
-      I = CatchPadInst::Create(cast<CatchSwitchInst>(CatchSwitch), Args);
-      InstructionList.push_back(I);
-      break;
-    }
-    case bitc::FUNC_CODE_INST_TERMINATEPAD: { // TERMINATEPAD: [outer_scope,bb#,num,(ty,val)*]
-      if (Record.size() < 2)
-        return error("Invalid record");
       unsigned Idx = 0;
+
       Value *OuterScope =
           getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
-      bool HasUnwindDest = !!Record[Idx++];
-      BasicBlock *UnwindDest = nullptr;
-      if (HasUnwindDest) {
-        if (Idx == Record.size())
+
+      unsigned NumHandlers = Record[Idx++];
+
+      SmallVector<BasicBlock *, 2> Handlers;
+      for (unsigned Op = 0; Op != NumHandlers; ++Op) {
+        BasicBlock *BB = getBasicBlock(Record[Idx++]);
+        if (!BB)
           return error("Invalid record");
+        Handlers.push_back(BB);
+      }
+
+      BasicBlock *UnwindDest = nullptr;
+      if (Idx + 1 == Record.size()) {
         UnwindDest = getBasicBlock(Record[Idx++]);
         if (!UnwindDest)
           return error("Invalid record");
       }
+
+      if (Record.size() != Idx)
+        return error("Invalid record");
+
+      auto *CatchSwitch = CatchSwitchInst::Create(OuterScope, UnwindDest, NumHandlers);
+      for (BasicBlock *Handler : Handlers)
+        CatchSwitch->addHandler(Handler);
+      I = CatchSwitch;
+      InstructionList.push_back(I);
+      break;
+    }
+    case bitc::FUNC_CODE_INST_TERMINATEPAD: { // TERMINATEPAD: [tok,bb#,num,(ty,val)*]
+      // We must have, at minimum, the outer scope and the number of arguments.
+      if (Record.size() < 2)
+        return error("Invalid record");
+
+      unsigned Idx = 0;
+
+      Value *OuterScope =
+          getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
+
       unsigned NumArgOperands = Record[Idx++];
+
       SmallVector<Value *, 2> Args;
       for (unsigned Op = 0; Op != NumArgOperands; ++Op) {
         Value *Val;
@@ -4469,6 +4479,14 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
           return error("Invalid record");
         Args.push_back(Val);
       }
+
+      BasicBlock *UnwindDest = nullptr;
+      if (Idx + 1 == Record.size()) {
+        UnwindDest = getBasicBlock(Record[Idx++]);
+        if (!UnwindDest)
+          return error("Invalid record");
+      }
+
       if (Record.size() != Idx)
         return error("Invalid record");
 
@@ -4476,13 +4494,19 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CLEANUPPAD: { // CLEANUPPAD: [num,(ty,val)*]
-      if (Record.size() < 1)
+    case bitc::FUNC_CODE_INST_CATCHPAD:
+    case bitc::FUNC_CODE_INST_CLEANUPPAD: { // [tok,num,(ty,val)*]
+      // We must have, at minimum, the outer scope and the number of arguments.
+      if (Record.size() < 2)
         return error("Invalid record");
+
       unsigned Idx = 0;
+
       Value *OuterScope =
           getValue(Record, Idx++, NextValueNo, Type::getTokenTy(Context));
+
       unsigned NumArgOperands = Record[Idx++];
+
       SmallVector<Value *, 2> Args;
       for (unsigned Op = 0; Op != NumArgOperands; ++Op) {
         Value *Val;
@@ -4490,10 +4514,14 @@ std::error_code BitcodeReader::parseFunctionBody(Function *F) {
           return error("Invalid record");
         Args.push_back(Val);
       }
+
       if (Record.size() != Idx)
         return error("Invalid record");
 
-      I = CleanupPadInst::Create(OuterScope, Args);
+      if (BitCode == bitc::FUNC_CODE_INST_CLEANUPPAD)
+        I = CleanupPadInst::Create(OuterScope, Args);
+      else
+        I = CatchPadInst::Create(OuterScope, Args);
       InstructionList.push_back(I);
       break;
     }

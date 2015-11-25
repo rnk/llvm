@@ -2925,13 +2925,6 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
          "CleanupPadInst not the first non-PHI instruction in the block.",
          &CPI);
 
-  auto *OuterScope = CPI.getOuterScope();
-  if (!isa<CatchSwitchInst>(OuterScope) && !isa<CleanupPadInst>(OuterScope) &&
-      !isa<TerminatePadInst>(OuterScope) && !isa<ConstantTokenNone>(OuterScope))
-    Assert(false, "CleanupPadInst can only be directly nested by either a "
-                  "CleanupPadInst, CatchSwitchInst or a TerminatePadInst.",
-           OuterScope);
-
   User *FirstUser = nullptr;
   BasicBlock *FirstUnwindDest = nullptr;
   for (User *U : CPI.users()) {
@@ -2974,13 +2967,6 @@ void Verifier::visitCatchSwitchInst(CatchSwitchInst &CatchSwitch) {
   Assert(BB->getFirstNonPHI() == &CatchSwitch,
          "CatchSwitchInst not the first non-PHI instruction in the block.",
          &CatchSwitch);
-
-  auto *OuterScope = CatchSwitch.getOuterScope();
-  if (!isa<CatchSwitchInst>(OuterScope) && !isa<CleanupPadInst>(OuterScope) &&
-      !isa<TerminatePadInst>(OuterScope) && !isa<ConstantTokenNone>(OuterScope))
-    Assert(false, "CatchSwitchInst can only be directly nested by either a "
-                  "CleanupPadInst, CatchSwitchInst or a TerminatePadInst.",
-           OuterScope);
 
   visitTerminatorInst(CatchSwitch);
 }
