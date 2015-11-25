@@ -15,6 +15,7 @@
 #ifndef LLVM_ANALYSIS_CFG_H
 #define LLVM_ANALYSIS_CFG_H
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 
@@ -89,6 +90,15 @@ bool isPotentiallyReachableFromMany(SmallVectorImpl<BasicBlock *> &Worklist,
                                     BasicBlock *StopBB,
                                     const DominatorTree *DT = nullptr,
                                     const LoopInfo *LI = nullptr);
+
+/// \brief If an EH funclet personality is in use (see isFuncletEHPersonality),
+/// this will recompute which blocks are in which funclet. It is possible that
+/// some blocks are in multiple funclets. Consider this analysis to be
+/// expensive.
+void colorEHFunclets(
+    Function &F, std::map<BasicBlock *, SetVector<BasicBlock *>> &BlockColors,
+    std::map<BasicBlock *, std::set<BasicBlock *>> &FuncletBlocks);
+
 } // End llvm namespace
 
 #endif

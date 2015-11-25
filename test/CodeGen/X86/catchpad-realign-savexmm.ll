@@ -14,19 +14,17 @@ define void @f() personality i32 (...)* @__CxxFrameHandler3 {
   %v1 = fadd double %v, 1.0
   store double %v1, double* @fp_global
   invoke void @g()
-      to label %return unwind label %catch
+      to label %return unwind label %catch.dispatch
 
 return:
   ret void
 
-catch:
-  %p = catchpad [i8* null, i32 64, i8* null]
-      to label %catchit unwind label %endpad
+catch.dispatch:
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
-catchit:
+catch:
+  %p = catchpad %cs1 [i8* null, i32 64, i8* null]
   catchret %p to label %return
-endpad:
-  catchendpad unwind to caller
 }
 
 ; CHECK: f: # @f

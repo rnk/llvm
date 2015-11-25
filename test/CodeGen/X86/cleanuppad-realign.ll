@@ -17,7 +17,7 @@ invoke.cont:                                      ; preds = %entry
   ret void
 
 ehcleanup:                                        ; preds = %entry
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   call void @Dtor(i64* %o)
   cleanupret %0 unwind to caller
 }

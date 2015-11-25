@@ -390,9 +390,8 @@ private:
   void visitEHPadPredecessors(Instruction &I);
   void visitLandingPadInst(LandingPadInst &LPI);
   void visitCatchPadInst(CatchPadInst &CPI);
-  void visitCatchEndPadInst(CatchEndPadInst &CEPI);
   void visitCleanupPadInst(CleanupPadInst &CPI);
-  void visitCleanupEndPadInst(CleanupEndPadInst &CEPI);
+  void visitCatchSwitchInst(CatchSwitchInst &CatchSwitchInst);
   void visitCleanupReturnInst(CleanupReturnInst &CRI);
   void visitTerminatePadInst(TerminatePadInst &TPI);
 
@@ -2838,22 +2837,13 @@ void Verifier::visitEHPadPredecessors(Instruction &I) {
 
   for (BasicBlock *PredBB : predecessors(BB)) {
     TerminatorInst *TI = PredBB->getTerminator();
-    if (auto *II = dyn_cast<InvokeInst>(TI))
+    if (auto *II = dyn_cast<InvokeInst>(TI)) {
       Assert(II->getUnwindDest() == BB && II->getNormalDest() != BB,
              "EH pad must be jumped to via an unwind edge", &I, II);
-    else if (auto *CPI = dyn_cast<CatchPadInst>(TI))
-      Assert(CPI->getUnwindDest() == BB && CPI->getNormalDest() != BB,
-             "EH pad must be jumped to via an unwind edge", &I, CPI);
-    else if (isa<CatchEndPadInst>(TI))
-      ;
-    else if (isa<CleanupReturnInst>(TI))
-      ;
-    else if (isa<CleanupEndPadInst>(TI))
-      ;
-    else if (isa<TerminatePadInst>(TI))
-      ;
-    else
+    } else if (!isa<CleanupReturnInst>(TI) && !isa<TerminatePadInst>(TI) &&
+               !isa<CatchSwitchInst>(TI)) {
       Assert(false, "EH pad must be jumped to via an unwind edge", &I, TI);
+    }
   }
 }
 
@@ -2902,67 +2892,22 @@ void Verifier::visitCatchPadInst(CatchPadInst &CPI) {
   visitEHPadPredecessors(CPI);
 
   BasicBlock *BB = CPI.getParent();
+
   Function *F = BB->getParent();
   Assert(F->hasPersonalityFn(),
-         "CatchPadInst needs to be in a function with a personality.", &CPI);
+         "CleanupPadInst needs to be in a function with a personality.", &CPI);
+
+  Assert(isa<CatchSwitchInst>(CPI.getOuterScope()),
+         "CleanupPadInst needs to be directly nested in a CatchSwitchInst.",
+         CPI.getOuterScope());
 
   // The catchpad instruction must be the first non-PHI instruction in the
   // block.
   Assert(BB->getFirstNonPHI() == &CPI,
-         "CatchPadInst not the first non-PHI instruction in the block.",
+         "CleanupPadInst not the first non-PHI instruction in the block.",
          &CPI);
 
-  if (!BB->getSinglePredecessor())
-    for (BasicBlock *PredBB : predecessors(BB)) {
-      Assert(!isa<CatchPadInst>(PredBB->getTerminator()),
-             "CatchPadInst with CatchPadInst predecessor cannot have any other "
-             "predecessors.",
-             &CPI);
-    }
-
-  BasicBlock *UnwindDest = CPI.getUnwindDest();
-  Instruction *I = UnwindDest->getFirstNonPHI();
-  Assert(
-      isa<CatchPadInst>(I) || isa<CatchEndPadInst>(I),
-      "CatchPadInst must unwind to a CatchPadInst or a CatchEndPadInst.",
-      &CPI);
-
-  visitTerminatorInst(CPI);
-}
-
-void Verifier::visitCatchEndPadInst(CatchEndPadInst &CEPI) {
-  visitEHPadPredecessors(CEPI);
-
-  BasicBlock *BB = CEPI.getParent();
-  Function *F = BB->getParent();
-  Assert(F->hasPersonalityFn(),
-         "CatchEndPadInst needs to be in a function with a personality.",
-         &CEPI);
-
-  // The catchendpad instruction must be the first non-PHI instruction in the
-  // block.
-  Assert(BB->getFirstNonPHI() == &CEPI,
-         "CatchEndPadInst not the first non-PHI instruction in the block.",
-         &CEPI);
-
-  unsigned CatchPadsSeen = 0;
-  for (BasicBlock *PredBB : predecessors(BB))
-    if (isa<CatchPadInst>(PredBB->getTerminator()))
-      ++CatchPadsSeen;
-
-  Assert(CatchPadsSeen <= 1, "CatchEndPadInst must have no more than one "
-                               "CatchPadInst predecessor.",
-         &CEPI);
-
-  if (BasicBlock *UnwindDest = CEPI.getUnwindDest()) {
-    Instruction *I = UnwindDest->getFirstNonPHI();
-    Assert(
-        I->isEHPad() && !isa<LandingPadInst>(I),
-        "CatchEndPad must unwind to an EH block which is not a landingpad.",
-        &CEPI);
-  }
-
-  visitTerminatorInst(CEPI);
+  visitInstruction(CPI);
 }
 
 void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
@@ -2986,48 +2931,44 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
     BasicBlock *UnwindDest;
     if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(U)) {
       UnwindDest = CRI->getUnwindDest();
+    } else if (isa<CleanupPadInst>(U) || isa<CatchSwitchInst>(U)) {
+      continue;
     } else {
-      UnwindDest = cast<CleanupEndPadInst>(U)->getUnwindDest();
+      Assert(false, "bogus cleanuppad use", &CPI);
     }
 
     if (!FirstUser) {
       FirstUser = U;
       FirstUnwindDest = UnwindDest;
     } else {
-      Assert(UnwindDest == FirstUnwindDest,
-             "Cleanuprets/cleanupendpads from the same cleanuppad must "
-             "have the same unwind destination",
-             FirstUser, U);
+      Assert(
+          UnwindDest == FirstUnwindDest,
+          "cleanupret instructions from the same cleanuppad must have the same "
+          "unwind destination",
+          FirstUser, U);
     }
   }
 
   visitInstruction(CPI);
 }
 
-void Verifier::visitCleanupEndPadInst(CleanupEndPadInst &CEPI) {
-  visitEHPadPredecessors(CEPI);
+void Verifier::visitCatchSwitchInst(CatchSwitchInst &CatchSwitch) {
+  visitEHPadPredecessors(CatchSwitch);
 
-  BasicBlock *BB = CEPI.getParent();
+  BasicBlock *BB = CatchSwitch.getParent();
+
   Function *F = BB->getParent();
   Assert(F->hasPersonalityFn(),
-         "CleanupEndPadInst needs to be in a function with a personality.",
-         &CEPI);
+         "CatchSwitchInst needs to be in a function with a personality.",
+         &CatchSwitch);
 
-  // The cleanupendpad instruction must be the first non-PHI instruction in the
+  // The catchswitch instruction must be the first non-PHI instruction in the
   // block.
-  Assert(BB->getFirstNonPHI() == &CEPI,
-         "CleanupEndPadInst not the first non-PHI instruction in the block.",
-         &CEPI);
+  Assert(BB->getFirstNonPHI() == &CatchSwitch,
+         "CatchSwitchInst not the first non-PHI instruction in the block.",
+         &CatchSwitch);
 
-  if (BasicBlock *UnwindDest = CEPI.getUnwindDest()) {
-    Instruction *I = UnwindDest->getFirstNonPHI();
-    Assert(
-        I->isEHPad() && !isa<LandingPadInst>(I),
-        "CleanupEndPad must unwind to an EH block which is not a landingpad.",
-        &CEPI);
-  }
-
-  visitTerminatorInst(CEPI);
+  visitTerminatorInst(CatchSwitch);
 }
 
 void Verifier::visitCleanupReturnInst(CleanupReturnInst &CRI) {

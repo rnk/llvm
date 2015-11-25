@@ -81,10 +81,8 @@ public:
   // \brief Returns true if this terminator relates to exception handling.
   bool isExceptional() const {
     switch (getOpcode()) {
-    case Instruction::CatchPad:
-    case Instruction::CatchEndPad:
+    case Instruction::CatchSwitch:
     case Instruction::CatchRet:
-    case Instruction::CleanupEndPad:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
@@ -1111,6 +1109,70 @@ struct OperandTraits<CmpInst> : public FixedNumOperandTraits<CmpInst, 2> {
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CmpInst, Value)
 
+//===----------------------------------------------------------------------===//
+//                           FuncletPadInst Class
+//===----------------------------------------------------------------------===//
+class FuncletPadInst : public Instruction {
+private:
+  void init(Value *OuterScope, ArrayRef<Value *> Args, const Twine &NameStr);
+
+  FuncletPadInst(const FuncletPadInst &CPI);
+
+  explicit FuncletPadInst(Instruction::FuncletPadOps Op, Value *OuterScope,
+                          ArrayRef<Value *> Args, unsigned Values,
+                          const Twine &NameStr, Instruction *InsertBefore);
+  explicit FuncletPadInst(Instruction::FuncletPadOps Op, Value *OuterScope,
+                          ArrayRef<Value *> Args, unsigned Values,
+                          const Twine &NameStr, BasicBlock *InsertAtEnd);
+
+protected:
+  // Note: Instruction needs to be a friend here to call cloneImpl.
+  friend class Instruction;
+  friend class CatchPadInst;
+  friend class CleanupPadInst;
+  FuncletPadInst *cloneImpl() const;
+
+public:
+  /// Provide fast operand accessors
+  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  /// getNumArgOperands - Return the number of cleanuppad arguments.
+  ///
+  unsigned getNumArgOperands() const { return getNumOperands() - 1; }
+
+  /// Convenience accessors
+  Value *getOuterScope() const { return Op<-1>(); }
+  void setOuterScope(Value *OuterScope) {
+    assert(OuterScope);
+    Op<-1>() = OuterScope;
+  }
+
+  /// getArgOperand/setArgOperand - Return/set the i-th cleanuppad argument.
+  ///
+  Value *getArgOperand(unsigned i) const { return getOperand(i); }
+  void setArgOperand(unsigned i, Value *v) { setOperand(i, v); }
+
+  /// arg_operands - iteration adapter for range-for loops.
+  op_range arg_operands() { return op_range(op_begin(), op_end() - 1); }
+
+  /// arg_operands - iteration adapter for range-for loops.
+  const_op_range arg_operands() const {
+    return const_op_range(op_begin(), op_end() - 1);
+  }
+
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static inline bool classof(const Instruction *I) { return I->isFuncletPad(); }
+  static inline bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
+
+template <>
+struct OperandTraits<FuncletPadInst>
+    : public VariadicOperandTraits<FuncletPadInst, /*MINARITY=*/1> {};
+
+DEFINE_TRANSPARENT_OPERAND_ACCESSORS(FuncletPadInst, Value)
+
 /// \brief A lightweight accessor for an operand bundle meant to be passed
 /// around by value.
 struct OperandBundleUse {
@@ -1323,6 +1385,18 @@ public:
     }
 
     return None;
+  }
+
+  /// \brief Return the list of operand bundles attached to this instruction as
+  /// a vector of OperandBundleDefs.
+  ///
+  /// This function copies the OperandBundeUse instances associated with this
+  /// OperandBundleUser to a vector of OperandBundleDefs.  Note:
+  /// OperandBundeUses and OperandBundleDefs are non-trivially *different*
+  /// representations of operand bundles (see documentation above).
+  void getOperandBundlesAsDefs(SmallVectorImpl<OperandBundleDef> &Defs) const {
+    for (unsigned i = 0, e = getNumOperandBundles(); i != e; ++i)
+      Defs.emplace_back(getOperandBundleAt(i));
   }
 
   /// \brief Return the operand bundle for the operand at index OpIdx.

@@ -1184,21 +1184,7 @@ void SelectionDAGBuilder::visitCatchPad(const CatchPadInst &I) {
   if (IsMSVCCXX || IsCoreCLR)
     CatchPadMBB->setIsEHFuncletEntry();
 
-  MachineBasicBlock *NormalDestMBB = FuncInfo.MBBMap[I.getNormalDest()];
-
-  // Update machine-CFG edge.
-  FuncInfo.MBB->addSuccessor(NormalDestMBB);
-
-  SDValue Chain =
-      DAG.getNode(ISD::CATCHPAD, getCurSDLoc(), MVT::Other, getControlRoot());
-
-  // If this is not a fall-through branch or optimizations are switched off,
-  // emit the branch.
-  if (NormalDestMBB != NextBlock(CatchPadMBB) ||
-      TM.getOptLevel() == CodeGenOpt::None)
-    Chain = DAG.getNode(ISD::BR, getCurSDLoc(), MVT::Other, Chain,
-                        DAG.getBasicBlock(NormalDestMBB));
-  DAG.setRoot(Chain);
+  DAG.setRoot(DAG.getNode(ISD::CATCHPAD, getCurSDLoc(), MVT::Other, getControlRoot()));
 }
 
 void SelectionDAGBuilder::visitCatchRet(const CatchReturnInst &I) {
@@ -1232,10 +1218,6 @@ void SelectionDAGBuilder::visitCatchRet(const CatchReturnInst &I) {
                             getControlRoot(), DAG.getBasicBlock(TargetMBB),
                             DAG.getBasicBlock(SuccessorColorMBB));
   DAG.setRoot(Ret);
-}
-
-void SelectionDAGBuilder::visitCatchEndPad(const CatchEndPadInst &I) {
-  llvm_unreachable("should never codegen catchendpads");
 }
 
 void SelectionDAGBuilder::visitCleanupPad(const CleanupPadInst &CPI) {
@@ -1276,19 +1258,18 @@ static void findUnwindDestinations(
       UnwindDests.emplace_back(FuncInfo.MBBMap[EHPadBB], Prob);
       UnwindDests.back().first->setIsEHFuncletEntry();
       break;
-    } else if (const auto *CPI = dyn_cast<CatchPadInst>(Pad)) {
-      // Add the catchpad handler to the possible destinations.
-      UnwindDests.emplace_back(FuncInfo.MBBMap[EHPadBB], Prob);
-      // In MSVC C++, catchblocks are funclets and need prologues.
-      if (IsMSVCCXX || IsCoreCLR)
-        UnwindDests.back().first->setIsEHFuncletEntry();
-      NewEHPadBB = CPI->getUnwindDest();
-    } else if (const auto *CEPI = dyn_cast<CatchEndPadInst>(Pad))
-      NewEHPadBB = CEPI->getUnwindDest();
-    else if (const auto *CEPI = dyn_cast<CleanupEndPadInst>(Pad))
-      NewEHPadBB = CEPI->getUnwindDest();
-    else
+    } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(Pad)) {
+      // Add the catchpad handlers to the possible destinations.
+      for (const Use &U : CatchSwitch->handlers()) {
+        UnwindDests.emplace_back(FuncInfo.MBBMap[cast<BasicBlock>(U)], Prob);
+        // In MSVC C++, catchblocks are funclets and need prologues.
+        if (IsMSVCCXX || IsCoreCLR)
+          UnwindDests.back().first->setIsEHFuncletEntry();
+      }
+      NewEHPadBB = CatchSwitch->getUnwindDest();
+    } else {
       continue;
+    }
 
     BranchProbabilityInfo *BPI = FuncInfo.BPI;
     if (BPI && NewEHPadBB)
@@ -1319,12 +1300,12 @@ void SelectionDAGBuilder::visitCleanupRet(const CleanupReturnInst &I) {
   DAG.setRoot(Ret);
 }
 
-void SelectionDAGBuilder::visitCleanupEndPad(const CleanupEndPadInst &I) {
-  report_fatal_error("visitCleanupEndPad not yet implemented!");
-}
-
 void SelectionDAGBuilder::visitTerminatePad(const TerminatePadInst &TPI) {
   report_fatal_error("visitTerminatePad not yet implemented!");
+}
+
+void SelectionDAGBuilder::visitCatchSwitch(const CatchSwitchInst &CSI) {
+  report_fatal_error("visitCatchSwitch not yet implemented!");
 }
 
 void SelectionDAGBuilder::visitRet(const ReturnInst &I) {

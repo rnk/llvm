@@ -691,6 +691,13 @@ public:
     return Insert(InvokeInst::Create(Callee, NormalDest, UnwindDest, Args),
                   Name);
   }
+  InvokeInst *CreateInvoke(Value *Callee, BasicBlock *NormalDest,
+                           BasicBlock *UnwindDest, ArrayRef<Value *> Args,
+                           ArrayRef<OperandBundleDef> OpBundles,
+                           const Twine &Name = "") {
+    return Insert(InvokeInst::Create(Callee, NormalDest, UnwindDest, Args,
+                                     OpBundles), Name);
+  }
 
   ResumeInst *CreateResume(Value *Exn) {
     return Insert(ResumeInst::Create(Exn));
@@ -701,18 +708,8 @@ public:
     return Insert(CleanupReturnInst::Create(CleanupPad, UnwindBB));
   }
 
-  CleanupEndPadInst *CreateCleanupEndPad(CleanupPadInst *CleanupPad,
-                                         BasicBlock *UnwindBB = nullptr) {
-    return Insert(CleanupEndPadInst::Create(CleanupPad, UnwindBB));
-  }
-
-  CatchPadInst *CreateCatchPad(BasicBlock *NormalDest, BasicBlock *UnwindDest,
-                               ArrayRef<Value *> Args, const Twine &Name = "") {
-    return Insert(CatchPadInst::Create(NormalDest, UnwindDest, Args), Name);
-  }
-
-  CatchEndPadInst *CreateCatchEndPad(BasicBlock *UnwindBB = nullptr) {
-    return Insert(CatchEndPadInst::Create(Context, UnwindBB));
+  CatchPadInst *CreateCatchPad(ArrayRef<Value *> Args, const Twine &Name = "") {
+    return Insert(CatchPadInst::Create(Context, Args), Name);
   }
 
   TerminatePadInst *CreateTerminatePad(BasicBlock *UnwindBB = nullptr,
@@ -1528,7 +1525,12 @@ public:
   }
 
   CallInst *CreateCall(Value *Callee, ArrayRef<Value *> Args = None,
+                       ArrayRef<OperandBundleDef> OpBundles = None,
                        const Twine &Name = "") {
+    return Insert(CallInst::Create(Callee, Args, OpBundles), Name);
+  }
+  CallInst *CreateCall(Value *Callee, ArrayRef<Value *> Args,
+                       const Twine &Name) {
     return Insert(CallInst::Create(Callee, Args), Name);
   }
 

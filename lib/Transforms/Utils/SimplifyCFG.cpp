@@ -3254,8 +3254,8 @@ bool SimplifyCFGOpt::SimplifyCleanupReturn(CleanupReturnInst *RI) {
   // updated to continue to the unwind destination of the cleanup pad being
   // simplified.
   BasicBlock *BB = RI->getParent();
-  Instruction *CPInst = dyn_cast<CleanupPadInst>(BB->getFirstNonPHI());
-  if (!CPInst)
+  CleanupPadInst *CPInst = RI->getCleanupPad();
+  if (CPInst->getParent() != BB)
     // This isn't an empty cleanup.
     return false;
 
@@ -3492,18 +3492,14 @@ bool SimplifyCFGOpt::SimplifyUnreachable(UnreachableInst *UI) {
         }
     } else if ((isa<InvokeInst>(TI) &&
                 cast<InvokeInst>(TI)->getUnwindDest() == BB) ||
-               isa<CatchEndPadInst>(TI) || isa<TerminatePadInst>(TI)) {
+               isa<TerminatePadInst>(TI) || isa<CatchSwitchInst>(TI)) {
       removeUnwindEdge(TI->getParent());
       Changed = true;
-    } else if (isa<CleanupReturnInst>(TI) || isa<CleanupEndPadInst>(TI)) {
+    } else if (isa<CleanupReturnInst>(TI)) {
       new UnreachableInst(TI->getContext(), TI);
       TI->eraseFromParent();
       Changed = true;
     }
-    // TODO: If TI is a CatchPadInst, then (BB must be its normal dest and)
-    // we can eliminate it, redirecting its preds to its unwind successor,
-    // or to the next outer handler if the removed catch is the last for its
-    // catchendpad.
   }
 
   // If this block is now dead, remove it.

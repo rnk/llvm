@@ -29,7 +29,7 @@ invoke.cont:                                      ; preds = %entry
   ret void
 
 ehcleanup:                                        ; preds = %entry
-  %2 = cleanuppad []
+  %2 = cleanuppad none []
   call x86_thiscallcc void @"\01??1A@@QAE@XZ"(%struct.A* %0)
   cleanupret %2 unwind to caller
 }
