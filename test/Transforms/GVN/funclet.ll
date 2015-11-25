@@ -17,10 +17,10 @@ entry:
           to label %unreachable unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %catchpad = catchpad [i8* null, i32 64, i8* null]
-          to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %catchpad = catchpad %cs1 [i8* null, i32 64, i8* null]
   store i8 5, i8* %b
   catchret %catchpad to label %try.cont
 
@@ -29,9 +29,6 @@ try.cont:                                         ; preds = %catch
   %load_c = load i8, i8* %c
   %add = add i8 %load_b, %load_c
   ret i8 %add
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind to caller
 
 unreachable:                                      ; preds = %entry
   unreachable

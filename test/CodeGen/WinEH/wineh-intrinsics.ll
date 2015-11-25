@@ -15,13 +15,12 @@ entry:
   invoke void (...) @f(i32 1)
      to label %exit unwind label %catchpad
 catchpad:
-  %catch = catchpad [i32 1] to label %do_catch unwind label %catchend
+  %cs1 = catchswitch none, unwind to caller [label %do_catch]
 do_catch:
+  %catch = catchpad %cs1 [i32 1]
   %exn = call i8* @llvm.eh.exceptionpointer.p0i8(token %catch)
   call void (...) @f(i8* %exn)
   catchret %catch to label %exit
-catchend:
-  catchendpad unwind to caller
 exit:
   ret void
 }
@@ -31,13 +30,12 @@ entry:
   invoke void (...) @f(i32 1)
      to label %exit unwind label %catchpad
 catchpad:
-  %catch = catchpad [i32 1] to label %do_catch unwind label %catchend
+  %cs1 = catchswitch none, unwind to caller [label %do_catch]
 do_catch:
+  %catch = catchpad %cs1 [i32 1]
   %exn = call i8 addrspace(1)* @llvm.eh.exceptionpointer.p1i8(token %catch)
   call void (...) @f(i8 addrspace(1)* %exn)
   catchret %catch to label %exit
-catchend:
-  catchendpad unwind to caller
 exit:
   ret void
 }
