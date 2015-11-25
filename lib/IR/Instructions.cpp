@@ -1025,7 +1025,8 @@ TerminatePadInst::TerminatePadInst(Value *OuterScope, BasicBlock *BB,
                                    ArrayRef<Value *> Args, unsigned Values,
                                    const Twine &NameStr,
                                    Instruction *InsertBefore)
-    : TerminatorInst(OuterScope->getType(), Instruction::TerminatePad,
+    : TerminatorInst(Type::getVoidTy(OuterScope->getContext()),
+                     Instruction::TerminatePad,
                      OperandTraits<TerminatePadInst>::op_end(this) - Values,
                      Values, InsertBefore) {
   init(OuterScope, BB, Args, NameStr);
@@ -1035,7 +1036,8 @@ TerminatePadInst::TerminatePadInst(Value *OuterScope, BasicBlock *BB,
                                    ArrayRef<Value *> Args, unsigned Values,
                                    const Twine &NameStr,
                                    BasicBlock *InsertAtEnd)
-    : TerminatorInst(OuterScope->getType(), Instruction::TerminatePad,
+    : TerminatorInst(Type::getVoidTy(OuterScope->getContext()),
+                     Instruction::TerminatePad,
                      OperandTraits<TerminatePadInst>::op_end(this) - Values,
                      Values, InsertAtEnd) {
   init(OuterScope, BB, Args, NameStr);

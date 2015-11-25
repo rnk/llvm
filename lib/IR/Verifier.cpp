@@ -2931,7 +2931,8 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
     BasicBlock *UnwindDest;
     if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(U)) {
       UnwindDest = CRI->getUnwindDest();
-    } else if (isa<CleanupPadInst>(U) || isa<CatchSwitchInst>(U)) {
+    } else if (isa<CleanupPadInst>(U) || isa<CatchSwitchInst>(U) ||
+               isa<TerminatePadInst>(U)) {
       continue;
     } else {
       Assert(false, "bogus cleanuppad use", &CPI);
