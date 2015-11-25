@@ -473,69 +473,8 @@ void WinEHPrepare::replaceTerminatePadWithCleanup(Function &F) {
   }
 }
 
-static void
-colorFunclets(Function &F,
-              std::map<BasicBlock *, SetVector<BasicBlock *>> &BlockColors,
-              std::map<BasicBlock *, std::set<BasicBlock *>> &FuncletBlocks) {
-  SmallVector<std::pair<BasicBlock *, BasicBlock *>, 16> Worklist;
-  BasicBlock *EntryBlock = &F.getEntryBlock();
-
-  // Build up the color map, which maps each block to its set of 'colors'.
-  // For any block B, the "colors" of B are the set of funclets F (possibly
-  // including a root "funclet" representing the main function), such that
-  // F will need to directly contain B or a copy of B (where the term "directly
-  // contain" is used to distinguish from being "transitively contained" in
-  // a nested funclet).
-  // Use a CFG walk driven by a worklist of (block, color) pairs.  The "color"
-  // sets attached during this processing to a block which is the entry of some
-  // funclet F is actually the set of F's parents -- i.e. the union of colors
-  // of all predecessors of F's entry.  For all other blocks, the color sets
-  // are as defined above.  A post-pass fixes up the block color map to reflect
-  // the same sense of "color" for funclet entries as for other blocks.
-
-  DEBUG_WITH_TYPE("winehprepare-coloring", dbgs() << "\nColoring funclets for "
-                                                  << F.getName() << "\n");
-
-  Worklist.push_back({EntryBlock, EntryBlock});
-
-  while (!Worklist.empty()) {
-    BasicBlock *Visiting;
-    BasicBlock *Color;
-    std::tie(Visiting, Color) = Worklist.pop_back_val();
-    DEBUG_WITH_TYPE("winehprepare-coloring",
-                    dbgs() << "Visiting " << Visiting->getName() << ", "
-                           << Color->getName() << "\n");
-    Instruction *VisitingHead = Visiting->getFirstNonPHI();
-    if (VisitingHead->isEHPad()) {
-      // Mark this funclet head as a member of itself.
-      Color = Visiting;
-    }
-    // Note that this is a member of the given color.
-    if (!BlockColors[Visiting].insert(Color))
-      continue;
-    FuncletBlocks[Color].insert(Visiting);
-    DEBUG_WITH_TYPE("winehprepare-coloring",
-                    dbgs() << "  Assigned color \'" << Color->getName()
-                           << "\' to block \'" << Visiting->getName()
-                           << "\'.\n");
-
-    BasicBlock *SuccColor = Color;
-    TerminatorInst *Terminator = Visiting->getTerminator();
-    if (auto *CatchRet = dyn_cast<CatchReturnInst>(Terminator)) {
-      Value *OuterScope = CatchRet->getOuterScope();
-      if (isa<ConstantTokenNone>(OuterScope))
-        SuccColor = EntryBlock;
-      else
-        SuccColor = cast<Instruction>(OuterScope)->getParent();
-    }
-
-    for (BasicBlock *Succ : successors(Visiting))
-      Worklist.push_back({Succ, SuccColor});
-  }
-}
-
 void WinEHPrepare::colorFunclets(Function &F) {
-  ::colorFunclets(F, BlockColors, FuncletBlocks);
+  llvm::colorEHFunclets(F, BlockColors, FuncletBlocks);
 }
 
 void llvm::calculateCatchReturnSuccessorColors(const Function *Fn,
