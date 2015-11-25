@@ -18,14 +18,11 @@ entry:
           to label %invoke.cont.3 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %0 = catchpad [i8* null, i32 64, i8* null]
-          to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %0 = catchpad %cs1 [i8* null, i32 64, i8* null]
   catchret %0 to label %nrvo.skipdtor
-
-catchendblock:                                    ; preds = %catch, %catch.dispatch
-  catchendpad unwind to caller
 
 invoke.cont.3:                                    ; preds = %entry
   store i32 123, i32* @some_global

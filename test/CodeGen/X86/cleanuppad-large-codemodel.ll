@@ -9,7 +9,7 @@ entry:
   invoke void @bar()
     to label %exit unwind label %cleanup
 cleanup:
-  %c = cleanuppad []
+  %c = cleanuppad none []
   call void @bar()
   cleanupret %c unwind to caller
 exit:

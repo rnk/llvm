@@ -54,10 +54,10 @@ entry:
           to label %unreachable unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %1 = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
-          to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind label %catch.dispatch.7 [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
   catchret %1 to label %catchret.dest
 
 catchret.dest:                                    ; preds = %catch
@@ -70,10 +70,10 @@ try.cont:                                         ; preds = %catchret.dest
           to label %unreachable unwind label %catch.dispatch.2
 
 catch.dispatch.2:                                 ; preds = %try.cont
-  %3 = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
-          to label %catch.4 unwind label %catchendblock.3
+  %cs2 = catchswitch none, unwind label %catch.dispatch.7 [label %catch.4]
 
 catch.4:                                          ; preds = %catch.dispatch.2
+  %3 = catchpad %cs2 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
   catchret %3 to label %catchret.dest.5
 
 catchret.dest.5:                                  ; preds = %catch.4
@@ -82,14 +82,11 @@ catchret.dest.5:                                  ; preds = %catch.4
 try.cont.6:                                       ; preds = %catchret.dest.5
   br label %try.cont.11
 
-catchendblock.3:                                  ; preds = %catch.dispatch.2
-  catchendpad unwind label %catch.dispatch.7
-
-catch.dispatch.7:                                 ; preds = %catchendblock.3, %catchendblock
-  %4 = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
-          to label %catch.9 unwind label %catchendblock.8
+catch.dispatch.7:
+  %cs3 = catchswitch none, unwind to caller [label %catch.9]
 
 catch.9:                                          ; preds = %catch.dispatch.7
+  %4 = catchpad %cs3 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
   catchret %4 to label %catchret.dest.10
 
 catchret.dest.10:                                 ; preds = %catch.9
@@ -97,12 +94,6 @@ catchret.dest.10:                                 ; preds = %catch.9
 
 try.cont.11:                                      ; preds = %catchret.dest.10, %try.cont.6
   ret void
-
-catchendblock.8:                                  ; preds = %catch.dispatch.7
-  catchendpad unwind to caller
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind label %catch.dispatch.7
 
 unreachable:                                      ; preds = %try.cont, %entry
   unreachable

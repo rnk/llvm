@@ -40,39 +40,26 @@ invoke.cont:                                      ; preds = %entry
           to label %try.cont.9 unwind label %lpad
 
 try.cont.9:                                       ; preds = %invoke.cont.3, %invoke.cont, %catch.7
-  ; FIXME: Something about our CFG breaks TailDuplication. This empy asm blocks
-  ; it so we can focus on testing the state numbering.
-  call void asm sideeffect "", "~{dirflag},~{fpsr},~{flags}"()
   ret void
 
 lpad:                                             ; preds = %catch, %entry
-  %p1 = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
-      to label %catch unwind label %end.inner.catch
+  %cs1 = catchswitch none, unwind label %lpad.1 [label %catch]
 
 catch:                                            ; preds = %lpad.1
+  %p1 = catchpad %cs1 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
   invoke void @may_throw(i32 3)
-          to label %invoke.cont.3 unwind label %end.inner.catch
+          to label %invoke.cont.3 unwind label %lpad.1
 
 invoke.cont.3:                                    ; preds = %catch
   catchret %p1 to label %try.cont.9
 
-
-end.inner.catch:
-  catchendpad unwind label %lpad.1
-
 lpad.1:                                           ; preds = %invoke.cont
-  %p2 = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
-      to label %catch.7 unwind label %eh.resume
+  %cs2 = catchswitch none, unwind to caller [label %catch.7]
 
 catch.7:
-  invoke void @may_throw(i32 4)
-          to label %invoke.cont.10 unwind label %eh.resume
-
-invoke.cont.10:
+  %p2 = catchpad %cs2 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i8* null]
+  call void @may_throw(i32 4)
   catchret %p2 to label %try.cont.9
-
-eh.resume:                                        ; preds = %catch.dispatch.4
-  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: _f:

@@ -19,14 +19,11 @@ try:                                              ; preds = %entry
           to label %fallthrough unwind label %dispatch
 
 dispatch:                                         ; preds = %try
-  %0 = catchpad [i8* null]
-          to label %catch unwind label %catchendblock.i.i
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %dispatch
+  %0 = catchpad %cs1 [i8* null]
   catchret %0 to label %return
-
-catchendblock.i.i:                                ; preds = %dispatch
-  catchendpad unwind to caller
 
 fallthrough:                                      ; preds = %try
   unreachable

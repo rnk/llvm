@@ -18,12 +18,10 @@ cont:
   ret i32 0
 
 lpad:
-  %p = catchpad [i8* bitcast (i32 (i8*, i8*)* @filt_g to i8*)]
-      to label %catch unwind label %endpad
+  %cs = catchswitch none, unwind to caller [label %catch]
 catch:
+  %p = catchpad %cs [i8* bitcast (i32 (i8*, i8*)* @filt_g to i8*)]
   catchret %p to label %ret1
-endpad:
-  catchendpad unwind to caller
 
 ret1:
   ret i32 1
@@ -39,7 +37,7 @@ define internal i32 @filt_g(i8*, i8*) {
 ; CHECK: xorl %eax, %eax
 ; CHECK: .LBB0_[[epilogue:[0-9]+]]
 ; CHECK: retq
-; CHECK: # %lpad
+; CHECK: # %catch{{$}}
 ; CHECK: movl $1, %eax
 ; CHECK: jmp .LBB0_[[epilogue]]
 

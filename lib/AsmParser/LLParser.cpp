@@ -5164,7 +5164,8 @@ bool LLParser::ParseCatchSwitch(Instruction *&Inst, PerFunctionState &PFS) {
   Value *OuterScope;
   LocTy BBLoc;
 
-  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar)
+  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar &&
+      Lex.getKind() != lltok::LocalVarID)
     return TokError("expected scope value for catchswitch");
 
   if (ParseValue(Type::getTokenTy(Context), OuterScope, PFS) ||
@@ -5208,7 +5209,7 @@ bool LLParser::ParseCatchSwitch(Instruction *&Inst, PerFunctionState &PFS) {
 bool LLParser::ParseCatchPad(Instruction *&Inst, PerFunctionState &PFS) {
   Value *CatchSwitch = nullptr;
 
-  if (Lex.getKind() != lltok::LocalVar)
+  if (Lex.getKind() != lltok::LocalVar && Lex.getKind() != lltok::LocalVarID)
     return TokError("expected scope value for catchpad");
 
   if (ParseValue(Type::getTokenTy(Context), CatchSwitch, PFS))
@@ -5227,7 +5228,8 @@ bool LLParser::ParseCatchPad(Instruction *&Inst, PerFunctionState &PFS) {
 bool LLParser::ParseTerminatePad(Instruction *&Inst, PerFunctionState &PFS) {
   Value *OuterScope = nullptr;
 
-  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar)
+  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar &&
+      Lex.getKind() != lltok::LocalVarID)
     return TokError("expected scope value for cleanuppad");
 
   if (ParseValue(Type::getTokenTy(Context), OuterScope, PFS))
