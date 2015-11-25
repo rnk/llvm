@@ -778,6 +778,12 @@ void WinException::computeIP2StateTable(
       }
     }
 
+    // Don't emit ip2state entries for cleanup funclets. Any interesting
+    // exceptional actions in cleanups must be handled in a separate IR
+    // function.
+    if (FuncletStart->isCleanupFuncletEntry())
+      continue;
+
     MCSymbol *StartLabel;
     int BaseState;
     if (FuncletStart == MF->begin()) {

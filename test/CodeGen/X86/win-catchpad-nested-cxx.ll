@@ -37,50 +37,55 @@ catchret1:
   catchret %h1 to label %try.cont
 
 catch.dispatch.2:
-  %cs2 = catchswitch %cs1, unwind to caller [label %handler2]
+  %cs2 = catchswitch %h1, unwind to caller [label %handler2]
 handler2:
   %h2 = catchpad %cs2 [i8* null, i32 64, i8* null]
   call void @f(i32 3)
   catchret %h2 to label %catchret1
 }
 
-; CHECK: $cppxdata$try_in_catch:
+; X86-LABEL: L__ehtable$try_in_catch:
+; X64-LABEL: $cppxdata$try_in_catch:
 ; CHECK-NEXT: .long   429065506
-; CHECK-NEXT: .long   2
-; CHECK-NEXT: .long   ($stateUnwindMap$try_in_catch)@IMGREL
-; CHECK-NEXT: .long   1
-; CHECK-NEXT: .long   ($tryMap$try_in_catch)@IMGREL
 ; CHECK-NEXT: .long   4
+; CHECK-NEXT: .long   ($stateUnwindMap$try_in_catch)
+; CHECK-NEXT: .long   2
+; CHECK-NEXT: .long   ($tryMap$try_in_catch)
+; ip2state num + ptr
 ; X86-NEXT: .long   0
-; X64-NEXT: .long   ($ip2state$try_in_catch)@IMGREL
+; X86-NEXT: .long   0
+; X64-NEXT: .long   7
+; X64-NEXT: .long   ($ip2state$try_in_catch)
+; unwindhelp offset
 ; X64-NEXT: .long   40
 ; CHECK-NEXT: .long   0
+; EHFlags
 ; CHECK-NEXT: .long   1
 
 ; CHECK: $tryMap$try_in_catch:
-; CHECK-NEXT: .long   0
-; CHECK-NEXT: .long   0
-; CHECK-NEXT: .long   3
-; CHECK-NEXT: .long   1
-; CHECK-NEXT: .long   ($handlerMap$0$try_in_catch)@IMGREL
 ; CHECK-NEXT: .long   2
 ; CHECK-NEXT: .long   2
 ; CHECK-NEXT: .long   3
 ; CHECK-NEXT: .long   1
-; CHECK-NEXT: .long   ($handlerMap$1$try_in_catch)@IMGREL
+; CHECK-NEXT: .long   ($handlerMap$0$try_in_catch)
+; CHECK-NEXT: .long   0
+; CHECK-NEXT: .long   0
+; CHECK-NEXT: .long   3
+; CHECK-NEXT: .long   1
+; CHECK-NEXT: .long   ($handlerMap$1$try_in_catch)
 
 ; CHECK: $handlerMap$0$try_in_catch:
 ; CHECK-NEXT:   .long   64
 ; CHECK-NEXT:   .long   0
 ; CHECK-NEXT:   .long   0
-; CHECK-NEXT:   .long   "?catch${{[0-9]+}}@?0?try_in_catch@4HA"@IMGREL
+; CHECK-NEXT:   .long   "?catch${{[0-9]+}}@?0?try_in_catch@4HA"
 ; X64-NEXT:   .long   56
 
 ; CHECK: $handlerMap$1$try_in_catch:
 ; CHECK-NEXT:   .long   64
 ; CHECK-NEXT:   .long   0
 ; CHECK-NEXT:   .long   0
-; CHECK-NEXT:   .long   "?catch${{[0-9]+}}@?0?try_in_catch@4HA"@IMGREL
+; CHECK-NEXT:   .long   "?catch${{[0-9]+}}@?0?try_in_catch@4HA"
 ; X64-NEXT:   .long   56
 
 ; X64: $ip2state$try_in_catch:
@@ -88,7 +93,13 @@ handler2:
 ; X64-NEXT: .long   -1
 ; X64-NEXT: .long   .Ltmp0@IMGREL+1
 ; X64-NEXT: .long   0
-; X64-NEXT: .long   .Ltmp4@IMGREL+1
-; X64-NEXT: .long   1
-; X64-NEXT: .long   .Ltmp3@IMGREL+1
+; X64-NEXT: .long   .Ltmp1@IMGREL+1
 ; X64-NEXT: .long   -1
+; X64-NEXT: .long   "?catch$2@?0?try_in_catch@4HA"@IMGREL
+; X64-NEXT: .long   1
+; X64-NEXT: .long   .Ltmp2@IMGREL+1
+; X64-NEXT: .long   2
+; X64-NEXT: .long   .Ltmp3@IMGREL+1
+; X64-NEXT: .long   1
+; X64-NEXT: .long   "?catch$4@?0?try_in_catch@4HA"@IMGREL
+; X64-NEXT: .long   3
