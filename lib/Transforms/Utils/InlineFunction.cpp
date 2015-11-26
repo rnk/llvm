@@ -340,7 +340,7 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
           SmallVector<Value *, 3> TerminatePadArgs;
           for (Value *ArgOperand : TPI->arg_operands())
             TerminatePadArgs.push_back(ArgOperand);
-          TerminatePadInst::Create(TPI->getParent(), UnwindDest,
+          TerminatePadInst::Create(TPI->getOuterScope(), UnwindDest,
                                    TerminatePadArgs, TPI->getName(), TPI);
           TPI->eraseFromParent();
           UpdatePHINodes(&*BB);

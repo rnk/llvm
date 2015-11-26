@@ -33,10 +33,7 @@ ehcleanup:
 ; CHECK:                 to label %dtor.exit unwind label %terminate.i
 
 ; CHECK:       terminate.i:
-; CHECK-NEXT:    terminatepad none [void ()* @terminate] unwind label %catchendblock
-
-; CHECK:       catchendblock:
-; CHECK-NEXT:    catchendpad unwind to caller
+; CHECK-NEXT:    terminatepad %0 [void ()* @terminate] unwind label %ehcleanup
 
 declare i32 @__CxxFrameHandler3(...)
 
