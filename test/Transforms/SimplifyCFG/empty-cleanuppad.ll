@@ -31,11 +31,11 @@ invoke.cont:                                      ; preds = %entry
   ret void
 
 ehcleanup:                                        ; preds = %entry
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind label %ehcleanup.1
 
 ehcleanup.1:                                      ; preds = %ehcleanup
-  %1 = cleanuppad []
+  %1 = cleanuppad none []
   cleanupret %1 unwind to caller
 }
 
@@ -60,15 +60,14 @@ ehcleanup.1:                                      ; preds = %ehcleanup
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK: ehcleanup:
-; CHECK:   cleanuppad
+; CHECK:   cleanuppad none
 ; CHECK:   call void @"\01??1S2@@QEAA@XZ"(%struct.S2* %b)
 ; CHECK:   cleanupret %0 unwind label %catch.dispatch
 ; CHECK: catch.dispatch:
-; CHECK:   catchpad
+; CHECK:   catchswitch none, unwind to caller [label %catch]
 ; CHECK: catch:
+; CHECK:   catchpad
 ; CHECK:   catchret
-; CHECK: catchendblock:                                    ; preds = %catch.dispatch
-; CHECK:   catchendpad unwind to caller
 ; CHECK-NOT: cleanuppad
 ; CHECK: }
 ;
@@ -81,14 +80,15 @@ invoke.cont:                                      ; preds = %entry
   br label %try.cont
 
 ehcleanup:                                        ; preds = %entry
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   call void @"\01??1S2@@QEAA@XZ"(%struct.S2* %b)
   cleanupret %0 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %ehcleanup
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind label %ehcleanup.1 [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   catchret %1 to label %catchret.dest
 
 catchret.dest:                                    ; preds = %catch
@@ -97,11 +97,8 @@ catchret.dest:                                    ; preds = %catch
 try.cont:                                         ; preds = %catchret.dest, %invoke.cont
   ret void
 
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind label %ehcleanup.1
-
-ehcleanup.1:                                      ; preds = %catchendblock
-  %2 = cleanuppad []
+ehcleanup.1:
+  %2 = cleanuppad none []
   cleanupret %2 unwind to caller
 }
 
@@ -121,21 +118,19 @@ ehcleanup.1:                                      ; preds = %catchendblock
 ; In this case the inner cleanup pad should be eliminated and the invoke of g()
 ; should unwind directly to the catchpad.
 ;
-; CHECK: define void @f3()
+; CHECK-LABEL: define void @f3()
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK:           to label %try.cont unwind label %catch.dispatch
 ; CHECK: catch.dispatch:
-; CHECK:   catchpad [i8* null, i32 64, i8* null]
-; CHECK-NEXT: to label %catch unwind label %catchendblock
+; CHECK-NEXT: catchswitch none, unwind label %ehcleanup.1 [label %catch]
 ; CHECK: catch:
+; CHECK:   catchpad %cs1 [i8* null, i32 64, i8* null]
 ; CHECK:   catchret
-; CHECK: catchendblock:
-; CHECK:   catchendpad unwind label %ehcleanup.1
 ; CHECK: ehcleanup.1:
 ; CHECK:   cleanuppad
 ; CHECK:   call void @"\01??1S2@@QEAA@XZ"(%struct.S2* %a)
-; CHECK:   cleanupret %1 unwind to caller
+; CHECK:   cleanupret %cp3 unwind to caller
 ; CHECK: }
 ;
 define void @f3() personality i8* bitcast (i32 (...)* @__CxxFrameHandler3 to i8*) {
@@ -147,14 +142,15 @@ invoke.cont:                                      ; preds = %entry
   br label %try.cont
 
 ehcleanup:                                        ; preds = %entry
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %ehcleanup
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind label %ehcleanup.1 [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
-  catchret %1 to label %catchret.dest
+  %cp2 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
+  catchret %cp2 to label %catchret.dest
 
 catchret.dest:                                    ; preds = %catch
   br label %try.cont
@@ -162,13 +158,10 @@ catchret.dest:                                    ; preds = %catch
 try.cont:                                         ; preds = %catchret.dest, %invoke.cont
   ret void
 
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind label %ehcleanup.1
-
-ehcleanup.1:                                      ; preds = %catchendblock
-  %2 = cleanuppad []
+ehcleanup.1:
+  %cp3 = cleanuppad none []
   call void @"\01??1S2@@QEAA@XZ"(%struct.S2* %a)
-  cleanupret %2 unwind to caller
+  cleanupret %cp3 unwind to caller
 }
 
 
@@ -188,7 +181,7 @@ ehcleanup.1:                                      ; preds = %catchendblock
 ; to the caller (that is, that is, exception handling continues with the parent
 ; frame of the caller).)
 ;
-; CHECK: define void @f4()
+; CHECK-LABEL: define void @f4()
 ; CHECK: entry:
 ; CHECK:   call void @g
 ; Note: The cleanuppad simplification will insert an unconditional branch here
@@ -196,11 +189,10 @@ ehcleanup.1:                                      ; preds = %catchendblock
 ; CHECK:   invoke void @g()
 ; CHECK:           to label %try.cont unwind label %catch.dispatch
 ; CHECK: catch.dispatch:
-; CHECK:   catchpad
+; CHECK:   catchswitch none, unwind to caller [label %catch]
 ; CHECK: catch:
+; CHECK:   catchpad
 ; CHECK:   catchret
-; CHECK: catchendblock:
-; CHECK:   catchendpad unwind to caller
 ; CHECK-NOT: cleanuppad
 ; CHECK: }
 ;
@@ -214,38 +206,36 @@ invoke.cont:                                      ; preds = %entry
           to label %try.cont unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %invoke.cont
-  %0 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind label %ehcleanup [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %0 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   catchret %0 to label %try.cont
 
 try.cont:                                         ; preds = %catch, %invoke.cont
   ret void
 
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind label %ehcleanup
-
-ehcleanup:                                        ; preds = %catchendblock, %entry
-  %1 = cleanuppad []
-  cleanupret %1 unwind to caller
+ehcleanup:
+  %cp2 = cleanuppad none []
+  cleanupret %cp2 unwind to caller
 }
 
 ; This tests the case where a terminatepad unwinds to a cleanuppad.
 ; I'm not sure how this case would arise, but it seems to be syntactically
 ; legal so I'm testing it.
 ;
-; CHECK: define void @f5()
+; CHECK-LABEL: define void @f5()
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK:           to label %try.cont unwind label %terminate
 ; CHECK: terminate:
-; CHECK:   terminatepad [i7 4] unwind to caller
+; CHECK:   terminatepad none [i7 4] unwind to caller
 ; CHECK-NOT: cleanuppad
 ; CHECK: try.cont:
 ; CHECK:   invoke void @g()
 ; CHECK:           to label %try.cont.1 unwind label %terminate.1
 ; CHECK: terminate.1:
-; CHECK:   terminatepad [i7 4] unwind label %ehcleanup.2
+; CHECK:   terminatepad none [i7 4] unwind label %ehcleanup.2
 ; CHECK-NOT: ehcleanup.1:
 ; CHECK: ehcleanup.2:
 ; CHECK:   [[TMP:\%.+]] = cleanuppad
@@ -259,10 +249,10 @@ entry:
           to label %try.cont unwind label %terminate
 
 terminate:                                        ; preds = %entry
-  terminatepad [i7 4] unwind label %ehcleanup
+  terminatepad none [i7 4] unwind label %ehcleanup
 
 ehcleanup:                                        ; preds = %terminate
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind to caller
 
 try.cont:                                         ; preds = %entry
@@ -270,14 +260,14 @@ try.cont:                                         ; preds = %entry
           to label %try.cont.1 unwind label %terminate.1
 
 terminate.1:                                      ; preds = %try.cont
-  terminatepad [i7 4] unwind label %ehcleanup.1
+  terminatepad none [i7 4] unwind label %ehcleanup.1
 
 ehcleanup.1:                                      ; preds = %terminate.1
-  %1 = cleanuppad []
+  %1 = cleanuppad none []
   cleanupret %1 unwind label %ehcleanup.2
 
 ehcleanup.2:                                      ; preds = %ehcleanup.1
-  %2 = cleanuppad []
+  %2 = cleanuppad none []
   call void @"\01??1S2@@QEAA@XZ"(%struct.S2* %a)
   cleanupret %2 unwind to caller
 
@@ -304,7 +294,7 @@ try.cont.1:                                       ; preds = %try.cont
 ; In this case, the cleanup pad should be eliminated and the PHI node in the
 ; cleanup pad should be sunk into the catch dispatch block.
 ;
-; CHECK: define i32 @f6()
+; CHECK-LABEL: define i32 @f6()
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK: invoke.cont:
@@ -325,17 +315,15 @@ invoke.cont:                                      ; preds = %entry
 
 ehcleanup:                                        ; preds = %invoke.cont, %entry
   %state.0 = phi i32 [ 2, %invoke.cont ], [ 1, %entry ]
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %ehcleanup
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   catchret %1 to label %return
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind to caller
 
 return:                                           ; preds = %invoke.cont, %catch
   %retval.0 = phi i32 [ %state.0, %catch ], [ 0, %invoke.cont ]
@@ -363,7 +351,7 @@ return:                                           ; preds = %invoke.cont, %catch
 ; In this case, the cleanup pad should be eliminated and the PHI node in the
 ; cleanup pad should be merged with the PHI node in the catch dispatch block.
 ;
-; CHECK: define i32 @f7()
+; CHECK-LABEL: define i32 @f7()
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK: invoke.cont:
@@ -390,18 +378,16 @@ invoke.cont.1:                                    ; preds = %invoke.cont
 
 ehcleanup:                                        ; preds = %invoke.cont.1, %invoke.cont
   %state.0 = phi i32 [ 3, %invoke.cont.1 ], [ 2, %invoke.cont ]
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %ehcleanup, %entry
   %state.1 = phi i32 [ %state.0, %ehcleanup ], [ 1, %entry ]
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   catchret %1 to label %return
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind to caller
 
 return:                                           ; preds = %invoke.cont.1, %catch
   %retval.0 = phi i32 [ %state.1, %catch ], [ 0, %invoke.cont.1 ]
@@ -435,7 +421,7 @@ return:                                           ; preds = %invoke.cont.1, %cat
 ; should have an incoming value entry for path from 'foo' that references the
 ; PHI node itself.
 ;
-; CHECK: define void @f8()
+; CHECK-LABEL: define void @f8()
 ; CHECK: entry:
 ; CHECK:   invoke void @g()
 ; CHECK: invoke.cont:
@@ -456,18 +442,16 @@ invoke.cont:                                      ; preds = %entry
 
 ehcleanup:                                        ; preds = %invoke.cont, %entry
   %x = phi i32 [ 2, %invoke.cont ], [ 1, %entry ]
-  %0 = cleanuppad []
+  %0 = cleanuppad none []
   cleanupret %0 unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %ehcleanup, %catch.cont
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   call void @use_x(i32 %x)
   catchret %1 to label %catch.cont
-
-catchendblock:                                    ; preds = %catch.dispatch
-  catchendpad unwind to caller
 
 catch.cont:                                       ; preds = %catch
   invoke void @g()

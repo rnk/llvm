@@ -24,7 +24,7 @@ entry:
 catch.pad:
   %cs1 = catchswitch none, unwind label %unreachable.unwind [label %catch.body]
   ; CHECK: catch.pad:
-  ; CHECK-NEXT: catchswitch none, unwind label %unreachable.unwind [label %catch.body]
+  ; CHECK-NEXT: catchswitch none, unwind to caller [label %catch.body]
 catch.body:
   ; CHECK:      catch.body:
   ; CHECK-NEXT:   catchpad %cs1
