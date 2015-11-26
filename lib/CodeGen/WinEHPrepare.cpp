@@ -757,10 +757,12 @@ void WinEHPrepare::verifyPreparedFunclets(Function &F) {
       report_fatal_error("Uncolored BB!");
     if (NumColors > 1)
       report_fatal_error("Multicolor BB!");
-    bool EHPadHasPHI = BB.isEHPad() && isa<PHINode>(BB.begin());
-    assert(!EHPadHasPHI && "EH Pad still has a PHI!");
-    if (EHPadHasPHI)
-      report_fatal_error("EH Pad still has a PHI!");
+    if (!DisableDemotion) {
+      bool EHPadHasPHI = BB.isEHPad() && isa<PHINode>(BB.begin());
+      assert(!EHPadHasPHI && "EH Pad still has a PHI!");
+      if (EHPadHasPHI)
+        report_fatal_error("EH Pad still has a PHI!");
+    }
   }
 }
 

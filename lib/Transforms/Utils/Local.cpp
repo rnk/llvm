@@ -1352,6 +1352,7 @@ void llvm::removeUnwindEdge(BasicBlock *BB) {
   NewTI->takeName(TI);
   NewTI->setDebugLoc(TI->getDebugLoc());
   UnwindDest->removePredecessor(BB);
+  TI->replaceAllUsesWith(NewTI);
   TI->eraseFromParent();
 }
 
