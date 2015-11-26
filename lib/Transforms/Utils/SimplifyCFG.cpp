@@ -3265,9 +3265,23 @@ bool SimplifyCFGOpt::SimplifyCleanupReturn(CleanupReturnInst *RI) {
     if (!isa<DbgInfoIntrinsic>(I))
       return false;
 
-  // If the cleanup return we are simplifying unwinds to the caller, this
-  // will set UnwindDest to nullptr.
+  // If the cleanup return we are simplifying unwinds to the caller, this will
+  // set UnwindDest to nullptr.
   BasicBlock *UnwindDest = RI->getUnwindDest();
+  Instruction *DestEHPad = UnwindDest ? UnwindDest->getFirstNonPHI() : nullptr;
+  if (DestEHPad) {
+    Value *DestParentFunclet = nullptr;
+    if (auto *CSI = dyn_cast<CatchSwitchInst>(DestEHPad))
+      DestParentFunclet = CSI->getOuterScope();
+    else if (auto *FPI = dyn_cast<FuncletPadInst>(DestEHPad))
+      DestParentFunclet = FPI->getOuterScope();
+    else if (auto *TPI = dyn_cast<TerminatePadInst>(DestEHPad))
+      DestParentFunclet = TPI->getOuterScope();
+    else
+      llvm_unreachable("unknown EH pad at unwind dest");
+    if (CPInst->getOuterScope() != DestParentFunclet)
+      return false;
+  }
 
   // We're about to remove BB from the control flow.  Before we do, sink any
   // PHINodes into the unwind destination.  Doing this before changing the
@@ -3278,7 +3292,7 @@ bool SimplifyCFGOpt::SimplifyCleanupReturn(CleanupReturnInst *RI) {
     // First, go through the PHI nodes in UnwindDest and update any nodes that
     // reference the block we are removing
     for (BasicBlock::iterator I = UnwindDest->begin(),
-                              IE = UnwindDest->getFirstNonPHI()->getIterator();
+                              IE = DestEHPad->getIterator();
          I != IE; ++I) {
       PHINode *DestPN = cast<PHINode>(I);
 
@@ -3322,7 +3336,7 @@ bool SimplifyCFGOpt::SimplifyCleanupReturn(CleanupReturnInst *RI) {
     }
 
     // Sink any remaining PHI nodes directly into UnwindDest.
-    Instruction *InsertPt = UnwindDest->getFirstNonPHI();
+    Instruction *InsertPt = DestEHPad;
     for (BasicBlock::iterator I = BB->begin(),
                               IE = BB->getFirstNonPHI()->getIterator();
          I != IE;) {
