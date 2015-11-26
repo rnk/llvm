@@ -9,13 +9,13 @@ bb:
   unreachable
 
 unreachable:
-  %cl = cleanuppad []
+  %cl = cleanuppad none []
   cleanupret %cl unwind to caller
 }
 
 ; CHECK-LABEL: define void @test1(
 ; CHECK: unreachable:
-; CHECK:   %cl = cleanuppad []
+; CHECK:   %cl = cleanuppad none []
 ; CHECK:   cleanupret %cl unwind to caller
 
 define void @test2(i8 %A, i8 %B) personality i32 (...)* @__CxxFrameHandler3 {
@@ -33,19 +33,15 @@ cont:
 
 catch:
   %phi = phi i32 [ %X, %bb ], [ %Y, %cont ]
-  %cl = catchpad []
-   to label %doit
-   unwind label %endpad
+  %cs = catchswitch none, unwind to caller [label %doit]
 
 doit:
+  %cl = catchpad %cs []
   call void @g(i32 %phi)
   unreachable
 
 unreachable:
   unreachable
-
-endpad:
-  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: define void @test2(
@@ -73,19 +69,15 @@ cont2:
 
 catch:
   %phi = phi i32 [ %X, %bb ], [ %Y, %cont ], [ %Y, %cont2 ]
-  %cl = catchpad []
-   to label %doit
-   unwind label %endpad
+  %cs = catchswitch none, unwind to caller [label %doit]
 
 doit:
+  %cl = catchpad %cs []
   call void @g(i32 %phi)
   unreachable
 
 unreachable:
   unreachable
-
-endpad:
-  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: define void @test3(
