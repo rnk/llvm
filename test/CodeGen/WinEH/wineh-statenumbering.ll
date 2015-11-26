@@ -37,9 +37,10 @@ entry:
           to label %unreachable.for.entry unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %1 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch unwind label %catchendblock
+  %cs1 = catchswitch none, unwind to caller [label %catch]
 
 catch:                                            ; preds = %catch.dispatch
+  %1 = catchpad %cs1 [i8* null, i32 u0x40, i8* null]
   ; CHECK: catch:
   ; CHECK:   store i32 2
   ; CHECK:   invoke void @_CxxThrowException(
@@ -47,33 +48,21 @@ catch:                                            ; preds = %catch.dispatch
           to label %unreachable unwind label %catch.dispatch.1
 
 catch.dispatch.1:                                 ; preds = %catch
-  %2 = catchpad [i8* null, i32 u0x40, i8* null] to label %catch.3 unwind label %catchendblock.2
-
+  %cs2 = catchswitch %1, unwind to caller [label %catch.3]
 catch.3:                                          ; preds = %catch.dispatch.1
+  %2 = catchpad %cs2 [i8* null, i32 u0x40, i8* null]
   ; CHECK: catch.3:
   ; CHECK:   store i32 3
-  ; CHECK:   invoke void @g(i32 1)
-  invoke void @g(i32 1)
-          to label %invoke.cont unwind label %catchendblock.2
-
-invoke.cont:                                      ; preds = %catch.3
+  ; CHECK:   call void @g(i32 1)
+  call void @g(i32 1)
   catchret %2 to label %try.cont
 
-try.cont:                                         ; preds = %invoke.cont
+try.cont:                                         ; preds = %catch.3
   ; CHECK: try.cont:
   ; CHECK:   store i32 1
-  ; CHECK:   invoke void @g(i32 2)
-  invoke void @g(i32 2)
-          to label %invoke.cont.4 unwind label %catchendblock
-
-invoke.cont.4:                                    ; preds = %try.cont
+  ; CHECK:   call void @g(i32 2)
+  call void @g(i32 2)
   unreachable
-
-catchendblock.2:                                  ; preds = %catch.3, %catch.dispatch.1
-  catchendpad unwind label %catchendblock
-
-catchendblock:                                    ; preds = %catchendblock.2, %try.cont, %catch.dispatch
-  catchendpad unwind to caller
 
 unreachable:                                      ; preds = %catch
   unreachable
