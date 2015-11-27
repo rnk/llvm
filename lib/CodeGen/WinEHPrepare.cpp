@@ -553,12 +553,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
 
     std::map<BasicBlock *, BasicBlock *> Orig2Clone;
     ValueToValueMapTy VMap;
-    for (auto BlockIt = BlocksInFunclet.begin(),
-              BlockEnd = BlocksInFunclet.end();
-         BlockIt != BlockEnd;) {
-      // Increment the iterator inside the loop because we might be removing
-      // blocks from the set.
-      BasicBlock *BB = *BlockIt++;
+    for (BasicBlock *BB : BlocksInFunclet) {
       ColorVector &ColorsForBB = BlockColors[BB];
       // We don't need to do anything if the block is monochromatic.
       size_t NumColorsForBB = ColorsForBB.size();
@@ -596,9 +591,8 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
 
       BlocksInFunclet.insert(NewBlock);
       ColorVector &NewColors = BlockColors[NewBlock];
-      if (std::find(NewColors.begin(), NewColors.end(), FuncletPadBB) ==
-          NewColors.end())
-        NewColors.push_back(FuncletPadBB);
+      assert(NewColors.empty() && "A new block should only have one color!");
+      NewColors.push_back(FuncletPadBB);
 
       DEBUG_WITH_TYPE("winehprepare-coloring",
                       dbgs() << "  Assigned color \'" << FuncletPadBB->getName()
@@ -624,6 +618,40 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       for (Instruction &I : *BB)
         RemapInstruction(&I, VMap,
                          RF_IgnoreMissingEntries | RF_NoModuleLevelChanges);
+
+    auto UpdatePHIOnClonedBlock = [&](PHINode *PN, bool IsForOldBlock) {
+      unsigned NumPreds = PN->getNumIncomingValues();
+      for (unsigned PredIdx = 0, PredEnd = NumPreds; PredIdx != PredEnd;
+           ++PredIdx) {
+        BasicBlock *IncomingBlock = PN->getIncomingBlock(PredIdx);
+        ColorVector &IncomingColors = BlockColors[IncomingBlock];
+        bool BlockInFunclet = IncomingColors.size() == 1 &&
+                              IncomingColors.front() == FuncletPadBB;
+        if (IsForOldBlock != BlockInFunclet)
+          continue;
+        PN->removeIncomingValue(IncomingBlock, /*DeletePHIIfEmpty=*/false);
+        // Revisit the next entry.
+        --PredIdx;
+        --PredEnd;
+      }
+    };
+
+    for (auto &BBMapping : Orig2Clone) {
+      BasicBlock *OldBlock = BBMapping.first;
+      BasicBlock *NewBlock = BBMapping.second;
+      for (Instruction &OldI : *OldBlock) {
+        auto *OldPN = dyn_cast<PHINode>(&OldI);
+        if (!OldPN)
+          break;
+        UpdatePHIOnClonedBlock(OldPN, /*IsForOldBlock=*/true);
+      }
+      for (Instruction &NewI : *NewBlock) {
+        auto *NewPN = dyn_cast<PHINode>(&NewI);
+        if (!NewPN)
+          break;
+        UpdatePHIOnClonedBlock(NewPN, /*IsForOldBlock=*/false);
+      }
+    }
 
     // Check to see if SuccBB has PHI nodes. If so, we need to add entries to
     // the PHI nodes for NewBB now.
@@ -777,10 +805,10 @@ bool WinEHPrepare::prepareExplicitEH(Function &F) {
   // Determine which blocks are reachable from which funclet entries.
   colorFunclets(F);
 
+  cloneCommonBlocks(F);
+
   if (!DisableDemotion)
     demotePHIsOnFunclets(F);
-
-  cloneCommonBlocks(F);
 
   if (!DisableCleanups) {
     removeImplausibleTerminators(F);
