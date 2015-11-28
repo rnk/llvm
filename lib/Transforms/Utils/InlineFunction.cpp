@@ -180,6 +180,12 @@ void LandingPadInliningInfo::forwardResume(
   RI->eraseFromParent();
 }
 
+static bool shouldCallConvertToInvoke(const CallInst *CI) {
+  // If this call cannot unwind, don't convert it to an invoke.
+  // Inline asm calls cannot throw.
+  return !CI->doesNotThrow() && !isa<InlineAsm>(CI->getCalledValue());
+}
+
 /// When we inline a basic block into an invoke,
 /// we have to turn all of the calls that can throw into invokes.
 /// This function analyze BB to see if there are any calls, and if so,
@@ -194,9 +200,7 @@ HandleCallsInBlockInlinedThroughInvoke(BasicBlock *BB, BasicBlock *UnwindEdge) {
     // instructions require no special handling.
     CallInst *CI = dyn_cast<CallInst>(I);
 
-    // If this call cannot unwind, don't convert it to an invoke.
-    // Inline asm calls cannot throw.
-    if (!CI || CI->doesNotThrow() || isa<InlineAsm>(CI->getCalledValue()))
+    if (!CI || !shouldCallConvertToInvoke(CI))
       continue;
 
     // Convert this function call into an invoke instruction.  First, split the
@@ -254,10 +258,10 @@ static void HandleInlinedLandingPad(InvokeInst *II, BasicBlock *FirstNewBlock,
   LandingPadInliningInfo Invoke(II);
 
   // Get all of the inlined landing pad instructions.
-  SmallPtrSet<LandingPadInst*, 16> InlinedLPads;
+  SmallPtrSet<LandingPadInst *, 16> InlinedLPads;
   for (Function::iterator I = FirstNewBlock->getIterator(), E = Caller->end();
        I != E; ++I)
-    if (InvokeInst *II = dyn_cast<InvokeInst>(I->getTerminator()))
+    if (auto *II = dyn_cast<InvokeInst>(I->getTerminator()))
       InlinedLPads.insert(II->getLandingPadInst());
 
   // Append the clauses from the outer landing pad instruction into the inlined
@@ -336,48 +340,48 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
   // to the invoke destination.
   for (Function::iterator BB = FirstNewBlock->getIterator(), E = Caller->end();
        BB != E; ++BB) {
-    Instruction *I = BB->getFirstNonPHI();
-    if (I->isEHPad()) {
-      if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
-        if (isa<ConstantTokenNone>(TPI->getOuterScope()))
-          TPI->setOuterScope(CallSiteEHPad);
-
-        if (TPI->unwindsToCaller()) {
-          SmallVector<Value *, 3> TerminatePadArgs;
-          for (Value *ArgOperand : TPI->arg_operands())
-            TerminatePadArgs.push_back(ArgOperand);
-          TerminatePadInst::Create(TPI->getOuterScope(), UnwindDest,
-                                   TerminatePadArgs, TPI->getName(), TPI);
-          TPI->eraseFromParent();
-          UpdatePHINodes(&*BB);
-        }
-      } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
-        if (isa<ConstantTokenNone>(CatchSwitch->getOuterScope()))
-          CatchSwitch->setOuterScope(CallSiteEHPad);
-
-        if (CatchSwitch->unwindsToCaller()) {
-          auto *NewCatchSwitch =
-              CatchSwitchInst::Create(CatchSwitch->getOuterScope(), UnwindDest,
-                                      CatchSwitch->getNumHandlers(),
-                                      CatchSwitch->getName(), CatchSwitch);
-          for (const llvm::Use &U : CatchSwitch->handlers())
-            NewCatchSwitch->addHandler(cast<BasicBlock>(U));
-          CatchSwitch->eraseFromParent();
-          UpdatePHINodes(&*BB);
-        }
-      } else {
-        auto *FPI = cast<FuncletPadInst>(I);
-        if (isa<ConstantTokenNone>(FPI->getOuterScope()))
-          FPI->setOuterScope(CallSiteEHPad);
-      }
-    }
-
     if (auto *CRI = dyn_cast<CleanupReturnInst>(BB->getTerminator())) {
       if (CRI->unwindsToCaller()) {
         CleanupReturnInst::Create(CRI->getCleanupPad(), UnwindDest, CRI);
         CRI->eraseFromParent();
         UpdatePHINodes(&*BB);
       }
+    }
+
+    Instruction *I = BB->getFirstNonPHI();
+    if (!I->isEHPad())
+      continue;
+
+    if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
+      if (CallSiteEHPad && isa<ConstantTokenNone>(TPI->getOuterScope()))
+        TPI->setOuterScope(CallSiteEHPad);
+
+      if (TPI->unwindsToCaller()) {
+        SmallVector<Value *, 3> TerminatePadArgs;
+        for (Value *ArgOperand : TPI->arg_operands())
+          TerminatePadArgs.push_back(ArgOperand);
+        TerminatePadInst::Create(TPI->getOuterScope(), UnwindDest,
+                                 TerminatePadArgs, TPI->getName(), TPI);
+        TPI->eraseFromParent();
+        UpdatePHINodes(&*BB);
+      }
+    } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
+      if (CallSiteEHPad && isa<ConstantTokenNone>(CatchSwitch->getOuterScope()))
+        CatchSwitch->setOuterScope(CallSiteEHPad);
+
+      if (CatchSwitch->unwindsToCaller()) {
+        auto *NewCatchSwitch = CatchSwitchInst::Create(
+            CatchSwitch->getOuterScope(), UnwindDest,
+            CatchSwitch->getNumHandlers(), CatchSwitch->getName(), CatchSwitch);
+        for (const llvm::Use &U : CatchSwitch->handlers())
+          NewCatchSwitch->addHandler(cast<BasicBlock>(U));
+        CatchSwitch->eraseFromParent();
+        UpdatePHINodes(&*BB);
+      }
+    } else {
+      auto *FPI = cast<FuncletPadInst>(I);
+      if (CallSiteEHPad && isa<ConstantTokenNone>(FPI->getOuterScope()))
+        FPI->setOuterScope(CallSiteEHPad);
     }
   }
 
@@ -1107,9 +1111,9 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   if (CalledPersonality && CallerPersonality) {
     EHPersonality Personality = classifyEHPersonality(CalledPersonality);
     if (isFuncletEHPersonality(Personality)) {
-      DenseMap<BasicBlock *, ColorVector> BlockColors =
+      DenseMap<BasicBlock *, ColorVector> CallerBlockColors =
           colorEHFunclets(*Caller);
-      ColorVector &CallSiteColors = BlockColors[OrigBB];
+      ColorVector &CallSiteColors = CallerBlockColors[OrigBB];
       size_t NumColors = CallSiteColors.size();
       // There is no single parent, inlining will not succeed.
       if (NumColors > 1)
@@ -1118,6 +1122,8 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
         CallSiteEHPad = CallSiteColors.front()->getFirstNonPHI();
         assert(CallSiteEHPad->isEHPad() && "Expected an EHPad!");
       }
+
+      // OK, the inlining site is legal.  What about the target function?
 
       if (Personality == EHPersonality::MSVC_CXX) {
         // The MSVC personality cannot tolerate catches getting inlined into
