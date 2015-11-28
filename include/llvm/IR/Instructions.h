@@ -4088,7 +4088,8 @@ private:
                        NameStr, InsertAtEnd) {}
 
 public:
-  static CleanupPadInst *Create(Value *OuterScope, ArrayRef<Value *> Args,
+  static CleanupPadInst *Create(Value *OuterScope,
+                                ArrayRef<Value *> Args = None,
                                 const Twine &NameStr = "",
                                 Instruction *InsertBefore = nullptr) {
     unsigned Values = 1 + Args.size();

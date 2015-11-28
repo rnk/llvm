@@ -708,19 +708,30 @@ public:
     return Insert(CleanupReturnInst::Create(CleanupPad, UnwindBB));
   }
 
-  CatchPadInst *CreateCatchPad(ArrayRef<Value *> Args, const Twine &Name = "") {
-    return Insert(CatchPadInst::Create(Context, Args), Name);
+  CatchSwitchInst *CreateCatchSwitch(Value *OuterScope,
+                                     BasicBlock *UnwindBB,
+                                     unsigned NumHandlers,
+                                     const Twine &Name = "") {
+    return Insert(CatchSwitchInst::Create(OuterScope, UnwindBB, NumHandlers),
+                  Name);
   }
 
-  TerminatePadInst *CreateTerminatePad(BasicBlock *UnwindBB = nullptr,
-                                       ArrayRef<Value *> Args = {},
+  CatchPadInst *CreateCatchPad(Value *OuterScope, ArrayRef<Value *> Args,
+                               const Twine &Name = "") {
+    return Insert(CatchPadInst::Create(OuterScope, Args), Name);
+  }
+
+  TerminatePadInst *CreateTerminatePad(Value *OuterScope,
+                                       BasicBlock *UnwindBB = nullptr,
+                                       ArrayRef<Value *> Args = None,
                                        const Twine &Name = "") {
-    return Insert(TerminatePadInst::Create(Context, UnwindBB, Args), Name);
+    return Insert(TerminatePadInst::Create(OuterScope, UnwindBB, Args), Name);
   }
 
-  CleanupPadInst *CreateCleanupPad(ArrayRef<Value *> Args,
+  CleanupPadInst *CreateCleanupPad(Value *OuterScope,
+                                   ArrayRef<Value *> Args = None,
                                    const Twine &Name = "") {
-    return Insert(CleanupPadInst::Create(Context, Args), Name);
+    return Insert(CleanupPadInst::Create(OuterScope, Args), Name);
   }
 
   CatchReturnInst *CreateCatchRet(CatchPadInst *CatchPad, BasicBlock *BB) {

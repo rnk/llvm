@@ -917,9 +917,10 @@ void CatchSwitchInst::init(Value *OuterScope, BasicBlock *UnwindDest,
 /// push_back style of operation. This grows the number of ops by 2 times.
 void CatchSwitchInst::growOperands(unsigned Size) {
   unsigned NumOperands = getNumOperands();
+  assert(NumOperands >= 1);
   if (ReservedSpace >= NumOperands + Size)
     return;
-  ReservedSpace = (std::max(NumOperands, 1U) + Size / 2) * 2;
+  ReservedSpace = (NumOperands + Size / 2) * 2;
   growHungoffUses(ReservedSpace);
 }
 
