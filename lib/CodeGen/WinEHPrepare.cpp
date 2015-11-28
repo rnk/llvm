@@ -486,7 +486,7 @@ void WinEHPrepare::replaceTerminatePadWithCleanup(Function &F) {
 }
 
 void WinEHPrepare::colorFunclets(Function &F) {
-  ::colorEHFunclets(F, BlockColors);
+  BlockColors = colorEHFunclets(F);
 
   // Invert the map from BB to colors to color to BBs.
   for (auto BBAndColors : BlockColors) {

@@ -238,10 +238,10 @@ bool llvm::isPotentiallyReachable(const Instruction *A, const Instruction *B,
       Worklist, const_cast<BasicBlock *>(B->getParent()), DT, LI);
 }
 
-void llvm::colorEHFunclets(Function &F,
-                           DenseMap<BasicBlock *, ColorVector> &BlockColors) {
+DenseMap<BasicBlock *, ColorVector> llvm::colorEHFunclets(Function &F) {
   SmallVector<std::pair<BasicBlock *, BasicBlock *>, 16> Worklist;
   BasicBlock *EntryBlock = &F.getEntryBlock();
+  DenseMap<BasicBlock *, ColorVector> BlockColors;
 
   // Build up the color map, which maps each block to its set of 'colors'.
   // For any block B, the "colors" of B are the set of funclets F (possibly
@@ -298,4 +298,5 @@ void llvm::colorEHFunclets(Function &F,
     for (BasicBlock *Succ : successors(Visiting))
       Worklist.push_back({Succ, SuccColor});
   }
+  return BlockColors;
 }

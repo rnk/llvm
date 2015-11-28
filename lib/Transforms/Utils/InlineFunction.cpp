@@ -21,7 +21,9 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CaptureTracking.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/LibCallSemantics.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallSite.h"
@@ -298,6 +300,7 @@ static void HandleInlinedLandingPad(InvokeInst *II, BasicBlock *FirstNewBlock,
 /// block of the inlined code (the last block is the end of the function),
 /// and InlineCodeInfo is information about the code that got inlined.
 static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
+                               Instruction *CallSiteEHPad,
                                ClonedCodeInfo &InlinedCodeInfo) {
   BasicBlock *UnwindDest = II->getUnwindDest();
   Function *Caller = FirstNewBlock->getParent();
@@ -336,6 +339,9 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
     Instruction *I = BB->getFirstNonPHI();
     if (I->isEHPad()) {
       if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
+        if (isa<ConstantTokenNone>(TPI->getOuterScope()))
+          TPI->setOuterScope(CallSiteEHPad);
+
         if (TPI->unwindsToCaller()) {
           SmallVector<Value *, 3> TerminatePadArgs;
           for (Value *ArgOperand : TPI->arg_operands())
@@ -346,6 +352,9 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
           UpdatePHINodes(&*BB);
         }
       } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
+        if (isa<ConstantTokenNone>(CatchSwitch->getOuterScope()))
+          CatchSwitch->setOuterScope(CallSiteEHPad);
+
         if (CatchSwitch->unwindsToCaller()) {
           auto *NewCatchSwitch =
               CatchSwitchInst::Create(CatchSwitch->getOuterScope(), UnwindDest,
@@ -357,7 +366,9 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
           UpdatePHINodes(&*BB);
         }
       } else {
-        assert(isa<FuncletPadInst>(I));
+        auto *FPI = cast<FuncletPadInst>(I);
+        if (isa<ConstantTokenNone>(FPI->getOuterScope()))
+          FPI->setOuterScope(CallSiteEHPad);
       }
     }
 
@@ -1090,6 +1101,46 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
       return false;
   }
 
+  // We need to figure out which funclet the callsite was in so that we may
+  // properly nest the callee.
+  Instruction *CallSiteEHPad = nullptr;
+  if (CalledPersonality && CallerPersonality) {
+    EHPersonality Personality = classifyEHPersonality(CalledPersonality);
+    if (isFuncletEHPersonality(Personality)) {
+      DenseMap<BasicBlock *, ColorVector> BlockColors =
+          colorEHFunclets(*Caller);
+      ColorVector &CallSiteColors = BlockColors[OrigBB];
+      size_t NumColors = CallSiteColors.size();
+      // There is no single parent, inlining will not succeed.
+      if (NumColors > 1)
+        return false;
+      if (NumColors == 1) {
+        CallSiteEHPad = CallSiteColors.front()->getFirstNonPHI();
+        assert(CallSiteEHPad->isEHPad() && "Expected an EHPad!");
+      }
+
+      if (Personality == EHPersonality::MSVC_CXX) {
+        // The MSVC personality cannot tolerate catches getting inlined into
+        // cleanup funclets.
+        if (isa<CleanupPadInst>(CallSiteEHPad)) {
+          // Ok, the call site is within a cleanuppad.  Let's check the callee
+          // for catchpads.
+          for (const BasicBlock &CalledBB : *CalledFunc) {
+            if (isa<CatchPadInst>(CalledBB.getFirstNonPHI()))
+              return false;
+          }
+        }
+      } else if (isAsynchronousEHPersonality(Personality)) {
+        // SEH is even less tolerant, there may not be any sort of exceptional
+        // funclet in the callee.
+        for (const BasicBlock &CalledBB : *CalledFunc) {
+          if (CalledBB.isEHPad())
+            return false;
+        }
+      }
+    }
+  }
+
   // Get an iterator to the last basic block in the function, which will have
   // the new function inlined after it.
   Function::iterator LastBlock = --Caller->end();
@@ -1387,7 +1438,8 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     if (isa<LandingPadInst>(FirstNonPHI)) {
       HandleInlinedLandingPad(II, &*FirstNewBlock, InlinedFunctionInfo);
     } else {
-      HandleInlinedEHPad(II, &*FirstNewBlock, InlinedFunctionInfo);
+      HandleInlinedEHPad(II, &*FirstNewBlock, CallSiteEHPad,
+                         InlinedFunctionInfo);
     }
   }
 

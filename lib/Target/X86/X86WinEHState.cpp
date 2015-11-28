@@ -417,8 +417,7 @@ void WinEHStatePass::addStateStores(Function &F, WinEHFuncInfo &FuncInfo) {
     calculateWinCXXEHStateNumbers(&F, FuncInfo);
 
   // Iterate all the instructions and emit state number stores.
-  DenseMap<BasicBlock *, TinyPtrVector<BasicBlock *>> BlockColors;
-  colorEHFunclets(F, BlockColors);
+  DenseMap<BasicBlock *, ColorVector> BlockColors = colorEHFunclets(F);
   for (BasicBlock &BB : F) {
     // Figure out what state we should assign calls in this block.
     int BaseState = -1;

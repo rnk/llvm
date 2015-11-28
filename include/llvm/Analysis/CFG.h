@@ -98,8 +98,7 @@ typedef TinyPtrVector<BasicBlock *> ColorVector;
 /// this will recompute which blocks are in which funclet. It is possible that
 /// some blocks are in multiple funclets. Consider this analysis to be
 /// expensive.
-void colorEHFunclets(Function &F,
-                     DenseMap<BasicBlock *, ColorVector> &BlockColors);
+DenseMap<BasicBlock *, ColorVector> colorEHFunclets(Function &F);
 
 } // End llvm namespace
 
