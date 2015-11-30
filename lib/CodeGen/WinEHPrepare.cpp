@@ -18,6 +18,7 @@
 
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/LibCallSemantics.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
@@ -83,7 +84,7 @@ private:
   EHPersonality Personality = EHPersonality::Unknown;
 
   DenseMap<BasicBlock *, ColorVector> BlockColors;
-  MapVector<BasicBlock *, std::set<BasicBlock *>> FuncletBlocks;
+  MapVector<BasicBlock *, SetVector<BasicBlock *>> FuncletBlocks;
 };
 
 } // end anonymous namespace
@@ -489,10 +490,10 @@ void WinEHPrepare::colorFunclets(Function &F) {
   BlockColors = colorEHFunclets(F);
 
   // Invert the map from BB to colors to color to BBs.
-  for (auto BBAndColors : BlockColors) {
-    BasicBlock *BB = BBAndColors.first;
-    for (BasicBlock *Color : BBAndColors.second)
-      FuncletBlocks[Color].insert(BB);
+  for (BasicBlock &BB : F) {
+    ColorVector &Colors = BlockColors[&BB];
+    for (BasicBlock *Color : Colors)
+      FuncletBlocks[Color].insert(&BB);
   }
 }
 
@@ -549,9 +550,9 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
   // *and* the new basic blocks themselves.
   for (auto &Funclets : FuncletBlocks) {
     BasicBlock *FuncletPadBB = Funclets.first;
-    std::set<BasicBlock *> &BlocksInFunclet = Funclets.second;
+    SetVector<BasicBlock *> &BlocksInFunclet = Funclets.second;
 
-    std::map<BasicBlock *, BasicBlock *> Orig2Clone;
+    MapVector<BasicBlock *, BasicBlock *> Orig2Clone;
     ValueToValueMapTy VMap;
     for (BasicBlock *BB : BlocksInFunclet) {
       ColorVector &ColorsForBB = BlockColors[BB];
@@ -599,7 +600,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
                               << "\' to block \'" << NewBlock->getName()
                               << "\'.\n");
 
-      BlocksInFunclet.erase(OldBlock);
+      BlocksInFunclet.remove(OldBlock);
       ColorVector &OldColors = BlockColors[OldBlock];
       OldColors.erase(
           std::remove(OldColors.begin(), OldColors.end(), FuncletPadBB),
@@ -730,7 +731,7 @@ void WinEHPrepare::removeImplausibleTerminators(Function &F) {
   // Remove implausible terminators and replace them with UnreachableInst.
   for (auto &Funclet : FuncletBlocks) {
     BasicBlock *FuncletPadBB = Funclet.first;
-    std::set<BasicBlock *> &BlocksInFunclet = Funclet.second;
+    SetVector<BasicBlock *> &BlocksInFunclet = Funclet.second;
     Instruction *FuncletPadInst = FuncletPadBB->getFirstNonPHI();
     auto *CatchPad = dyn_cast<CatchPadInst>(FuncletPadInst);
     auto *CleanupPad = dyn_cast<CleanupPadInst>(FuncletPadInst);
