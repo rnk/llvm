@@ -17,7 +17,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/Passes.h"
-#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/LibCallSemantics.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
@@ -83,7 +83,7 @@ private:
   EHPersonality Personality = EHPersonality::Unknown;
 
   DenseMap<BasicBlock *, ColorVector> BlockColors;
-  std::map<BasicBlock *, std::set<BasicBlock *>> FuncletBlocks;
+  MapVector<BasicBlock *, std::set<BasicBlock *>> FuncletBlocks;
 };
 
 } // end anonymous namespace
@@ -731,9 +731,9 @@ void WinEHPrepare::removeImplausibleTerminators(Function &F) {
   for (auto &Funclet : FuncletBlocks) {
     BasicBlock *FuncletPadBB = Funclet.first;
     std::set<BasicBlock *> &BlocksInFunclet = Funclet.second;
-    Instruction *FirstNonPHI = FuncletPadBB->getFirstNonPHI();
-    auto *CatchPad = dyn_cast<CatchPadInst>(FirstNonPHI);
-    auto *CleanupPad = dyn_cast<CleanupPadInst>(FirstNonPHI);
+    Instruction *FuncletPadInst = FuncletPadBB->getFirstNonPHI();
+    auto *CatchPad = dyn_cast<CatchPadInst>(FuncletPadInst);
+    auto *CleanupPad = dyn_cast<CleanupPadInst>(FuncletPadInst);
 
     for (BasicBlock *BB : BlocksInFunclet) {
       TerminatorInst *TI = BB->getTerminator();
@@ -756,6 +756,12 @@ void WinEHPrepare::removeImplausibleTerminators(Function &F) {
 
         new UnreachableInst(BB->getContext(), TI);
         TI->eraseFromParent();
+      } else if (isa<InvokeInst>(TI)) {
+        // Invokes within a cleanuppad for the MSVC++ personality never
+        // transfer control to their unwind edge: the personality will
+        // terminate the program.
+        if (Personality == EHPersonality::MSVC_CXX && CleanupPad)
+          removeUnwindEdge(BB);
       }
     }
   }

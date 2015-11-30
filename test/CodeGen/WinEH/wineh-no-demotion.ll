@@ -2,6 +2,8 @@
 
 declare i32 @__CxxFrameHandler3(...)
 
+declare i32 @__C_specific_handler(...)
+
 declare void @f()
 
 declare i32 @g()
@@ -9,7 +11,7 @@ declare i32 @g()
 declare void @h(i32)
 
 ; CHECK-LABEL: @test1(
-define void @test1() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test1() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
           to label %invoke.cont1 unwind label %left
@@ -53,7 +55,7 @@ exit:
 }
 
 ; CHECK-LABEL: @test2(
-define void @test2() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test2() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
           to label %invoke.cont unwind label %left
