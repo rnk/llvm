@@ -4661,9 +4661,9 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
   case lltok::kw_cleanupret:  return ParseCleanupRet(Inst, PFS);
   case lltok::kw_catchret:    return ParseCatchRet(Inst, PFS);
   case lltok::kw_catchswitch: return ParseCatchSwitch(Inst, PFS);
-  case lltok::kw_catchpad:  return ParseCatchPad(Inst, PFS);
-  case lltok::kw_terminatepad: return ParseTerminatePad(Inst, PFS);
-  case lltok::kw_cleanuppad: return ParseCleanupPad(Inst, PFS);
+  case lltok::kw_catchpad:    return ParseCatchPad(Inst, PFS);
+  case lltok::kw_terminatepad:return ParseTerminatePad(Inst, PFS);
+  case lltok::kw_cleanuppad:  return ParseCleanupPad(Inst, PFS);
   // Binary Operators.
   case lltok::kw_add:
   case lltok::kw_sub:
@@ -5217,7 +5217,7 @@ bool LLParser::ParseTerminatePad(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar &&
       Lex.getKind() != lltok::LocalVarID)
-    return TokError("expected scope value for cleanuppad");
+    return TokError("expected scope value for terminatepad");
 
   if (ParseValue(Type::getTokenTy(Context), OuterScope, PFS))
     return true;
@@ -5249,7 +5249,8 @@ bool LLParser::ParseTerminatePad(Instruction *&Inst, PerFunctionState &PFS) {
 bool LLParser::ParseCleanupPad(Instruction *&Inst, PerFunctionState &PFS) {
   Value *OuterScope = nullptr;
 
-  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar)
+  if (Lex.getKind() != lltok::kw_none && Lex.getKind() != lltok::LocalVar &&
+      Lex.getKind() != lltok::LocalVarID)
     return TokError("expected scope value for cleanuppad");
 
   if (ParseValue(Type::getTokenTy(Context), OuterScope, PFS))

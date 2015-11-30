@@ -440,10 +440,9 @@ InvokeStateChangeIterator &InvokeStateChangeIterator::scan() {
         continue;
       auto &StateAndEnd = InvokeMapIter->second;
       int NewState = StateAndEnd.first;
-      // Ignore EH labels explicitly annotated with the null state (which
-      // can happen for invokes that unwind to a chain of endpads the last
-      // of which unwinds to caller).  We'll see the subsequent invoke and
-      // report a transition to the null state same as we do for calls.
+      // Ignore EH labels explicitly annotated with the null state.
+      // We'll see the subsequent invoke and report a transition to the null
+      // state same as we do for calls.
       if (NewState == BaseState)
         continue;
       // Keep track of the fact that we're between EH start/end labels so

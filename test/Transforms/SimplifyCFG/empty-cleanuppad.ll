@@ -177,9 +177,8 @@ ehcleanup.1:
 ; }
 ;
 ; In this case, the cleanuppad should be eliminated, the invoke outside of the
-; call block should be converted to a call and the catchendpad should unwind
-; to the caller (that is, that is, exception handling continues with the parent
-; frame of the caller).)
+; catch block should be converted to a call (that is, that is, exception
+; handling continues with the parent frame of the caller).)
 ;
 ; CHECK-LABEL: define void @f4()
 ; CHECK: entry:

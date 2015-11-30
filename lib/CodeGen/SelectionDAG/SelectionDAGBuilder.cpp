@@ -1230,8 +1230,8 @@ void SelectionDAGBuilder::visitCleanupPad(const CleanupPadInst &CPI) {
 /// When an invoke or a cleanupret unwinds to the next EH pad, there are
 /// many places it could ultimately go. In the IR, we have a single unwind
 /// destination, but in the machine CFG, we enumerate all the possible blocks.
-/// This function skips over imaginary basic blocks that hold catchpad,
-/// terminatepad, or catchendpad instructions, and finds all the "real" machine
+/// This function skips over imaginary basic blocks that hold catchswitch or
+/// terminatepad instructions, and finds all the "real" machine
 /// basic block destinations. As those destinations may not be successors of
 /// EHPadBB, here we also calculate the edge probability to those destinations.
 /// The passed-in Prob is the edge probability to EHPadBB.
@@ -2105,8 +2105,8 @@ void SelectionDAGBuilder::visitBitTestCase(BitTestBlock &BB,
 void SelectionDAGBuilder::visitInvoke(const InvokeInst &I) {
   MachineBasicBlock *InvokeMBB = FuncInfo.MBB;
 
-  // Retrieve successors. Look through artificial IR level blocks like catchpads
-  // and catchendpads for successors.
+  // Retrieve successors. Look through artificial IR level blocks like
+  // catchswitch for successors.
   MachineBasicBlock *Return = FuncInfo.MBBMap[I.getSuccessor(0)];
   const BasicBlock *EHPadBB = I.getSuccessor(1);
 

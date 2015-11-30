@@ -634,21 +634,12 @@ generated funclet).  A catch handler which reaches its end by normal execution
 executes a ``catchret`` instruction, which is a terminator indicating where in
 the function control is returned to.  A cleanup handler which reaches its end
 by normal execution executes a ``cleanupret`` instruction, which is a terminator
-indicating where the active exception will unwind to next.  A catch or cleanup
-handler which is exited by another exception being raised during its execution will
-unwind through a ``catchendpad`` or ``cleanuupendpad`` (respectively).  The
-``catchendpad`` and ``cleanupendpad`` instructions are considered "exception
-handling pads" in the same sense that ``catchpad``, ``cleanuppad``, and
-``terminatepad`` are.
+indicating where the active exception will unwind to next.
 
 Each of these new EH pad instructions has a way to identify which
 action should be considered after this action. The ``catchpad`` and
 ``terminatepad`` instructions are terminators, and have a label operand considered
-to be an unwind destination analogous to the unwind destination of an invoke. The
-``cleanuppad`` instruction is different from the other two in that it is not a
-terminator. The code inside a cleanuppad runs before transferring control to the
-next action, so the ``cleanupret`` and ``cleanupendpad`` instructions are the
-instructions that hold a label operand and unwind to the next EH pad. All of
+to be an unwind destination analogous to the unwind destination of an invoke. All of
 these "unwind edges" may refer to a basic block that contains an EH pad instruction,
 or they may simply unwind to the caller. Unwinding to the caller has roughly the
 same semantics as the ``resume`` instruction in the ``landingpad`` model. When
@@ -694,33 +685,27 @@ all of the new IR instructions:
     call void @"\01??_DCleanup@@QEAA@XZ"(%struct.Cleanup* nonnull %obj) nounwind
     br label %return
 
-  return:                                           ; preds = %invoke.cont.2, %invoke.cont.3
-    %retval.0 = phi i32 [ 0, %invoke.cont.2 ], [ %9, %catch ]
+  return:                                           ; preds = %invoke.cont.3, %invoke.cont.2
+    %retval.0 = phi i32 [ 0, %invoke.cont.2 ], [ %3, %invoke.cont.3 ]
     ret i32 %retval.0
 
-  ; EH scope code, ordered innermost to outermost:
+  lpad.cleanup:                                     ; preds = %invoke.cont.2
+    %0 = cleanuppad none []
+    call void @"\01??1Cleanup@@QEAA@XZ"(%struct.Cleanup* nonnull %obj) nounwind
+    cleanupret %0 unwind label %lpad.catch
 
-  lpad.cleanup:                                     ; preds = %invoke.cont
-    %cleanup = cleanuppad []
-    call void @"\01??_DCleanup@@QEAA@XZ"(%struct.Cleanup* nonnull %obj) nounwind
-    cleanupret %cleanup unwind label %lpad.catch
-
-  lpad.catch:                                       ; preds = %entry, %lpad.cleanup
-    %catch = catchpad [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i32* %e]
-            to label %catch.body unwind label %catchend
+  lpad.catch:                                       ; preds = %lpad.cleanup, %entry
+    %1 = catchswitch none, unwind label %lpad.terminate [label %catch.body]
 
   catch.body:                                       ; preds = %lpad.catch
+    %catch = catchpad %1 [%rtti.TypeDescriptor2* @"\01??_R0H@8", i32 0, i32* %e]
     invoke void @"\01?may_throw@@YAXXZ"()
-            to label %invoke.cont.3 unwind label %catchend
+            to label %invoke.cont.3 unwind label %lpad.terminate
 
   invoke.cont.3:                                    ; preds = %catch.body
-    %9 = load i32, i32* %e, align 4
+    %3 = load i32, i32* %e, align 4
     catchret %catch to label %return
 
-  catchend:                                         ; preds = %lpad.catch, %catch.body
-    catchendpad unwind label %lpad.terminate
-
-  lpad.terminate:                                   ; preds = %catchend
-    terminatepad [void ()* @"\01?terminate@@YAXXZ"]
-            unwind to caller
+  lpad.terminate:                                        ; preds = %catch.body, %lpad.catch
+    terminatepad none [void ()* @"\01?terminate@@YAXXZ"] unwind to caller
   }
