@@ -18,7 +18,6 @@
 
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/LibCallSemantics.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
@@ -84,7 +83,7 @@ private:
   EHPersonality Personality = EHPersonality::Unknown;
 
   DenseMap<BasicBlock *, ColorVector> BlockColors;
-  MapVector<BasicBlock *, SetVector<BasicBlock *>> FuncletBlocks;
+  MapVector<BasicBlock *, std::vector<BasicBlock *>> FuncletBlocks;
 };
 
 } // end anonymous namespace
@@ -493,7 +492,7 @@ void WinEHPrepare::colorFunclets(Function &F) {
   for (BasicBlock &BB : F) {
     ColorVector &Colors = BlockColors[&BB];
     for (BasicBlock *Color : Colors)
-      FuncletBlocks[Color].insert(&BB);
+      FuncletBlocks[Color].push_back(&BB);
   }
 }
 
@@ -550,9 +549,9 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
   // *and* the new basic blocks themselves.
   for (auto &Funclets : FuncletBlocks) {
     BasicBlock *FuncletPadBB = Funclets.first;
-    SetVector<BasicBlock *> &BlocksInFunclet = Funclets.second;
+    std::vector<BasicBlock *> &BlocksInFunclet = Funclets.second;
 
-    MapVector<BasicBlock *, BasicBlock *> Orig2Clone;
+    std::vector<std::pair<BasicBlock *, BasicBlock *>> Orig2Clone;
     ValueToValueMapTy VMap;
     for (BasicBlock *BB : BlocksInFunclet) {
       ColorVector &ColorsForBB = BlockColors[BB];
@@ -577,7 +576,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       VMap[BB] = CBB;
 
       // Record delta operations that we need to perform to our color mappings.
-      Orig2Clone[BB] = CBB;
+      Orig2Clone.emplace_back(BB, CBB);
     }
 
     // If nothing was cloned, we're done cloning in this funclet.
@@ -590,7 +589,7 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
       BasicBlock *OldBlock = BBMapping.first;
       BasicBlock *NewBlock = BBMapping.second;
 
-      BlocksInFunclet.insert(NewBlock);
+      BlocksInFunclet.push_back(NewBlock);
       ColorVector &NewColors = BlockColors[NewBlock];
       assert(NewColors.empty() && "A new block should only have one color!");
       NewColors.push_back(FuncletPadBB);
@@ -600,7 +599,9 @@ void WinEHPrepare::cloneCommonBlocks(Function &F) {
                               << "\' to block \'" << NewBlock->getName()
                               << "\'.\n");
 
-      BlocksInFunclet.remove(OldBlock);
+      BlocksInFunclet.erase(
+          std::remove(BlocksInFunclet.begin(), BlocksInFunclet.end(), OldBlock),
+          BlocksInFunclet.end());
       ColorVector &OldColors = BlockColors[OldBlock];
       OldColors.erase(
           std::remove(OldColors.begin(), OldColors.end(), FuncletPadBB),
@@ -731,7 +732,7 @@ void WinEHPrepare::removeImplausibleTerminators(Function &F) {
   // Remove implausible terminators and replace them with UnreachableInst.
   for (auto &Funclet : FuncletBlocks) {
     BasicBlock *FuncletPadBB = Funclet.first;
-    SetVector<BasicBlock *> &BlocksInFunclet = Funclet.second;
+    std::vector<BasicBlock *> &BlocksInFunclet = Funclet.second;
     Instruction *FuncletPadInst = FuncletPadBB->getFirstNonPHI();
     auto *CatchPad = dyn_cast<CatchPadInst>(FuncletPadInst);
     auto *CleanupPad = dyn_cast<CleanupPadInst>(FuncletPadInst);
@@ -976,7 +977,7 @@ void WinEHPrepare::replaceUseWithLoad(Value *V, Use &U, AllocaInst *&SpillSlot,
       ColorVector &ColorsForPHIBlock = BlockColors[PHIBlock];
       BlockColors[NewBlock] = ColorsForPHIBlock;
       for (BasicBlock *FuncletPad : ColorsForPHIBlock)
-        FuncletBlocks[FuncletPad].insert(NewBlock);
+        FuncletBlocks[FuncletPad].push_back(NewBlock);
       // Treat the new block as incoming for load insertion.
       IncomingBlock = NewBlock;
     }
