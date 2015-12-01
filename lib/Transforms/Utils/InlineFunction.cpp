@@ -304,7 +304,6 @@ static void HandleInlinedLandingPad(InvokeInst *II, BasicBlock *FirstNewBlock,
 /// block of the inlined code (the last block is the end of the function),
 /// and InlineCodeInfo is information about the code that got inlined.
 static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
-                               Instruction *CallSiteEHPad,
                                ClonedCodeInfo &InlinedCodeInfo) {
   BasicBlock *UnwindDest = II->getUnwindDest();
   Function *Caller = FirstNewBlock->getParent();
@@ -353,9 +352,6 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
       continue;
 
     if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
-      if (CallSiteEHPad && isa<ConstantTokenNone>(TPI->getOuterScope()))
-        TPI->setOuterScope(CallSiteEHPad);
-
       if (TPI->unwindsToCaller()) {
         SmallVector<Value *, 3> TerminatePadArgs;
         for (Value *ArgOperand : TPI->arg_operands())
@@ -366,9 +362,6 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
         UpdatePHINodes(&*BB);
       }
     } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
-      if (CallSiteEHPad && isa<ConstantTokenNone>(CatchSwitch->getOuterScope()))
-        CatchSwitch->setOuterScope(CallSiteEHPad);
-
       if (CatchSwitch->unwindsToCaller()) {
         auto *NewCatchSwitch = CatchSwitchInst::Create(
             CatchSwitch->getOuterScope(), UnwindDest,
@@ -378,10 +371,8 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
         CatchSwitch->eraseFromParent();
         UpdatePHINodes(&*BB);
       }
-    } else {
-      auto *FPI = cast<FuncletPadInst>(I);
-      if (CallSiteEHPad && isa<ConstantTokenNone>(FPI->getOuterScope()))
-        FPI->setOuterScope(CallSiteEHPad);
+    } else if (!isa<FuncletPadInst>(I)) {
+      llvm_unreachable("unexpected EHPad!");
     }
   }
 
@@ -1436,6 +1427,31 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     }
   }
 
+  // Update the lexical scopes of the new funclets.  Anything that had 'none' as
+  // it's parent is now nested inside the callsite's EHPad.
+  if (CallSiteEHPad) {
+    for (Function::iterator BB = FirstNewBlock->getIterator(),
+                            E = Caller->end();
+         BB != E; ++BB) {
+      Instruction *I = BB->getFirstNonPHI();
+      if (!I->isEHPad())
+        continue;
+
+      if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
+        if (CallSiteEHPad && isa<ConstantTokenNone>(TPI->getOuterScope()))
+          TPI->setOuterScope(CallSiteEHPad);
+      } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
+        if (CallSiteEHPad &&
+            isa<ConstantTokenNone>(CatchSwitch->getOuterScope()))
+          CatchSwitch->setOuterScope(CallSiteEHPad);
+      } else {
+        auto *FPI = cast<FuncletPadInst>(I);
+        if (CallSiteEHPad && isa<ConstantTokenNone>(FPI->getOuterScope()))
+          FPI->setOuterScope(CallSiteEHPad);
+      }
+    }
+  }
+
   // If we are inlining for an invoke instruction, we must make sure to rewrite
   // any call instructions into invoke instructions.
   if (auto *II = dyn_cast<InvokeInst>(TheCall)) {
@@ -1444,8 +1460,7 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     if (isa<LandingPadInst>(FirstNonPHI)) {
       HandleInlinedLandingPad(II, &*FirstNewBlock, InlinedFunctionInfo);
     } else {
-      HandleInlinedEHPad(II, &*FirstNewBlock, CallSiteEHPad,
-                         InlinedFunctionInfo);
+      HandleInlinedEHPad(II, &*FirstNewBlock, InlinedFunctionInfo);
     }
   }
 
