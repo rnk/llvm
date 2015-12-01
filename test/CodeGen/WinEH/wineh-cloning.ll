@@ -1,8 +1,7 @@
-; FIXME: We should reject these tests in the verifier
-; RUNX: opt -mtriple=x86_64-pc-windows-msvc -S -winehprepare  < %s | FileCheck %s
-; RUN: echo pass
+; RUN: opt -mtriple=x86_64-pc-windows-msvc -S -winehprepare  < %s | FileCheck %s
 
 declare i32 @__CxxFrameHandler3(...)
+declare i32 @__C_specific_handler(...)
 
 declare void @f()
 declare i32 @g()
@@ -15,16 +14,16 @@ entry:
   ; %x def colors: {entry} subset of use colors; must spill
   %x = call i32 @g()
   invoke void @f()
-    to label %noreturn unwind label %catch
+    to label %noreturn unwind label %catch.switch
+catch.switch:
+  %cs = catchswitch none, unwind to caller [label %catch]
 catch:
-  catchpad []
-    to label %noreturn unwind label %endcatch
+  catchpad %cs []
+  br label %noreturn
 noreturn:
   ; %x use colors: {entry, cleanup}
   call void @h(i32 %x)
   unreachable
-endcatch:
-  catchendpad unwind to caller
 }
 ; Need two copies of the call to @h, one under entry and one under catch.
 ; Currently we generate a load for each, though we shouldn't need one
@@ -34,11 +33,11 @@ endcatch:
 ; CHECK:   %x = call i32 @g()
 ; CHECK:   invoke void @f()
 ; CHECK:     to label %[[EntryCopy:[^ ]+]] unwind label %catch
+; CHECK: catch.switch:
+; CHECK:   %cs = catchswitch none, unwind to caller [label %catch]
 ; CHECK: catch:
-; CHECK:   catchpad []
-; CHECK-NEXT: to label %[[CatchCopy:[^ ]+]] unwind
-; CHECK: [[CatchCopy]]:
-; CHECK:   call void @h(i32 %x)
+; CHECK:   catchpad %cs []
+; CHECK-NEXT: call void @h(i32 %x)
 ; CHECK: [[EntryCopy]]:
 ; CHECK:   call void @h(i32 %x)
 
@@ -48,7 +47,7 @@ entry:
   invoke void @f()
     to label %exit unwind label %cleanup
 cleanup:
-  cleanuppad []
+  cleanuppad none []
   br label %exit
 exit:
   call void @f()
@@ -62,7 +61,7 @@ exit:
 ; CHECK:   invoke void @f()
 ; CHECK:     to label %[[exit:[^ ]+]] unwind label %cleanup
 ; CHECK: cleanup:
-; CHECK:   cleanuppad []
+; CHECK:   cleanuppad none []
 ; CHECK:   call void @f()
 ; CHECK-NEXT: unreachable
 ; CHECK: [[exit]]:
@@ -73,16 +72,17 @@ exit:
 define void @test3() personality i32 (...)* @__CxxFrameHandler3 {
 entry:
   invoke void @f()
-    to label %invoke.cont unwind label %catch
+    to label %invoke.cont unwind label %catch.switch
 invoke.cont:
   invoke void @f()
     to label %exit unwind label %cleanup
+catch.switch:
+  %cs = catchswitch none, unwind to caller [label %catch]
 catch:
-  catchpad [] to label %shared unwind label %endcatch
-endcatch:
-  catchendpad unwind to caller
+  catchpad %cs []
+  br label %shared
 cleanup:
-  cleanuppad []
+  cleanuppad none []
   br label %shared
 shared:
   call void @f()
@@ -97,13 +97,11 @@ exit:
 ; CHECK:   invoke void @f()
 ; CHECK:     to label %[[exit:[^ ]+]] unwind
 ; CHECK: catch:
-; CHECK:   catchpad []
-; CHECK-NEXT: to label %[[shared:[^ ]+]] unwind
-; CHECK: cleanup:
-; CHECK:   cleanuppad []
-; CHECK:   call void @f()
+; CHECK:   catchpad %cs []
+; CHECK-NEXT: call void @f()
 ; CHECK-NEXT: unreachable
-; CHECK: [[shared]]:
+; CHECK: cleanup:
+; CHECK:   cleanuppad none []
 ; CHECK:   call void @f()
 ; CHECK-NEXT: unreachable
 ; CHECK: [[exit]]:
@@ -113,12 +111,12 @@ exit:
 define void @test4() personality i32 (...)* @__CxxFrameHandler3 {
 entry:
   invoke void @f()
-    to label %shared unwind label %catch
+    to label %shared unwind label %catch.switch
+catch.switch:
+  %cs = catchswitch none, unwind to caller [label %catch]
 catch:
-  catchpad []
-    to label %shared unwind label %endcatch
-endcatch:
-  catchendpad unwind to caller
+  catchpad %cs []
+  br label %shared
 shared:
   %x = call i32 @g()
   %i = call i32 @g()
@@ -147,10 +145,9 @@ exit:
 ; from %shared to %exit.
 ; CHECK-LABEL: define void @test4(
 ; CHECK:  entry:
-; CHECK:    to label %[[shared_E:[^ ]+]] unwind label %catch
+; CHECK:    to label %[[shared_E:[^ ]+]] unwind label %catch.switch
 ; CHECK:  catch:
-; CHECK:    to label %[[shared_C:[^ ]+]] unwind label %endcatch
-; CHECK:  [[shared_C]]:
+; CHECK:    catchpad %cs []
 ; CHECK:    [[x_C:%[^ ]+]] = call i32 @g()
 ; CHECK:    [[i_C:%[^ ]+]] = call i32 @g()
 ; CHECK:    [[zt_C:%[^ ]+]] = icmp eq i32 [[i_C]], 0
@@ -161,7 +158,7 @@ exit:
 ; CHECK:    [[zt_E:%[^ ]+]] = icmp eq i32 [[i_E]], 0
 ; CHECK:    br i1 [[zt_E]], label %[[exit_E:[^ ]+]], label %[[loop_E:[^ ]+]]
 ; CHECK:  [[loop_C]]:
-; CHECK:    [[iloop_C:%[^ ]+]] = phi i32 [ [[i_C]], %[[shared_C]] ], [ [[idec_C:%[^ ]+]], %[[looptail_C:[^ ]+]] ]
+; CHECK:    [[iloop_C:%[^ ]+]] = phi i32 [ [[i_C]], %catch ], [ [[idec_C:%[^ ]+]], %[[looptail_C:[^ ]+]] ]
 ; CHECK:    [[b_C:%[^ ]+]] = call i1 @b()
 ; CHECK:    br i1 [[b_C]], label %[[left_C:[^ ]+]], label %[[right_C:[^ ]+]]
 ; CHECK:  [[loop_E]]:
@@ -196,22 +193,20 @@ exit:
 ; CHECK:    unreachable
 
 
-define void @test5() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test5() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %exit unwind label %outer
 outer:
-  %o = cleanuppad []
+  %o = cleanuppad none []
   %x = call i32 @g()
   invoke void @f()
-    to label %outer.ret unwind label %inner
+    to label %outer.ret unwind label %catch.switch
+catch.switch:
+  %cs = catchswitch %o, unwind to caller [label %inner]
 inner:
-  %i = catchpad []
-    to label %inner.catch unwind label %inner.endcatch
-inner.catch:
+  %i = catchpad %cs []
   catchret %i to label %outer.post-inner
-inner.endcatch:
-  catchendpad unwind to caller
 outer.post-inner:
   call void @h(i32 %x)
   br label %outer.ret
@@ -227,17 +222,16 @@ exit:
 ; CHECK:      outer:
 ; CHECK:        %x = call i32 @g()
 ; CHECK-NEXT:   invoke void @f()
-; CHECK-NEXT:     to label %outer.ret unwind label %inner
+; CHECK-NEXT:     to label %outer.ret unwind label %catch.switch
 ; CHECK:      inner:
-; CHECK:          to label %inner.catch unwind label %inner.endcatch
-; CHECK:      inner.catch:
+; CHECK-NEXT:   %i = catchpad %cs []
 ; CHECK-NEXT:   catchret %i to label %outer.post-inner
 ; CHECK:      outer.post-inner:
 ; CHECK-NEXT:   call void @h(i32 %x)
 ; CHECK-NEXT:   br label %outer.ret
 
 
-define void @test6() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test6() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %invoke.cont unwind label %left
@@ -245,15 +239,13 @@ invoke.cont:
   invoke void @f()
     to label %exit unwind label %right
 left:
-  cleanuppad []
+  cleanuppad none []
   br label %shared
 right:
-  catchpad []
-    to label %right.catch unwind label %right.end
+  %cs = catchswitch none, unwind to caller [label %right.catch]
 right.catch:
+  catchpad %cs []
   br label %shared
-right.end:
-  catchendpad unwind to caller
 shared:
   %x = call i32 @g()
   invoke void @f()
@@ -261,52 +253,32 @@ shared:
 shared.cont:
   unreachable
 inner:
-  %i = cleanuppad []
+  %i = cleanuppad none []
   call void @h(i32 %x)
-  cleanupret %i unwind label %right.end
+  cleanupret %i unwind to caller
 exit:
   ret void
 }
-; %inner is a cleanup which appears both as a child of
-; %left and as a child of %right.  Since statically we
-; need each funclet to have a single parent, we need to
-; clone the entire %inner funclet so we can have one
-; copy under each parent.  The cleanupret in %inner
-; unwinds to the catchendpad for %right, so the copy
-; of %inner under %right should include it; the copy
-; of %inner under %left should instead have an
-; `unreachable` inserted there, but the copy under
-; %left still needs to be created because it's possible
-; the dynamic path enters %left, then enters %inner,
-; then calls @h, and that the call to @h doesn't return.
 ; CHECK-LABEL: define void @test6(
 ; CHECK:     left:
 ; CHECK:       %x.for.left = call i32 @g()
 ; CHECK:       invoke void @f()
-; CHECK:           to label %[[SHARED_CONT_LEFT:.+]] unwind label %[[INNER_LEFT:.+]]
-; CHECK:     right:
-; CHECK:       catchpad
-; CHECK:           to label %right.catch unwind label %right.end
+; CHECK:           to label %shared.cont.for.left unwind label %inner
 ; CHECK:     right.catch:
+; CHECK:       catchpad
 ; CHECK:       %x = call i32 @g()
-; CHECK:           to label %shared.cont unwind label %[[INNER_RIGHT:.+]]
-; CHECK:     right.end:
-; CHECK:       catchendpad unwind to caller
+; CHECK:           to label %shared.cont unwind label %inner
 ; CHECK:     shared.cont:
 ; CHECK:       unreachable
-; CHECK:     [[SHARED_CONT_LEFT]]:
+; CHECK:     shared.cont.for.left:
 ; CHECK:       unreachable
-; CHECK:     [[INNER_RIGHT]]:
-; CHECK:       [[I_R:\%.+]] = cleanuppad []
-; CHECK:       call void @h(i32 %x)
-; CHECK:       cleanupret [[I_R]] unwind label %right.end
-; CHECK:     [[INNER_LEFT]]:
-; CHECK:       [[I_L:\%.+]] = cleanuppad []
-; CHECK:       call void @h(i32 %x.for.left)
-; CHECK:       unreachable
+; CHECK:     inner:
+; CHECK:       [[I_R:\%.+]] = cleanuppad none []
+; CHECK:       call void @h(i32 %x1.wineh.reload)
+; CHECK:       cleanupret [[I_R]] unwind to caller
 
 
-define void @test7() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test7() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %invoke.cont unwind label %left
@@ -314,47 +286,35 @@ invoke.cont:
   invoke void @f()
     to label %unreachable unwind label %right
 left:
-  cleanuppad []
+  cleanuppad none []
   invoke void @f() to label %unreachable unwind label %inner
 right:
-  catchpad []
-    to label %right.catch unwind label %right.end
+  %cs = catchswitch none, unwind label %inner [label %right.catch]
 right.catch:
+  catchpad %cs []
   invoke void @f() to label %unreachable unwind label %inner
-right.end:
-  catchendpad unwind to caller
 inner:
-  %i = cleanuppad []
+  %i = cleanuppad none []
   %x = call i32 @g()
   call void @h(i32 %x)
-  cleanupret %i unwind label %right.end
+  cleanupret %i unwind to caller
 unreachable:
   unreachable
 }
-; Another case of a two-parent child (like @test6), this time
-; with the join at the entry itself instead of following a
-; non-pad join.
 ; CHECK-LABEL: define void @test7(
 ; CHECK:     invoke.cont:
 ; CHECK:           to label %[[UNREACHABLE_ENTRY:.+]] unwind label %right
 ; CHECK:     left:
 ; CHECK:           to label %[[UNREACHABLE_LEFT:.+]] unwind label %[[INNER_LEFT:.+]]
 ; CHECK:     right:
-; CHECK:           to label %right.catch unwind label %right.end
+; CHECK:       %cs = catchswitch none, unwind label %inner [label %right.catch]
 ; CHECK:     right.catch:
 ; CHECK:           to label %unreachable unwind label %[[INNER_RIGHT:.+]]
-; CHECK:     right.end:
-; CHECK:       catchendpad unwind to caller
-; CHECK:     [[INNER_RIGHT]]:
-; CHECK:       [[I_R:\%.+]] = cleanuppad []
-; CHECK:       [[X_R:\%.+]] = call i32 @g()
-; CHECK:       call void @h(i32 [[X_R]])
-; CHECK:       cleanupret [[I_R]] unwind label %right.end
-; CHECK:     [[INNER_LEFT]]:
-; CHECK:       [[I_L:\%.+]] = cleanuppad []
-; CHECK:       [[X_L:\%.+]] = call i32 @g()
-; CHECK:       call void @h(i32 [[X_L]])
-; CHECK:       unreachable
+; CHECK:     inner:
+; CHECK:       [[I:\%.+]] = cleanuppad none []
+; CHECK:       [[X:\%.+]] = call i32 @g()
+; CHECK:       call void @h(i32 [[X]])
+; CHECK:       cleanupret [[I]] unwind to caller
 ; CHECK:     unreachable:
 ; CHECK:       unreachable
 ; CHECK:     [[UNREACHABLE_LEFT]]:
@@ -363,7 +323,7 @@ unreachable:
 ; CHECK:       unreachable
 
 
-define void @test8() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test8() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %invoke.cont unwind label %left
@@ -371,60 +331,46 @@ invoke.cont:
   invoke void @f()
     to label %unreachable unwind label %right
 left:
-  cleanuppad []
+  cleanuppad none []
   br label %shared
 right:
-  catchpad []
-    to label %right.catch unwind label %right.end
+  %cs = catchswitch none, unwind label %inner [label %right.catch]
 right.catch:
+  catchpad %cs []
   br label %shared
-right.end:
-  catchendpad unwind to caller
 shared:
   invoke void @f()
     to label %unreachable unwind label %inner
 inner:
-  cleanuppad []
+  %cu = cleanuppad none []
   invoke void @f()
     to label %unreachable unwind label %inner.child
 inner.child:
-  cleanuppad []
+  cleanuppad %cu []
   %x = call i32 @g()
   call void @h(i32 %x)
   unreachable
 unreachable:
   unreachable
 }
-; %inner is a two-parent child which itself has a child; need
-; to make two copies of both the %inner and %inner.child.
 ; CHECK-LABEL: define void @test8(
 ; CHECK:     invoke.cont:
 ; CHECK:               to label %[[UNREACHABLE_ENTRY:.+]] unwind label %right
 ; CHECK:     left:
-; CHECK:               to label %[[UNREACHABLE_LEFT:.+]] unwind label %[[INNER_LEFT:.+]]
+; CHECK:               to label %[[UNREACHABLE_LEFT:.+]] unwind label %inner
 ; CHECK:     right:
-; CHECK:               to label %right.catch unwind label %right.end
+; CHECK:               %cs = catchswitch none, unwind label %inner [label %right.catch]
 ; CHECK:     right.catch:
-; CHECK:               to label %[[UNREACHABLE_RIGHT:.+]] unwind label %[[INNER_RIGHT:.+]]
-; CHECK:     right.end:
-; CHECK:       catchendpad unwind to caller
-; CHECK:     [[INNER_RIGHT]]:
-; CHECK:               to label %[[UNREACHABLE_INNER_RIGHT:.+]] unwind label %[[INNER_CHILD_RIGHT:.+]]
-; CHECK:     [[INNER_LEFT]]:
-; CHECK:               to label %[[UNREACHABLE_INNER_LEFT:.+]] unwind label %[[INNER_CHILD_LEFT:.+]]
-; CHECK:     [[INNER_CHILD_RIGHT]]:
-; CHECK:       [[TMP:\%.+]] = cleanuppad []
+; CHECK:               to label %[[UNREACHABLE_RIGHT:.+]] unwind label %inner
+; CHECK:     inner:
+; CHECK:               %cu = cleanuppad none []
+; CHECK:               to label %[[UNREACHABLE_INNER:.+]] unwind label %inner.child
+; CHECK:     inner.child:
+; CHECK:       [[TMP:\%.+]] = cleanuppad %cu []
 ; CHECK:       [[X:\%.+]] = call i32 @g()
 ; CHECK:       call void @h(i32 [[X]])
 ; CHECK:       unreachable
-; CHECK:     [[INNER_CHILD_LEFT]]:
-; CHECK:       [[TMP:\%.+]] = cleanuppad []
-; CHECK:       [[X:\%.+]] = call i32 @g()
-; CHECK:       call void @h(i32 [[X]])
-; CHECK:       unreachable
-; CHECK:     [[UNREACHABLE_INNER_RIGHT]]:
-; CHECK:       unreachable
-; CHECK:     [[UNREACHABLE_INNER_LEFT]]:
+; CHECK:     [[UNREACHABLE_INNER]]:
 ; CHECK:       unreachable
 ; CHECK:     [[UNREACHABLE_RIGHT]]:
 ; CHECK:       unreachable
@@ -434,7 +380,7 @@ unreachable:
 ; CHECK:       unreachable
 
 
-define void @test9() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test9() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %invoke.cont unwind label %left
@@ -442,48 +388,32 @@ invoke.cont:
   invoke void @f()
     to label %unreachable unwind label %right
 left:
-  cleanuppad []
+  cleanuppad none []
   call void @h(i32 1)
   invoke void @f()
     to label %unreachable unwind label %right
 right:
-  cleanuppad []
+  cleanuppad none []
   call void @h(i32 2)
   invoke void @f()
     to label %unreachable unwind label %left
 unreachable:
   unreachable
 }
-; This is an irreducible loop with two funclets that enter each other;
-; need to make two copies of each funclet (one a child of root, the
-; other a child of the opposite funclet), but also make sure not to
-; clone self-descendants (if we tried to do that we'd need to make an
-; infinite number of them).  Presumably if optimizations ever generated
-; such a thing it would mean that one of the two cleanups was originally
-; the parent of the other, but that we'd somehow lost track in the CFG
-; of which was which along the way; generating each possibility lets
-; whichever case was correct execute correctly.
+; This is an irreducible loop with two funclets that enter each other.
 ; CHECK-LABEL: define void @test9(
 ; CHECK:     entry:
 ; CHECK:               to label %invoke.cont unwind label %[[LEFT:.+]]
 ; CHECK:     invoke.cont:
 ; CHECK:               to label %[[UNREACHABLE_ENTRY:.+]] unwind label %[[RIGHT:.+]]
-; CHECK:     [[LEFT_FROM_RIGHT:.+]]:
-; CHECK:       call void @h(i32 1)
-; CHECK:       call void @f()
-; CHECK:       unreachable
 ; CHECK:     [[LEFT]]:
 ; CHECK:       call void @h(i32 1)
 ; CHECK:       invoke void @f()
-; CHECK:               to label %[[UNREACHABLE_LEFT:.+]] unwind label %[[RIGHT_FROM_LEFT:.+]]
+; CHECK:               to label %[[UNREACHABLE_LEFT:.+]] unwind label %[[RIGHT]]
 ; CHECK:     [[RIGHT]]:
 ; CHECK:       call void @h(i32 2)
 ; CHECK:       invoke void @f()
-; CHECK:               to label %[[UNREACHABLE_RIGHT:.+]] unwind label %[[LEFT_FROM_RIGHT]]
-; CHECK:     [[RIGHT_FROM_LEFT]]:
-; CHECK:       call void @h(i32 2)
-; CHECK:       call void @f()
-; CHECK:       unreachable
+; CHECK:               to label %[[UNREACHABLE_RIGHT:.+]] unwind label %[[LEFT]]
 ; CHECK:     [[UNREACHABLE_RIGHT]]:
 ; CHECK:       unreachable
 ; CHECK:     [[UNREACHABLE_LEFT]]:
@@ -497,16 +427,16 @@ entry:
   invoke void @f()
     to label %unreachable unwind label %inner
 inner:
-  %cleanup = cleanuppad []
+  %cleanup = cleanuppad none []
   ; make sure we don't overlook this cleanupret and try to process
   ; successor %outer as a child of inner.
   cleanupret %cleanup unwind label %outer
 outer:
-  %catch = catchpad [] to label %catch.body unwind label %endpad
+  %cs = catchswitch none, unwind to caller [label %catch.body]
+
 catch.body:
+  %catch = catchpad %cs []
   catchret %catch to label %exit
-endpad:
-  catchendpad unwind to caller
 exit:
   ret void
 unreachable:
@@ -517,38 +447,32 @@ unreachable:
 ; CHECK-NEXT:   invoke
 ; CHECK-NEXT:     to label %unreachable unwind label %inner
 ; CHECK:      inner:
-; CHECK-NEXT:   %cleanup = cleanuppad
+; CHECK-NEXT:   %cleanup = cleanuppad none []
 ; CHECK-NEXT:   cleanupret %cleanup unwind label %outer
 ; CHECK:      outer:
-; CHECK-NEXT:   %catch = catchpad []
-; CHECK-NEXT:	      to label %catch.body unwind label %endpad
+; CHECK-NEXT:   %cs = catchswitch none, unwind to caller [label %catch.body]
 ; CHECK:      catch.body:
+; CHECK-NEXT:   %catch = catchpad %cs []
 ; CHECK-NEXT:   catchret %catch to label %exit
-; CHECK:      endpad:
-; CHECK-NEXT:   catchendpad unwind to caller
 ; CHECK:      exit:
 ; CHECK-NEXT:   ret void
 
-define void @test11() personality i32 (...)* @__CxxFrameHandler3 {
+define void @test11() personality i32 (...)* @__C_specific_handler {
 entry:
   invoke void @f()
     to label %exit unwind label %cleanup.outer
 cleanup.outer:
-  %outer = cleanuppad []
+  %outer = cleanuppad none []
   invoke void @f()
     to label %outer.cont unwind label %cleanup.inner
 outer.cont:
   br label %merge
 cleanup.inner:
-  %inner = cleanuppad []
+  %inner = cleanuppad %outer []
   br label %merge
 merge:
-  invoke void @f()
-    to label %unreachable unwind label %merge.end
-unreachable:
+  call void @f()
   unreachable
-merge.end:
-  cleanupendpad %outer unwind to caller
 exit:
   ret void
 }
@@ -556,7 +480,7 @@ exit:
 ; from inner, so the invoke @f() in inner's copy of merge should be
 ; rewritten to call @f()
 ; CHECK-LABEL: define void @test11()
-; CHECK:      %inner = cleanuppad []
+; CHECK:      %inner = cleanuppad %outer []
 ; CHECK-NEXT: call void @f()
 ; CHECK-NEXT: unreachable
 
@@ -568,10 +492,10 @@ cont:
   invoke void @f()
     to label %exit unwind label %right
 left:
-  cleanuppad []
+  cleanuppad none []
   br label %join
 right:
-  cleanuppad []
+  cleanuppad none []
   br label %join
 join:
   ; This call will get cloned; make sure we can handle cloning
@@ -589,67 +513,44 @@ entry:
   ret void
 
 unreachable:
-  cleanuppad []
+  cleanuppad none []
   unreachable
 }
 
 define void @test14() personality i32 (...)* @__CxxFrameHandler3 {
 entry:
   invoke void @f()
-    to label %exit unwind label %catch1.pad
+    to label %exit unwind label %catch.switch
+catch.switch:
+  %cs = catchswitch none, unwind to caller [label %catch1.pad, label %catch2.pad]
 catch1.pad:
-  %catch1 = catchpad [i32 1]
-    to label %catch1.body unwind label %catch2.pad
-catch1.body:
-  invoke void @h(i32 1)
-    to label %catch1.body2 unwind label %catch.end
-catch1.body2:
+  %catch1 = catchpad %cs [i32 1]
+  call void @h(i32 1)
   invoke void @f()
     to label %catch1.ret unwind label %cleanup1.pad
 cleanup1.pad:
-  %cleanup1 = cleanuppad []
+  %cleanup1 = cleanuppad %catch1 []
   call void @f()
-  cleanupret %cleanup1 unwind label %catch.end
+  cleanupret %cleanup1 unwind to caller
 catch1.ret:
   catchret %catch1 to label %exit
 catch2.pad:
-  %catch2 = catchpad [i32 2]
-    to label %catch2.body unwind label %catch.end
-catch2.body:
-  invoke void @h(i32 2)
-    to label %catch2.body2 unwind label %catch.end
-catch2.body2:
+  %catch2 = catchpad %cs [i32 2]
+  call void @h(i32 2)
   invoke void @f()
     to label %catch2.ret unwind label %cleanup2.pad
 cleanup2.pad:
-  %cleanup2 = cleanuppad []
+  %cleanup2 = cleanuppad %catch2 []
   call void @f()
-  cleanupret %cleanup2 unwind label %catch.end
+  cleanupret %cleanup2 unwind to caller
 catch2.ret:
   catchret %catch2 to label %exit
-catch.end:
-  catchendpad unwind to caller
 exit:
   ret void
 }
-; Make sure we don't clone the catchendpad even though the
-; cleanupendpads targeting it would naively imply that it
-; should get their respective parent colors (catch1 and catch2),
-; as well as its properly getting the root function color.  The
-; references from the invokes ensure that if we did make clones
-; for each catch, they'd be reachable, as those invokes would get
-; rewritten
 ; CHECK-LABEL: define void @test14()
-; CHECK-NOT:  catchendpad
-; CHECK:      invoke void @h(i32 1)
-; CHECK-NEXT:   unwind label %catch.end
-; CHECK-NOT:  catchendpad
-; CHECK:      invoke void @h(i32 2)
-; CHECK-NEXT:   unwind label %catch.end
-; CHECK-NOT:   catchendpad
-; CHECK:     catch.end:
-; CHECK-NEXT:  catchendpad
-; CHECK-NOT:   catchendpad
+; CHECK:      call void @h(i32 1)
+; CHECK:      call void @h(i32 2)
 
 ;; Debug info (from test12)
 
