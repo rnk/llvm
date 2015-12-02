@@ -987,16 +987,19 @@ FuncletPadInst::FuncletPadInst(Instruction::FuncletPadOps Op, Value *OuterScope,
 //===----------------------------------------------------------------------===//
 //                        CleanupPadInst Implementation
 //===----------------------------------------------------------------------===//
+BasicBlock *CleanupPadInst::getCleanupRetUnwindEdge() const {
+  for (const User *U : users())
+    if (const auto *CRI = dyn_cast<CleanupReturnInst>(U))
+      return CRI->getUnwindDest();
+  // We don't have a cleanupret use, return null.  Semantically, this is the
+  // same as unwinding to caller.
+  return nullptr;
+}
+
 bool CleanupPadInst::inOutermostScope() const {
   if (!isa<ConstantTokenNone>(getOuterScope()))
     return false;
-  for (const User *U : users()) {
-    if (const auto *CRI = dyn_cast<CleanupReturnInst>(U))
-      return CRI->unwindsToCaller();
-  }
-  // If we don't have a cleanupret use, then consider this pad to be in the
-  // outermost scope.
-  return true;
+  return getCleanupRetUnwindEdge() == nullptr;
 }
 
 //===----------------------------------------------------------------------===//

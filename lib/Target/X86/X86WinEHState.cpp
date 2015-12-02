@@ -421,17 +421,16 @@ void WinEHStatePass::addStateStores(Function &F, WinEHFuncInfo &FuncInfo) {
   for (BasicBlock &BB : F) {
     // Figure out what state we should assign calls in this block.
     int BaseState = -1;
-    auto BBColors = BlockColors.find(&BB);
-    if (BBColors != BlockColors.end()) {
-      assert(BBColors->second.size() == 1 &&
-             "multi-color BB not removed by preparation");
-      BasicBlock *FuncletEntryBB = BBColors->second[0];
-      if (auto *FuncletPad =
-              dyn_cast<FuncletPadInst>(FuncletEntryBB->getFirstNonPHI())) {
-        auto BaseStateI = FuncInfo.FuncletBaseStateMap.find(FuncletPad);
-        if (BaseStateI != FuncInfo.FuncletBaseStateMap.end())
-          BaseState = BaseStateI->second;
-      }
+    auto &BBColors = BlockColors[&BB];
+
+    assert(BBColors.size() == 1 &&
+           "multi-color BB not removed by preparation");
+    BasicBlock *FuncletEntryBB = BBColors.front();
+    if (auto *FuncletPad =
+            dyn_cast<FuncletPadInst>(FuncletEntryBB->getFirstNonPHI())) {
+      auto BaseStateI = FuncInfo.FuncletBaseStateMap.find(FuncletPad);
+      if (BaseStateI != FuncInfo.FuncletBaseStateMap.end())
+        BaseState = BaseStateI->second;
     }
 
     for (Instruction &I : BB) {
@@ -443,10 +442,8 @@ void WinEHStatePass::addStateStores(Function &F, WinEHFuncInfo &FuncInfo) {
         insertStateNumberStore(RegNode, CI, BaseState);
       } else if (auto *II = dyn_cast<InvokeInst>(&I)) {
         // Look up the state number of the landingpad this unwinds to.
-        Instruction *PadInst = II->getUnwindDest()->getFirstNonPHI();
-        // FIXME: Why does this assertion fail?
-        //assert(FuncInfo.EHPadStateMap.count(PadInst) && "EH Pad has no state!");
-        int State = FuncInfo.EHPadStateMap[PadInst];
+        assert(FuncInfo.InvokeStateMap.count(II) && "invoke has no state!");
+        int State = FuncInfo.InvokeStateMap[II];
         insertStateNumberStore(RegNode, II, State);
       }
     }

@@ -149,6 +149,50 @@ static void addTryBlockMapEntry(WinEHFuncInfo &FuncInfo, int TryLow,
   FuncInfo.TryBlockMap.push_back(TBME);
 }
 
+static void calculateStateNumbersForInvokes(const Function *Fn,
+                                            WinEHFuncInfo &FuncInfo) {
+  auto *F = const_cast<Function *>(Fn);
+  DenseMap<BasicBlock *, ColorVector> BlockColors = colorEHFunclets(*F);
+  for (BasicBlock &BB : *F) {
+    auto *II = dyn_cast<InvokeInst>(BB.getTerminator());
+    if (!II)
+      continue;
+
+    auto &BBColors = BlockColors[&BB];
+    assert(BBColors.size() == 1 &&
+           "multi-color BB not removed by preparation");
+    BasicBlock *FuncletEntryBB = BBColors.front();
+
+    BasicBlock *FuncletUnwindDest;
+    auto *FuncletPad =
+        dyn_cast<FuncletPadInst>(FuncletEntryBB->getFirstNonPHI());
+    if (!FuncletPad)
+      FuncletUnwindDest = nullptr;
+    else if (auto *CatchPad = dyn_cast<CatchPadInst>(FuncletPad))
+      FuncletUnwindDest = CatchPad->getCatchSwitch()->getUnwindDest();
+    else if (auto *CleanupPad = dyn_cast<CleanupPadInst>(FuncletPad))
+      FuncletUnwindDest = CleanupPad->getCleanupRetUnwindEdge();
+    else
+      llvm_unreachable("unexpected funclet pad!");
+
+    BasicBlock *InvokeUnwindDest = II->getUnwindDest();
+    int BaseState = -1;
+    if (FuncletUnwindDest == InvokeUnwindDest) {
+      auto BaseStateI = FuncInfo.FuncletBaseStateMap.find(FuncletPad);
+      if (BaseStateI != FuncInfo.FuncletBaseStateMap.end())
+        BaseState = BaseStateI->second;
+    }
+
+    if (BaseState != -1) {
+      FuncInfo.InvokeStateMap[II] = BaseState;
+    } else {
+      Instruction *PadInst = InvokeUnwindDest->getFirstNonPHI();
+      assert(FuncInfo.EHPadStateMap.count(PadInst) && "EH Pad has no state!");
+      FuncInfo.InvokeStateMap[II] = FuncInfo.EHPadStateMap[PadInst];
+    }
+  }
+}
+
 // Given BB which ends in an unwind edge, return the EHPad that this BB belongs
 // to. If the unwind edge came from an invoke, return null.
 static const BasicBlock *getEHPadFromPredecessor(const BasicBlock *BB) {
@@ -270,6 +314,8 @@ void llvm::calculateSEHStateNumbers(const Function *Fn,
       continue;
     ::calculateSEHStateNumbers(FuncInfo, FirstNonPHI, -1);
   }
+
+  calculateStateNumbersForInvokes(Fn, FuncInfo);
 }
 
 static void calculateCXXStateNumbers(WinEHFuncInfo &FuncInfo,
@@ -351,6 +397,8 @@ void llvm::calculateWinCXXEHStateNumbers(const Function *Fn,
       continue;
     calculateCXXStateNumbers(FuncInfo, FirstNonPHI, -1);
   }
+
+  calculateStateNumbersForInvokes(Fn, FuncInfo);
 }
 
 static int addClrEHHandler(WinEHFuncInfo &FuncInfo, int ParentState,
@@ -444,6 +492,8 @@ void llvm::calculateClrEHStateNumbers(const Function *Fn,
         Worklist.emplace_back(Pred->getFirstNonPHI(), PredState);
     }
   }
+
+  calculateStateNumbersForInvokes(Fn, FuncInfo);
 }
 
 void WinEHPrepare::replaceTerminatePadWithCleanup(Function &F) {
@@ -996,11 +1046,10 @@ void WinEHPrepare::replaceUseWithLoad(Value *V, Use &U, AllocaInst *&SpillSlot,
   }
 }
 
-void WinEHFuncInfo::addIPToStateRange(const BasicBlock *PadBB,
+void WinEHFuncInfo::addIPToStateRange(const InvokeInst *II,
                                       MCSymbol *InvokeBegin,
                                       MCSymbol *InvokeEnd) {
-  assert(PadBB->isEHPad() && EHPadStateMap.count(PadBB->getFirstNonPHI()) &&
-         "should get EH pad BB with precomputed state");
-  InvokeToStateMap[InvokeBegin] =
-      std::make_pair(EHPadStateMap[PadBB->getFirstNonPHI()], InvokeEnd);
+  assert(InvokeStateMap.count(II) &&
+         "should get invoke with precomputed state");
+  LabelToStateMap[InvokeBegin] = std::make_pair(InvokeStateMap[II], InvokeEnd);
 }

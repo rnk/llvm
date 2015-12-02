@@ -434,9 +434,9 @@ InvokeStateChangeIterator &InvokeStateChangeIterator::scan() {
         VisitingInvoke = false;
         continue;
       }
-      auto InvokeMapIter = EHInfo.InvokeToStateMap.find(Label);
+      auto InvokeMapIter = EHInfo.LabelToStateMap.find(Label);
       // Ignore EH labels that aren't the ones inserted before an invoke
-      if (InvokeMapIter == EHInfo.InvokeToStateMap.end())
+      if (InvokeMapIter == EHInfo.LabelToStateMap.end())
         continue;
       auto &StateAndEnd = InvokeMapIter->second;
       int NewState = StateAndEnd.first;

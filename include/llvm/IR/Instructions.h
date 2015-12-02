@@ -4105,6 +4105,8 @@ public:
 
   bool inOutermostScope() const;
 
+  BasicBlock *getCleanupRetUnwindEdge() const;
+
   /// \brief Methods for support type inquiry through isa, cast, and dyn_cast:
   static inline bool classof(const Instruction *I) {
     return I->getOpcode() == Instruction::CleanupPad;

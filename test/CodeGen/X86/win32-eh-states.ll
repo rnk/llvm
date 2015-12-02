@@ -1,4 +1,5 @@
-; RUN: llc -mtriple=i686-pc-windows-msvc < %s | FileCheck %s
+; RUN: llc -mtriple=i686-pc-windows-msvc   < %s | FileCheck %s --check-prefix=X86
+; RUN: llc -mtriple=x86_64-pc-windows-msvc < %s | FileCheck %s --check-prefix=X64
 
 ; Based on this source:
 ; extern "C" void may_throw(int);
@@ -62,24 +63,40 @@ catch.7:
   catchret %p2 to label %try.cont.9
 }
 
-; CHECK-LABEL: _f:
-; CHECK: movl $-1, [[state:[-0-9]+]](%ebp)
-; CHECK: movl $___ehhandler$f, {{.*}}
+; X86-LABEL: _f:
+; X86: movl $-1, [[state:[-0-9]+]](%ebp)
+; X86: movl $___ehhandler$f, {{.*}}
 ;
-; CHECK: movl $0, [[state]](%ebp)
-; CHECK: movl $1, (%esp)
-; CHECK: calll _may_throw
+; X86: movl $0, [[state]](%ebp)
+; X86: movl $1, (%esp)
+; X86: calll _may_throw
 ;
-; CHECK: movl $1, [[state]](%ebp)
-; CHECK: movl $2, (%esp)
-; CHECK: calll _may_throw
+; X86: movl $1, [[state]](%ebp)
+; X86: movl $2, (%esp)
+; X86: calll _may_throw
 ;
-; CHECK: movl $2, [[state]](%ebp)
-; CHECK: movl $3, (%esp)
-; CHECK: calll _may_throw
+; X86: movl $2, [[state]](%ebp)
+; X86: movl $3, (%esp)
+; X86: calll _may_throw
 ;
-; CHECK: movl $3, [[state]](%ebp)
-; CHECK: movl $4, (%esp)
-; CHECK: calll _may_throw
+; X86: movl $3, [[state]](%ebp)
+; X86: movl $4, (%esp)
+; X86: calll _may_throw
 
-; CHECK: .safeseh ___ehhandler$f
+; X86: .safeseh ___ehhandler$f
+
+
+; X64-LABEL: f:
+; X64-LABEL: $ip2state$f:
+; X64-NEXT:   .long .Lfunc_begin0@IMGREL
+; X64-NEXT:   .long -1
+; X64-NEXT:   .long .Ltmp{{.*}}@IMGREL+1
+; X64-NEXT:   .long 0
+; X64-NEXT:   .long .Ltmp{{.*}}@IMGREL+1
+; X64-NEXT:   .long 1
+; X64-NEXT:   .long .Ltmp{{.*}}@IMGREL+1
+; X64-NEXT:   .long -1
+; X64-NEXT:   .long "?catch${{.*}}@?0?f@4HA"@IMGREL
+; X64-NEXT:   .long 2
+; X64-NEXT:   .long "?catch${{.*}}@?0?f@4HA"@IMGREL
+; X64-NEXT:   .long 3
