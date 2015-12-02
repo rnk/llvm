@@ -4955,7 +4955,7 @@ control flow, not values (the one exception being the
 The terminator instructions are: ':ref:`ret <i_ret>`',
 ':ref:`br <i_br>`', ':ref:`switch <i_switch>`',
 ':ref:`indirectbr <i_indirectbr>`', ':ref:`invoke <i_invoke>`',
-':ref:`resume <i_resume>`', ':ref:`catchpad <i_catchpad>`',
+':ref:`resume <i_resume>`', ':ref:`catchswitch <i_catchswitch>`',
 ':ref:`catchret <i_catchret>`',
 ':ref:`cleanupret <i_cleanupret>`',
 ':ref:`terminatepad <i_terminatepad>`',
@@ -5314,6 +5314,61 @@ Example:
 
       resume { i8*, i32 } %exn
 
+.. _i_catchswitch:
+
+'``catchswitch``' Instruction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      <resultval> = catchswitch <parent>, unwind to caller [<handlers>*]
+      <resultval> = catchswitch <parent>, unwind label %<default> [<handlers>*]
+
+Overview:
+"""""""""
+
+The '``catchswitch``' instruction is used by `LLVM's exception handling system
+<ExceptionHandling.html#overview>`_ describe the set of possible catch handlers
+that may be executed by the :ref:`EH personality routine <personalityfn>`.
+
+Arguments:
+""""""""""
+
+The ``parent`` argument is the token of the funclet that contains the
+``catchswitch`` instruction. If the ``catchswitch`` is not inside a funclet,
+this operand may be the token ``none``.
+
+The ``default`` argument is the label of another basic block beginning with a
+"pad" instruction, such as ``cleanuppad``, ``terminatepad``, or
+``catchswitch``.
+
+The ``handlers`` are a list of successor blocks that begin with a
+:ref:`catchpad <i_catchpad>` instruction.
+
+Semantics:
+""""""""""
+
+Executing this instruction transfers control to one of the successors in
+``handlers``, if appropriate, or continuing to unwind via the unwind label if
+present.
+
+The ``catchswitch`` is both a terminator and a "pad" instruction, meaning that
+it must be both the first non-phi instruction and last instruction in the basic
+block. Therefore, it must be the only non-phi instruction in the block.
+
+Example:
+""""""""
+
+.. code-block:: llvm
+
+    dispatch1:
+      %cs1 = catchswitch none, unwind to caller [label %handler0, label %handler1]
+    dispatch2:
+      %cs2 = catchswitch %parenthandler, unwind label %cleanup [label %handler0]
+
 .. _i_catchpad:
 
 '``catchpad``' Instruction
@@ -5324,73 +5379,58 @@ Syntax:
 
 ::
 
-      <resultval> = catchpad [<args>*]
-          to label <normal label> unwind label <exception label>
+      <resultval> = catchpad <catchswitch> [<args>*]
 
 Overview:
 """""""""
 
 The '``catchpad``' instruction is used by `LLVM's exception handling
 system <ExceptionHandling.html#overview>`_ to specify that a basic block
-is a catch block --- one where a personality routine attempts to transfer
+is a catch handler --- one where a personality routine attempts to transfer
 control to catch an exception.
-The ``args`` correspond to whatever information the personality
-routine requires to know if this is an appropriate place to catch the
-exception. Control is transfered to the ``exception`` label if the
-``catchpad`` is not an appropriate handler for the in-flight exception.
-The ``normal`` label should contain the code found in the ``catch``
-portion of a ``try``/``catch`` sequence. The ``resultval`` has the type
-:ref:`token <t_token>` and is used to match the ``catchpad`` to
-corresponding :ref:`catchrets <i_catchret>`.
 
 Arguments:
 """"""""""
 
-The instruction takes a list of arbitrary values which are interpreted
-by the :ref:`personality function <personalityfn>`.
+The ``catchswitch`` operand must always be a token produced by a
+:ref:`catchswitch <i_catchswitch>` instruction in a predecessor block. This
+ensures that each ``catchpad`` has exactly one predecessor block, and it always
+terminates in a ``catchswitch``.
 
-The ``catchpad`` must be provided a ``normal`` label to transfer control
-to if the ``catchpad`` matches the exception and an ``exception``
-label to transfer control to if it doesn't.
+The ``args`` correspond to whatever information the personality routine
+requires to know if this is an appropriate handler for the exception. Control
+will transfer to the ``catchpad`` if this is the case, or another successor of
+the preceding ``catchswitch`` if not.
+
+The ``resultval`` has the type :ref:`token <t_token>` and is used to match the
+``catchpad`` to corresponding :ref:`catchrets <i_catchret>` and other nested EH
+pads.
 
 Semantics:
 """"""""""
 
-When the call stack is being unwound due to an exception being thrown,
-the exception is compared against the ``args``. If it doesn't match,
-then control is transfered to the ``exception`` basic block.
-As with calling conventions, how the personality function results are
-represented in LLVM IR is target specific.
+When the call stack is being unwound due to an exception being thrown, the
+exception is compared against the ``args``. If it doesn't match, control will
+not reach the ``catchpad`` instruction.  The representation of ``args`` is
+entirely target and personality function-specific.
 
-The ``catchpad`` instruction has several restrictions:
+Like the :ref:`landingpad <i_landingpad>` instruction, the ``catchpad``
+instruction must be the first non-phi of its parent basic block.
 
--  A catch block is a basic block which is the unwind destination of
-   an exceptional instruction.
--  A catch block must have a '``catchpad``' instruction as its
-   first non-PHI instruction.
--  A catch block's ``exception`` edge must refer to a catch block or a
-   catch-end block.
--  There can be only one '``catchpad``' instruction within the
-   catch block.
--  A basic block that is not a catch block may not include a
-   '``catchpad``' instruction.
--  A catch block which has another catch block as a predecessor may not have
-   any other predecessors.
--  It is undefined behavior for control to transfer from a ``catchpad`` to a
-   ``ret`` without first executing a ``catchret`` that consumes the
-   ``catchpad`` or unwinding to another EH pad.
--  It is undefined behavior for control to transfer from a ``catchpad`` to
-   itself without first executing a ``catchret`` that consumes the
-   ``catchpad`` or unwinding to anthoer EH pad.
+The meaning of the tokens produced and consumed by ``catchpad`` and other "pad"
+instructions is described in the
+`Windows exception handling documentation <ExceptionHandling.html#wineh>`.
 
 Example:
 """"""""
 
 .. code-block:: llvm
 
+    dispatch:
+      %cs = catchswitch none, unwind to caller [label %handler0]
       ;; A catch block which can catch an integer.
-      %tok = catchpad [i8** @_ZTIi]
-        to label %int.handler unwind label %terminate
+    handler0:
+      %tok = catchpad %cs [i8** @_ZTIi]
 
 .. _i_catchret:
 
@@ -5402,7 +5442,7 @@ Syntax:
 
 ::
 
-      catchret <value> to label <normal>
+      catchret <token> to label <normal>
 
 Overview:
 """""""""
@@ -5422,25 +5462,16 @@ transfer to next.
 Semantics:
 """"""""""
 
-The '``catchret``' instruction ends the existing (in-flight) exception
-whose unwinding was interrupted with a
-:ref:`catchpad <i_catchpad>` instruction.
-The :ref:`personality function <personalityfn>` gets a chance to execute
-arbitrary code to, for example, run a C++ destructor.
-Control then transfers to ``normal``.
-It may be passed an optional, personality specific, value.
+The '``catchret``' instruction ends an existing (in-flight) exception whose
+unwinding was interrupted with a :ref:`catchpad <i_catchpad>` instruction.  The
+:ref:`personality function <personalityfn>` gets a chance to execute arbitrary
+code to, for example, destroy the active exception.  Control then transfers to
+``normal``.
 
-It is undefined behavior to execute a ``catchret`` whose ``catchpad`` has
-not been executed.
-
-It is undefined behavior to execute a ``catchret`` if, after the most recent
-execution of its ``catchpad``, any other ``catchret``
-has already been executed.
-
-It is undefined behavior to execute a ``catchret`` if, after the most recent
-execution of its ``catchpad``, any other ``catchpad`` or ``cleanuppad`` has
-been executed but has not had a corresponding
-``catchret``/``cleanupret`` executed.
+The ``token`` argument must be a token produced by a dominating ``catchpad``
+instruction. The ``catchret`` destroys the physical frame established by
+``catchpad``, so executing multiple returns on the same token without
+re-executing the ``catchpad`` will result in undefined behavior.
 
 Example:
 """"""""
@@ -5549,16 +5580,8 @@ the program is terminated via personality-specific means. Typically,
 the first argument to ``terminatepad`` specifies what function the
 personality should defer to in order to terminate the program.
 
-The ``terminatepad`` instruction has several restrictions:
-
--  A terminate block is a basic block which is the unwind destination of
-   an exceptional instruction.
--  A terminate block must have a '``terminatepad``' instruction as its
-   first non-PHI instruction.
--  There can be only one '``terminatepad``' instruction within the
-   terminate block.
--  A basic block that is not a terminate block may not include a
-   '``terminatepad``' instruction.
+The ``terminatepad`` instruction is both a terminator and a "pad" instruction,
+meaning that is always the only non-phi instruction in the basic block.
 
 Example:
 """"""""

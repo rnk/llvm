@@ -522,16 +522,12 @@ table.
 Exception Handling using the Windows Runtime
 =================================================
 
-(Note: Windows C++ exception handling support is a work in progress and is not
-yet fully implemented.  The text below describes how it will work when
-completed.)
-
 Background on Windows exceptions
 ---------------------------------
 
-Interacting with exceptions on Windows is significantly more complicated than on
-Itanium C++ ABI platforms. The fundamental difference between the two models is
-that Itanium EH is designed around the idea of "successive unwinding," while
+Interacting with exceptions on Windows is significantly more complicated than
+on Itanium C++ ABI platforms. The fundamental difference between the two models
+is that Itanium EH is designed around the idea of "successive unwinding," while
 Windows EH is not.
 
 Under Itanium, throwing an exception typically involes allocating thread local
@@ -618,10 +614,10 @@ purposes.
 
 The following new instructions are considered "exception handling pads", in that
 they must be the first non-phi instruction of a basic block that may be the
-unwind destination of an invoke: ``catchpad``, ``cleanuppad``, and
-``terminatepad``. As with landingpads, when entering a try scope, if the
+unwind destination of an invoke: ``catchswitch``, ``catchpad``, ``cleanuppad``,
+and ``terminatepad``. As with landingpads, when entering a try scope, if the
 frontend encounters a call site that may throw an exception, it should emit an
-invoke that unwinds to a ``catchpad`` block. Similarly, inside the scope of a
+invoke that unwinds to a ``catchswitch`` block. Similarly, inside the scope of a
 C++ object with a destructor, invokes should unwind to a ``cleanuppad``. The
 ``terminatepad`` instruction exists to represent ``noexcept`` and throw
 specifications with one combined instruction. All potentially throwing calls in
@@ -636,15 +632,18 @@ the function control is returned to.  A cleanup handler which reaches its end
 by normal execution executes a ``cleanupret`` instruction, which is a terminator
 indicating where the active exception will unwind to next.
 
-Each of these new EH pad instructions has a way to identify which
-action should be considered after this action. The ``catchpad`` and
-``terminatepad`` instructions are terminators, and have a label operand considered
-to be an unwind destination analogous to the unwind destination of an invoke. All of
-these "unwind edges" may refer to a basic block that contains an EH pad instruction,
-or they may simply unwind to the caller. Unwinding to the caller has roughly the
-same semantics as the ``resume`` instruction in the ``landingpad`` model. When
-inlining through an invoke, instructions that unwind to the caller are hooked
-up to unwind to the unwind destination of the call site.
+Each of these new EH pad instructions has a way to identify which action should
+be considered after this action. The ``catchswitch`` and ``terminatepad``
+instructions are terminators, and have a unwind destination operand analogous
+to the unwind destination of an invoke.  The ``cleanuppad`` instruction is not
+a terminator, so the unwind destination is stored on the ``cleanupret``
+instruction instead. Successfully executing a catch handler should resume
+normal control flow, so neither ``catchpad`` nor ``catchret`` instructions can
+unwind. All of these "unwind edges" may refer to a basic block that contains an
+EH pad instruction, or they may unwind to the caller.  Unwinding to the caller
+has roughly the same semantics as the ``resume`` instruction in the landingpad
+model. When inlining through an invoke, instructions that unwind to the caller
+are hooked up to unwind to the unwind destination of the call site.
 
 Putting things together, here is a hypothetical lowering of some C++ that uses
 all of the new IR instructions:
@@ -709,3 +708,21 @@ all of the new IR instructions:
   lpad.terminate:                                        ; preds = %catch.body, %lpad.catch
     terminatepad none [void ()* @"\01?terminate@@YAXXZ"] unwind to caller
   }
+
+Funclet parent tokens
+-----------------------
+
+In order to produce tables for EH personalities that use funclets, it is
+necessary to recover the nesting that was present in the source. This funclet
+parent relationship is encoded in the IR using tokens produced by the new "pad"
+instructions. The token operand of a "pad" or "ret" instruction indicates which
+funclet it is in, or "none" if it is considered to be in the parent function.
+
+The ``catchpad`` and ``cleanuppad`` instructions establish new funclets, and
+their tokens are consumed by other "pad" instructions to establish membership.
+The ``catchswitch`` instruction does not create a funclet, but it produces a
+token that is always consumed by its immediate successor ``catchpad``
+instructions. This ensures that every catch handler modelled by a ``catchpad``
+belongs to exactly one ``catchswitch``, which models the dispatch point after a
+C++ try. The ``terminatepad`` instruction cannot contain lexically nested
+funclets inside the termination action, so it does not produce a token.
