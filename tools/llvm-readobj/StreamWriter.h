@@ -287,6 +287,11 @@ private:
   int IndentLevel;
 };
 
+template <>
+void StreamWriter::printHex<ulittle16_t>(StringRef Label, ulittle16_t Value) {
+  startLine() << Label << ": " << hex(Value) << "\n";
+}
+
 struct DictScope {
   DictScope(StreamWriter& W, StringRef N) : W(W) {
     W.startLine() << N << " {\n";

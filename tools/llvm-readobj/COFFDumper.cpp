@@ -742,22 +742,22 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
 #else
 
 /// Get the next symbol record.
-static SymRecord *nextRecord(SymRecord *Rec, StringRef Data) {
-  char *Next =
-      reinterpret_cast<char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
+static const SymRecord *nextRecord(const SymRecord *Rec, StringRef Data) {
+  const char *Next =
+      reinterpret_cast<const char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
   if (Next - Data.data() + sizeof(SymRecord) > Data.size())
     return nullptr;
-  Rec = reinterpret_cast<SymRecord *>(Next);
+  Rec = reinterpret_cast<const SymRecord *>(Next);
   if (Next - Data.data() + Rec->reclen > Data.size())
     return nullptr;
   return Rec;
 }
 
 template <typename T>
-static T *castSymRec(SymRecord *Rec) {
+static const T *castSymRec(const SymRecord *Rec) {
   if (sizeof(T) > Rec->reclen + 2)
     return nullptr;
-  return reinterpret_cast<T*>(Rec);
+  return reinterpret_cast<const T*>(Rec);
 }
 
 void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
@@ -767,14 +767,15 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     return error(object_error::parse_failed);
 
   bool InFunctionScope = false;
-  for (SymRecord *Rec = reinterpret_cast<SymRecord *>(Subsection.data());
+  for (const SymRecord *Rec =
+           reinterpret_cast<const SymRecord *>(Subsection.data());
        Rec != nullptr; Rec = nextRecord(Rec, Subsection)) {
-    SymType Type = Rec->rectyp;
+    SymType Type = static_cast<SymType>(unsigned(Rec->rectyp));
     switch (Type) {
     case S_LPROC32_ID:
     case S_GPROC32_ID: {
       DictScope S(W, "ProcStart");
-      ProcSym *Proc = castSymRec<ProcSym>(Rec);
+      const ProcSym *Proc = castSymRec<ProcSym>(Rec);
       if (!Proc || InFunctionScope)
         return error(object_error::parse_failed);
       InFunctionScope = true;
@@ -782,7 +783,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       // Find the relocation that will be applied to the 'off' field, and get
       // the symbol associated with it.
       uint64_t OffsetOfOff =
-          Subsection.data() - reinterpret_cast<char *>(&Proc->off);
+          Subsection.data() - reinterpret_cast<const char *>(&Proc->off);
       StringRef LinkageName;
       error(resolveSymbolName(Obj->getCOFFSection(Section),
                               OffsetInSection + OffsetOfOff, LinkageName));
@@ -793,7 +794,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       break;
     }
     case S_PROC_ID_END: {
-      if (!InFunctionScope || Size > 0)
+      if (!InFunctionScope || Rec->reclen != 0)
         return error(object_error::parse_failed);
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
@@ -802,10 +803,11 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");
-        W.printHex("Size", Size);
-        W.printHex("Type", Type);
+        W.printHex("Size", Rec->reclen);
+        W.printHex("Type", Rec->rectyp);
 
-        StringRef Contents = DE.getData().substr(Offset, Size);
+        StringRef Contents =
+            StringRef(reinterpret_cast<const char *>(Rec + 1), Rec->reclen - 2);
         W.printBinaryBlock("Contents", Contents);
       }
 
