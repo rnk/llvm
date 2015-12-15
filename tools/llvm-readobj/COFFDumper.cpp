@@ -14,6 +14,7 @@
 
 #include "llvm-readobj.h"
 #include "ARMWinEHPrinter.h"
+#include "CodeView.h"
 #include "Error.h"
 #include "ObjDumper.h"
 #include "StackMapPrinter.h"
@@ -39,6 +40,7 @@
 
 using namespace llvm;
 using namespace llvm::object;
+using namespace llvm::codeview;
 using namespace llvm::Win64EH;
 
 namespace {
@@ -653,6 +655,7 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
   }
 }
 
+#if 0
 void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                                                 const SectionRef &Section,
                                                 uint32_t OffsetInSection) {
@@ -677,6 +680,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     Size -= 2;
     uint16_t Type = DE.getU16(&Offset);
     switch (Type) {
+    case COFF::DEBUG_SYMBOL_TYPE_LOCAL_PROC_START:
     case COFF::DEBUG_SYMBOL_TYPE_PROC_START: {
       DictScope S(W, "ProcStart");
       if (InFunctionScope || Size < 36) {
@@ -735,6 +739,83 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
   if (InFunctionScope)
     error(object_error::parse_failed);
 }
+#else
+
+/// Get the next symbol record.
+static SymRecord *nextRecord(SymRecord *Rec, StringRef Data) {
+  char *Next =
+      reinterpret_cast<char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
+  if (Next - Data.data() + sizeof(SymRecord) > Data.size())
+    return nullptr;
+  Rec = reinterpret_cast<SymRecord *>(Next);
+  if (Next - Data.data() + Rec->reclen > Data.size())
+    return nullptr;
+  return Rec;
+}
+
+template <typename T>
+static T *castSymRec(SymRecord *Rec) {
+  if (sizeof(T) > Rec->reclen + 2)
+    return nullptr;
+  return reinterpret_cast<T*>(Rec);
+}
+
+void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
+                                                const SectionRef &Section,
+                                                uint32_t OffsetInSection) {
+  if (Subsection.size() < sizeof(SymRecord))
+    return error(object_error::parse_failed);
+
+  bool InFunctionScope = false;
+  for (SymRecord *Rec = reinterpret_cast<SymRecord *>(Subsection.data());
+       Rec != nullptr; Rec = nextRecord(Rec, Subsection)) {
+    SymType Type = Rec->rectyp;
+    switch (Type) {
+    case S_LPROC32_ID:
+    case S_GPROC32_ID: {
+      DictScope S(W, "ProcStart");
+      ProcSym *Proc = castSymRec<ProcSym>(Rec);
+      if (!Proc || InFunctionScope)
+        return error(object_error::parse_failed);
+      InFunctionScope = true;
+
+      // Find the relocation that will be applied to the 'off' field, and get
+      // the symbol associated with it.
+      uint64_t OffsetOfOff =
+          Subsection.data() - reinterpret_cast<char *>(&Proc->off);
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + OffsetOfOff, LinkageName));
+
+      W.printHex("CodeSize", Proc->len);
+      W.printString("DisplayName", Proc->name);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+    case S_PROC_ID_END: {
+      if (!InFunctionScope || Size > 0)
+        return error(object_error::parse_failed);
+      W.startLine() << "ProcEnd\n";
+      InFunctionScope = false;
+      break;
+    }
+    default: {
+      if (opts::CodeViewSubsectionBytes) {
+        ListScope S(W, "Record");
+        W.printHex("Size", Size);
+        W.printHex("Type", Type);
+
+        StringRef Contents = DE.getData().substr(Offset, Size);
+        W.printBinaryBlock("Contents", Contents);
+      }
+
+      Offset += Size;
+      break;
+    }
+    }
+  }
+}
+#endif
 
 void COFFDumper::printSections() {
   ListScope SectionsD(W, "Sections");
