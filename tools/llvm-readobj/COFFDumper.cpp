@@ -62,6 +62,7 @@ public:
   void printCOFFExports() override;
   void printCOFFDirectives() override;
   void printCOFFBaseReloc() override;
+  void printCodeViewDebugInfo() override;
   void printStackMap() const override;
 private:
   void printSymbol(const SymbolRef &Sym);
@@ -73,7 +74,7 @@ private:
   void printBaseOfDataField(const pe32_header *Hdr);
   void printBaseOfDataField(const pe32plus_header *Hdr);
 
-  void printCodeViewDebugInfo(const SectionRef &Section);
+  void printCodeViewSection(const SectionRef &Section);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
                                       const SectionRef &Section,
@@ -367,6 +368,22 @@ static const EnumEntry<codeview::SourceLanguage> SourceLanguages[] = {
     LLVM_READOBJ_ENUM_ENT(SourceLanguage, HLSL),
 };
 
+static const EnumEntry<codeview::SubSectionType> SubSectionTypes[] = {
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_SYMBOLS),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_LINES),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_STRINGTABLE),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_FILECHKSMS),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_FRAMEDATA),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_INLINEELINES),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_CROSSSCOPEIMPORTS),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_CROSSSCOPEEXPORTS),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_IL_LINES),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_FUNC_MDTOKEN_MAP),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_TYPE_MDTOKEN_MAP),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_MERGED_ASSEMBLYINPUT),
+    LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_COFF_SYMBOL_RVA),
+};
+
 static const EnumEntry<codeview::CPUType> CPUTypes[] = {
     LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8080),
     LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8086),
@@ -603,26 +620,16 @@ void COFFDumper::printBaseOfDataField(const pe32_header *Hdr) {
 
 void COFFDumper::printBaseOfDataField(const pe32plus_header *) {}
 
-const char *getSubsectionName(unsigned SubsectionType) {
-  switch (SubsectionType) {
-  case DEBUG_S_SYMBOLS:              return "DEBUG_S_SYMBOLS";
-  case DEBUG_S_LINES:                return "DEBUG_S_LINES";
-  case DEBUG_S_STRINGTABLE:          return "DEBUG_S_STRINGTABLE";
-  case DEBUG_S_FILECHKSMS:           return "DEBUG_S_FILECHKSMS";
-  case DEBUG_S_FRAMEDATA:            return "DEBUG_S_FRAMEDATA";
-  case DEBUG_S_INLINEELINES:         return "DEBUG_S_INLINEELINES";
-  case DEBUG_S_CROSSSCOPEIMPORTS:    return "DEBUG_S_CROSSSCOPEIMPORTS";
-  case DEBUG_S_CROSSSCOPEEXPORTS:    return "DEBUG_S_CROSSSCOPEEXPORTS";
-  case DEBUG_S_IL_LINES:             return "DEBUG_S_IL_LINES";
-  case DEBUG_S_FUNC_MDTOKEN_MAP:     return "DEBUG_S_FUNC_MDTOKEN_MAP";
-  case DEBUG_S_TYPE_MDTOKEN_MAP:     return "DEBUG_S_TYPE_MDTOKEN_MAP";
-  case DEBUG_S_MERGED_ASSEMBLYINPUT: return "DEBUG_S_MERGED_ASSEMBLYINPUT";
-  case DEBUG_S_COFF_SYMBOL_RVA:      return "DEBUG_S_COFF_SYMBOL_RVA";
+void COFFDumper::printCodeViewDebugInfo() {
+  for (const SectionRef &S : Obj->sections()) {
+    StringRef SecName;
+    error(S.getName(SecName));
+    if (SecName == ".debug$S")
+      printCodeViewSection(S);
   }
-  return "UnknownSubsection";
 }
 
-void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
+void COFFDumper::printCodeViewSection(const SectionRef &Section) {
   StringRef Data;
   error(Section.getContents(Data));
 
@@ -643,26 +650,28 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
     while (DE.isValidOffset(Offset) && !Finished) {
       // The section consists of a number of subsection in the following format:
       // |SubSectionType|SubSectionSize|Contents...|
-      uint32_t SubSectionType = DE.getU32(&Offset),
+      uint32_t SubType = DE.getU32(&Offset),
                SubSectionSize = DE.getU32(&Offset);
-
-      const char *SubSectionName = getSubsectionName(SubSectionType);
-      ListScope S(W, SubSectionName);
+      ListScope S(W, "Subsection");
+      W.printEnum("SubSectionType", SubType,
+                  makeArrayRef(SubSectionTypes));
+      W.printHex("SubSectionSize", SubSectionSize);
 
       // Get the contents of the subsection.
       if (SubSectionSize > Data.size() - Offset)
         return error(object_error::parse_failed);
       StringRef Contents = Data.substr(Offset, SubSectionSize);
 
-      switch (SubSectionType) {
-      default:
-        W.printHex("SubSectionType", SubSectionType);
-        W.printHex("SubSectionSize", SubSectionSize);
-        break;
-      case DEBUG_S_SYMBOLS:
+      // Optionally print the subsection bytes in case our parsing gets confused
+      // later.
+      if (opts::CodeViewSubsectionBytes)
+        W.printBinaryBlock("SubSectionContents", Contents);
+
+      switch (SubType) {
+      case SUBSEC_SYMBOLS:
         printCodeViewSymbolsSubsection(Contents, Section, Offset);
         break;
-      case DEBUG_S_LINES: {
+      case SUBSEC_LINES: {
         // Holds a PC to file:line table.  Some data to parse this subsection is
         // stored in the other subsections, so just check sanity and store the
         // pointers for deferred processing.
@@ -688,7 +697,7 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         FunctionNames.push_back(LinkageName);
         break;
       }
-      case DEBUG_S_STRINGTABLE:
+      case SUBSEC_STRINGTABLE:
         if (SubSectionSize == 0 || CVStringTable.data() != nullptr ||
             Contents.back() != '\0') {
           // Empty or duplicate or non-null-terminated subsection.
@@ -697,7 +706,7 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         }
         CVStringTable = Contents;
         break;
-      case DEBUG_S_FILECHKSMS:
+      case SUBSEC_FILECHKSMS:
         // Holds the translation table from file indices
         // to offsets in the string table.
 
@@ -709,12 +718,6 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         }
         CVFileIndexToStringOffsetTable = Contents;
         break;
-      }
-
-      if (opts::CodeViewSubsectionBytes) {
-        // Print the raw contents to simplify debugging if anything goes wrong
-        // afterwards.
-        W.printBinaryBlock("Contents", Contents);
       }
 
       Offset += SubSectionSize;
@@ -981,11 +984,6 @@ void COFFDumper::printSections() {
         printSymbol(Symbol);
       }
     }
-
-    if (Name == ".debug$S" && opts::CodeView)
-      printCodeViewDebugInfo(Sec);
-    if (Name == ".debug$T" && opts::CodeView)
-      printCodeViewDebugInfo(Sec);
 
     if (opts::SectionData &&
         !(Section->Characteristics & COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA)) {
