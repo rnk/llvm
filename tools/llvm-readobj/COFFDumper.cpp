@@ -928,6 +928,16 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printFlags("Flags", FrameProc->flags, makeArrayRef(FrameProcSymFlags));
       break;
     }
+    case S_UDT: {
+      DictScope S(W, "UDT");
+      const auto *UDT = castSymRec<UDTSym>(Rec);
+      size_t UDTNameLen = (UDT->reclen + sizeof(UDT->reclen)) - sizeof(*UDT);
+      if (UDTNameLen) {
+        StringRef UDTName = StringRef(UDT->name, UDTNameLen);
+        W.printString("Name", UDTName);
+      }
+      break;
+    }
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");

@@ -495,6 +495,14 @@ struct FrameProcSym {
   };
   ulittle32_t flags;
 };
+
+struct UDTSym {
+  ulittle16_t reclen; // Record length
+  ulittle16_t rectyp; // S_UDT | S_COBOLUDT
+  ulittle32_t typind; // Type index
+  char name[1];       // Length-prefixed name
+};
+
 }
 }
 
