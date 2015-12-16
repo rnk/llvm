@@ -938,6 +938,12 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       }
       break;
     }
+    case S_BUILDINFO: {
+      DictScope S(W, "BuildInfo");
+      const auto *BuildInfo = castSymRec<BuildInfoSym>(Rec);
+      W.printNumber("Id", BuildInfo->id);
+      break;
+    }
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");

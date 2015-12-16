@@ -503,6 +503,12 @@ struct UDTSym {
   char name[1];       // Length-prefixed name
 };
 
+struct BuildInfoSym {
+  ulittle16_t reclen; // Record length
+  ulittle16_t rectyp; // S_BUILDINFO
+  ulittle32_t id;     // CV_ItemId of Build Info.
+};
+
 }
 }
 
