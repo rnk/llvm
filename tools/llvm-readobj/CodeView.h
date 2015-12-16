@@ -457,6 +457,47 @@ struct CompileSym3 {
   char verSz[1];          // Zero terminated compiler version string
 };
 
+struct FrameProcSym {
+  ulittle16_t reclen;     // Record length
+  ulittle16_t rectyp;     // S_FRAMEPROC
+  ulittle32_t cbFrame;    // count of bytes of total frame of procedure
+  ulittle32_t cbPad;      // count of bytes of padding in the frame
+  ulittle32_t offPad;     // offset (relative to frame poniter) to where
+                          //  padding starts
+  ulittle32_t cbSaveRegs; // count of bytes of callee save registers
+  ulittle32_t offExHdlr;  // offset of exception handler
+  ulittle16_t sectExHdlr; // section id of exception handler
+  enum Flags : uint32_t {
+    HasAlloca = 1 << 0,  // function uses _alloca()
+    HasSetJmp = 1 << 1,  // function uses setjmp()
+    HasLongJmp = 1 << 2, // function uses longjmp()
+    HasInlAsm = 1 << 3,  // function uses inline asm
+    HasEH = 1 << 4,      // function has EH states
+    InlSpec = 1 << 5,    // function was speced as inline
+    HasSEH = 1 << 6,     // function has SEH
+    Naked = 1 << 7,      // function is __declspec(naked)
+    SecurityChecks =
+        1 << 8,       // function has buffer security check introduced by /GS.
+    AsyncEH = 1 << 9, // function compiled with /EHa
+    GSNoStackOrdering = 1 << 10, // function has /GS buffer checks, but
+                                 // stack ordering couldn't be done
+    WasInlined = 1 << 11,        // function was inlined within another function
+    GSCheck = 1 << 12,           // function is __declspec(strict_gs_check)
+    SafeBuffers = 1 << 13,       // function is __declspec(safebuffers)
+    // record function's local pointer explicitly.
+    encodedLocalBasePointer1 = 1 << 14,
+    encodedLocalBasePointer2 = 1 << 15,
+    // record function's parameter pointer explicitly.
+    encodedParamBasePointer1 = 1 << 16,
+    encodedParamBasePointer2 = 1 << 17,
+    PogoOn = 1 << 18,      // function was compiled with PGO/PGU
+    ValidCounts = 1 << 19, // Do we have valid Pogo counts?
+    OptSpeed = 1 << 20,    // Did we optimize for speed?
+    GuardCF = 1 << 21,     // function contains CFG checks (and no write checks)
+    GuardCFW = 1 << 22, // function contains CFW checks and/or instrumentation
+  };
+  ulittle32_t flags;
+};
 }
 }
 

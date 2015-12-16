@@ -432,6 +432,33 @@ static const EnumEntry<codeview::CPUType> CPUTypes[] = {
     LLVM_READOBJ_ENUM_ENT(CPUType, CPU_D3D11_SHADER),
 };
 
+
+static const EnumEntry<FrameProcSym::Flags> FrameProcSymFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasAlloca),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasSetJmp),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasLongJmp),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasInlAsm),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasEH),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, InlSpec),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasSEH),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, Naked),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, SecurityChecks),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, AsyncEH),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GSNoStackOrdering),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, WasInlined),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GSCheck),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, SafeBuffers),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedLocalBasePointer1),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedLocalBasePointer2),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedParamBasePointer1),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedParamBasePointer2),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, PogoOn),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, ValidCounts),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, OptSpeed),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCF),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCFW),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -884,6 +911,18 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
         StringRef VersionName = StringRef(CompFlags->verSz, VersionNameLen);
         W.printString("VersionName", VersionName);
       }
+      break;
+    }
+    case S_FRAMEPROC: {
+      DictScope S(W, "FrameProc");
+      const auto *FrameProc = castSymRec<FrameProcSym>(Rec);
+      W.printHex("TotalFrameBytes", FrameProc->cbFrame);
+      W.printHex("PaddingFrameBytes", FrameProc->cbPad);
+      W.printHex("OffsetToPadding", FrameProc->offPad);
+      W.printHex("BytesOfCalleeSavedRegister", FrameProc->cbSaveRegs);
+      W.printHex("OffsetOfExceptionHandler", FrameProc->offExHdlr);
+      W.printHex("SectionIdOfExceptionHandler", FrameProc->sectExHdlr);
+      W.printFlags("Flags", FrameProc->flags, makeArrayRef(FrameProcSymFlags));
       break;
     }
     default: {
