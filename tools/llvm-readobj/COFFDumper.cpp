@@ -332,6 +332,106 @@ WeakExternalCharacteristics[] = {
   { "Alias"    , COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS     }
 };
 
+static const EnumEntry<CompileSym3::Flags> CompileSym3Flags[] = {
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, EC),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, NoDbgInfo),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, LTCG),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, NoDataAlign),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, ManagedPresent),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, SecurityChecks),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, HotPatch),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, CVTCIL),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, MSILModule),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, Sdl),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, PGO),
+    LLVM_READOBJ_ENUM_ENT(CompileSym3, Exp),
+};
+
+static const EnumEntry<codeview::SourceLanguage> SourceLanguages[] = {
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, C),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CXX),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, FORTRAN),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, MASM),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, PASCAL),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, BASIC),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, COBOL),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, LINK),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CVTRES),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CVTPGD),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CSHARP),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, VP),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, ILASM),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, JAVA),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, JSCRIPT),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, MSIL),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, HLSL),
+};
+
+static const EnumEntry<codeview::CPUType> CPUTypes[] = {
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8080),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8086),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80286),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80386),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80486),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUM),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUMPRO),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUMIII),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS16),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS32),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS64),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSI),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSII),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSIII),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSIV),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSV),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68000),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68010),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68020),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68030),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68040),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21064),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21164),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21164A),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21264),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21364),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC601),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC603),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC604),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC620),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPCFP),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPCBE),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3E),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3DSP),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH4),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SHMEDIA),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM3),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM4),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM4T),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM5),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM5T),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM6),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM_XMAC),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM_WMMX),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM7),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_OMNI),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64_1),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64_2),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_CEE),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_AM33),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M32R),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_TRICORE),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_X64),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_EBC),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_THUMB),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARMNT),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM64),
+    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_D3D11_SHADER),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -816,6 +916,36 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       if (ObjectNameLen) {
         StringRef ObjectName = StringRef(ObjName->name, ObjectNameLen);
         W.printString("ObjectName", ObjectName);
+      }
+      break;
+    }
+    case S_COMPILE3: {
+      DictScope S(W, "CompilerFlags");
+      const auto *CompFlags = castSymRec<CompileSym3>(Rec);
+      W.printEnum("Language", CompFlags->getLanguage(),
+                  makeArrayRef(SourceLanguages));
+      W.printFlags("Flags", CompFlags->flags & ~0xff,
+                   makeArrayRef(CompileSym3Flags));
+      W.printEnum("Machine", CompFlags->machine, makeArrayRef(CPUTypes));
+      std::string FrontendVersion;
+      {
+        raw_string_ostream Out(FrontendVersion);
+        Out << CompFlags->verFEMajor << '.' << CompFlags->verFEMinor << '.'
+            << CompFlags->verFEBuild << '.' << CompFlags->verFEQFE;
+      }
+      std::string BackendVersion;
+      {
+        raw_string_ostream Out(BackendVersion);
+        Out << CompFlags->verMajor << '.' << CompFlags->verMinor << '.'
+            << CompFlags->verBuild << '.' << CompFlags->verQFE;
+      }
+      W.printString("FrontendVersion", FrontendVersion);
+      W.printString("BackendVersion", BackendVersion);
+      size_t VersionNameLen =
+          (CompFlags->reclen + sizeof(CompFlags->reclen)) - sizeof(*CompFlags);
+      if (VersionNameLen) {
+        StringRef VersionName = StringRef(CompFlags->verSz, VersionNameLen);
+        W.printString("VersionName", VersionName);
       }
       break;
     }

@@ -293,27 +293,146 @@ struct SymRecord {
 };
 
 struct ProcSym {
-  ulittle16_t reclen;       // Record length
-  ulittle16_t rectyp;       // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID,
-                            // S_LPROC32_DPC or S_LPROC32_DPC_ID
-  ulittle32_t pParent;      // pointer to the parent
-  ulittle32_t pEnd;         // pointer to this blocks end
-  ulittle32_t pNext;        // pointer to next symbol
-  ulittle32_t len;          // Proc length
-  ulittle32_t DbgStart;     // Debug start offset
-  ulittle32_t DbgEnd;       // Debug end offset
-  ulittle32_t typind;       // Type index or ID
+  ulittle16_t reclen;   // Record length
+  ulittle16_t rectyp;   // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID,
+                        // S_LPROC32_DPC or S_LPROC32_DPC_ID
+  ulittle32_t pParent;  // pointer to the parent
+  ulittle32_t pEnd;     // pointer to this blocks end
+  ulittle32_t pNext;    // pointer to next symbol
+  ulittle32_t len;      // Proc length
+  ulittle32_t DbgStart; // Debug start offset
+  ulittle32_t DbgEnd;   // Debug end offset
+  ulittle32_t typind;   // Type index or ID
   ulittle16_t off;
   ulittle32_t seg;
-  uint8_t flags;              // Proc flags
-  char name[1];               // Length-prefixed name
+  uint8_t flags; // Proc flags
+  char name[1];  // Length-prefixed name
 };
 
 struct ObjNameSym {
-  ulittle16_t reclen;      // Record length
-  ulittle16_t rectyp;      // S_OBJNAME
-  ulittle32_t signature;   // signature
-  char name[1];            // Length-prefixed name
+  ulittle16_t reclen;    // Record length
+  ulittle16_t rectyp;    // S_OBJNAME
+  ulittle32_t signature; // signature
+  char name[1];          // Length-prefixed name
+};
+
+enum SourceLanguage : uint8_t {
+  C = 0x00,
+  CXX = 0x01,
+  FORTRAN = 0x02,
+  MASM = 0x03,
+  PASCAL = 0x04,
+  BASIC = 0x05,
+  COBOL = 0x06,
+  LINK = 0x07,
+  CVTRES = 0x08,
+  CVTPGD = 0x09,
+  CSHARP = 0x0A,
+  VP = 0x0B,
+  ILASM = 0x0C,
+  JAVA = 0x0D,
+  JSCRIPT = 0x0E,
+  MSIL = 0x0F,
+  HLSL = 0x10,
+};
+
+enum CPUType : uint16_t {
+  CPU_8080 = 0x00,
+  CPU_8086 = 0x01,
+  CPU_80286 = 0x02,
+  CPU_80386 = 0x03,
+  CPU_80486 = 0x04,
+  CPU_PENTIUM = 0x05,
+  CPU_PENTIUMII = 0x06,
+  CPU_PENTIUMPRO = CPU_PENTIUMII,
+  CPU_PENTIUMIII = 0x07,
+  CPU_MIPS = 0x10,
+  CPU_MIPSR4000 = CPU_MIPS,
+  CPU_MIPS16 = 0x11,
+  CPU_MIPS32 = 0x12,
+  CPU_MIPS64 = 0x13,
+  CPU_MIPSI = 0x14,
+  CPU_MIPSII = 0x15,
+  CPU_MIPSIII = 0x16,
+  CPU_MIPSIV = 0x17,
+  CPU_MIPSV = 0x18,
+  CPU_M68000 = 0x20,
+  CPU_M68010 = 0x21,
+  CPU_M68020 = 0x22,
+  CPU_M68030 = 0x23,
+  CPU_M68040 = 0x24,
+  CPU_ALPHA = 0x30,
+  CPU_ALPHA_21064 = 0x30,
+  CPU_ALPHA_21164 = 0x31,
+  CPU_ALPHA_21164A = 0x32,
+  CPU_ALPHA_21264 = 0x33,
+  CPU_ALPHA_21364 = 0x34,
+  CPU_PPC601 = 0x40,
+  CPU_PPC603 = 0x41,
+  CPU_PPC604 = 0x42,
+  CPU_PPC620 = 0x43,
+  CPU_PPCFP = 0x44,
+  CPU_PPCBE = 0x45,
+  CPU_SH3 = 0x50,
+  CPU_SH3E = 0x51,
+  CPU_SH3DSP = 0x52,
+  CPU_SH4 = 0x53,
+  CPU_SHMEDIA = 0x54,
+  CPU_ARM3 = 0x60,
+  CPU_ARM4 = 0x61,
+  CPU_ARM4T = 0x62,
+  CPU_ARM5 = 0x63,
+  CPU_ARM5T = 0x64,
+  CPU_ARM6 = 0x65,
+  CPU_ARM_XMAC = 0x66,
+  CPU_ARM_WMMX = 0x67,
+  CPU_ARM7 = 0x68,
+  CPU_OMNI = 0x70,
+  CPU_IA64 = 0x80,
+  CPU_IA64_1 = 0x80,
+  CPU_IA64_2 = 0x81,
+  CPU_CEE = 0x90,
+  CPU_AM33 = 0xA0,
+  CPU_M32R = 0xB0,
+  CPU_TRICORE = 0xC0,
+  CPU_X64 = 0xD0,
+  CPU_AMD64 = CPU_X64,
+  CPU_EBC = 0xE0,
+  CPU_THUMB = 0xF0,
+  CPU_ARMNT = 0xF4,
+  CPU_ARM64 = 0xF6,
+  CPU_D3D11_SHADER = 0x100,
+};
+
+struct CompileSym3 {
+  ulittle16_t reclen; // Record length
+  ulittle16_t rectyp; // S_COMPILE3
+  ulittle32_t flags;
+  uint8_t getLanguage() const { return flags & 0xff; }
+  enum Flags : uint32_t {
+    EC = 1 << 8,              // compiled for E/C
+    NoDbgInfo = 1 << 9,       // not compiled with debug info
+    LTCG = 1 << 10,           // compiled with LTCG
+    NoDataAlign = 1 << 11,    // compiled with -Bzalign
+    ManagedPresent = 1 << 12, // managed code/data present
+    SecurityChecks = 1 << 13, // compiled with /GS
+    HotPatch = 1 << 14,       // compiled with /hotpatch
+    CVTCIL = 1 << 15,         // converted with CVTCIL
+    MSILModule = 1 << 16,     // MSIL netmodule
+    Sdl = 1 << 17,            // compiled with /sdl
+    PGO = 1 << 18,            // compiled with /ltcg:pgo or pgu
+    Exp = 1 << 19,            // .exp module
+  };
+  ulittle16_t machine;    // target processor (CV_CPU_TYPE_e)
+  ulittle16_t verFEMajor; // front end major version #
+  ulittle16_t verFEMinor; // front end minor version #
+  ulittle16_t verFEBuild; // front end build version #
+  ulittle16_t verFEQFE;   // front end QFE version #
+  ulittle16_t verMajor;   // back end major version #
+  ulittle16_t verMinor;   // back end minor version #
+  ulittle16_t verBuild;   // back end build version #
+  ulittle16_t verQFE;     // back end QFE version #
+  char verSz[1];          // Zero terminated compiler version string
 };
 
 }
