@@ -322,8 +322,8 @@ struct ProcSym {
   ulittle32_t DbgStart; // Debug start offset
   ulittle32_t DbgEnd;   // Debug end offset
   ulittle32_t typind;   // Type index or ID
-  ulittle16_t off;
-  ulittle32_t seg;
+  ulittle32_t off;
+  ulittle16_t seg;
   uint8_t flags; // Proc flags
   char name[1];  // Length-prefixed name
 };
@@ -503,7 +503,23 @@ struct UDTSym {
   char name[1];       // Length-prefixed name
 };
 
-}
-}
+struct BPRelativeSym {
+  ulittle16_t reclen; // Record length
+  ulittle16_t rectyp; // S_BPREL32
+  ulittle32_t off;    // BP-relative offset
+  ulittle32_t typind; // Type index or Metadata token
+  char name[1];       // Length-prefixed name
+};
+
+struct RegRelativeSym {
+  ulittle16_t reclen; // Record length
+  ulittle16_t rectyp; // S_BPREL32
+  ulittle32_t off;    // BP-relative offset
+  ulittle32_t typind; // Type index or Metadata token
+  ulittle16_t reg;    // register index for symbol
+  char name[1];       // Length-prefixed name
+};
+} // namespace codeview
+} // namespace llvm
 
 #endif // LLVM_READOBJ_CODEVIEW_H

@@ -928,6 +928,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printFlags("Flags", FrameProc->flags, makeArrayRef(FrameProcSymFlags));
       break;
     }
+
     case S_UDT: {
       DictScope S(W, "UDT");
       const auto *UDT = castSymRec<UDTSym>(Rec);
@@ -938,6 +939,31 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       }
       break;
     }
+
+    case S_BPREL32: {
+      DictScope S(W, "BPRelativeSym");
+      const auto *BPRel = castSymRec<BPRelativeSym>(Rec);
+      W.printHex("FrameOffset", BPRel->off);
+      W.printHex("TypeIndex", BPRel->typind);
+      size_t NameLen = (BPRel->reclen + sizeof(BPRel->reclen)) - sizeof(*BPRel);
+      StringRef VarName = StringRef(BPRel->name, NameLen);
+      W.printString("VarName", VarName);
+      break;
+    }
+
+    case S_REGREL32: {
+      DictScope S(W, "RegRelativeSym");
+      const auto *RegRel = castSymRec<RegRelativeSym>(Rec);
+      W.printHex("FrameOffset", RegRel->off);
+      W.printHex("TypeIndex", RegRel->typind);
+      W.printHex("Register", RegRel->reg);
+      size_t NameLen =
+          (RegRel->reclen + sizeof(RegRel->reclen)) - sizeof(*RegRel);
+      StringRef VarName = StringRef(RegRel->name, NameLen);
+      W.printString("VarName", VarName);
+      break;
+    }
+
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");
