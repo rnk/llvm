@@ -74,7 +74,8 @@ private:
   void printBaseOfDataField(const pe32_header *Hdr);
   void printBaseOfDataField(const pe32plus_header *Hdr);
 
-  void printCodeViewSection(StringRef SectionName, const SectionRef &Section);
+  void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
+  void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
                                       const SectionRef &Section,
@@ -476,6 +477,25 @@ static const EnumEntry<FrameProcSym::Flags> FrameProcSymFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCFW),
 };
 
+static const EnumEntry<uint16_t> TagPropertyFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(TagProperties, packed),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, ctor),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, ovlops),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, isnested),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, cnested),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, opassign),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, opcast),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, fwdref),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, scoped),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, asuniquename),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, sealed),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, hfa0),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, hfa1),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, intrinsic),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, mocom0),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, mocom1),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -625,12 +645,14 @@ void COFFDumper::printCodeViewDebugInfo() {
     StringRef SectionName;
     error(S.getName(SectionName));
     if (SectionName == ".debug$S")
-      printCodeViewSection(SectionName, S);
+      printCodeViewSymbolSection(SectionName, S);
+    else if (SectionName == ".debug$T")
+      printCodeViewTypeSection(SectionName, S);
   }
 }
 
-void COFFDumper::printCodeViewSection(StringRef SectionName,
-                                      const SectionRef &Section) {
+void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
+                                            const SectionRef &Section) {
   StringRef Data;
   error(Section.getContents(Data));
 
@@ -809,6 +831,7 @@ void COFFDumper::printCodeViewSection(StringRef SectionName,
     }
   }
 }
+
 
 /// Get the next symbol record. Returns null on reaching the end of Data, or if
 /// the next record extends beyond the end of Data.
@@ -990,6 +1013,64 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     }
   }
 }
+
+StringRef nextType(StringRef Data, const TypeRecord *Rec) {
+  return Data.drop_front(sizeof(Rec->len) + Rec->len);
+}
+
+template <typename T>
+static const T *castTypeRec(const TypeRecord *Rec) {
+  if (sizeof(T) > Rec->len + sizeof(Rec->len))
+    return nullptr;
+  return reinterpret_cast<const T*>(Rec);
+}
+
+
+void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
+                                          const SectionRef &Section) {
+  ListScope D(W, "CodeViewTypes");
+  W.printNumber("Section", SectionName, Obj->getSectionID(Section));
+  StringRef Data;
+  error(Section.getContents(Data));
+  W.printBinaryBlock("Data", Data);
+
+  unsigned Magic = *reinterpret_cast<const ulittle32_t *>(Data.data());
+  W.printHex("Magic", Magic);
+
+  Data = Data.drop_front(4);
+
+  while (!Data.empty()) {
+    if (Data.size() < sizeof(TypeRecord))
+      return error(object_error::parse_failed);
+    auto *Rec = reinterpret_cast<const TypeRecord *>(Data.data());
+    auto Leaf = static_cast<LeafType>(uint16_t(Rec->leaf));
+
+    switch (Leaf) {
+    default:
+      break;
+    case LF_CLASS:
+    case LF_STRUCTURE:
+      auto *Class = castTypeRec<ClassType>(Rec);
+      if (!Class)
+        return error(object_error::parse_failed);
+      ListScope S(W, "ClassType");
+      W.printNumber("MemberCount", Class->count);
+      W.printFlags("Properties", uint16_t(Class->property),
+                   makeArrayRef(TagPropertyFlags));
+      W.printNumber("FieldTypeIndex", Class->field);
+      W.printNumber("DerivedFrom", Class->derived);
+      W.printNumber("VShape", Class->vshape);
+      StringRef NameData(&Class->data[0], Rec->len + 2 - sizeof(*Class));
+      W.printBinaryBlock("NameData", NameData);
+      break;
+    }
+
+    Data = nextType(Data, Rec);
+
+    // 0xF1... alignment
+  }
+}
+
 
 void COFFDumper::printSections() {
   ListScope SectionsD(W, "Sections");
