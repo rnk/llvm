@@ -509,6 +509,23 @@ struct BuildInfoSym {
   ulittle32_t id;     // CV_ItemId of Build Info.
 };
 
+struct FrameData {
+  ulittle32_t ulRvaStart;
+  ulittle32_t cbBlock;
+  ulittle32_t cbLocals;
+  ulittle32_t cbParams;
+  ulittle32_t cbStkMax;
+  ulittle32_t frameFunc;
+  ulittle16_t cbProlog;
+  ulittle16_t cbSavedRegs;
+  ulittle32_t flags;
+  enum Flags : uint32_t {
+    HasSEH = 1 << 0,
+    HasEH = 1 << 1,
+    IsFunctionStart = 1 << 2,
+  };
+};
+
 }
 }
 

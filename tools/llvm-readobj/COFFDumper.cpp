@@ -476,6 +476,12 @@ static const EnumEntry<FrameProcSym::Flags> FrameProcSymFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCFW),
 };
 
+static const EnumEntry<FrameData::Flags> FrameDataFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(FrameData, HasSEH),
+    LLVM_READOBJ_ENUM_ENT(FrameData, HasEH),
+    LLVM_READOBJ_ENUM_ENT(FrameData, IsFunctionStart),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -635,6 +641,7 @@ void COFFDumper::printCodeViewSection(const SectionRef &Section) {
 
   SmallVector<StringRef, 10> FunctionNames;
   StringMap<StringRef> FunctionLineTables;
+  std::map<StringRef, const FrameData *> FunctionFrameData;
 
   ListScope D(W, "CodeViewDebugInfo");
   {
@@ -656,6 +663,7 @@ void COFFDumper::printCodeViewSection(const SectionRef &Section) {
       W.printEnum("SubSectionType", SubType,
                   makeArrayRef(SubSectionTypes));
       W.printHex("SubSectionSize", SubSectionSize);
+      W.printHex("SubSectionContentOffset", Offset);
 
       // Get the contents of the subsection.
       if (SubSectionSize > Data.size() - Offset)
@@ -718,6 +726,27 @@ void COFFDumper::printCodeViewSection(const SectionRef &Section) {
         }
         CVFileIndexToStringOffsetTable = Contents;
         break;
+      case SUBSEC_FRAMEDATA: {
+        const size_t RelocationSize = 4;
+        if (SubSectionSize != sizeof(FrameData) + RelocationSize) {
+          // There should be exactly one relocation followed by the FrameData
+          // contents.
+          error(object_error::parse_failed);
+          return;
+        }
+
+        const auto *FD = reinterpret_cast<const FrameData *>(
+            Contents.drop_front(RelocationSize).data());
+
+        StringRef LinkageName;
+        error(resolveSymbolName(Obj->getCOFFSection(Section), Offset,
+                                LinkageName));
+        if (!FunctionFrameData.emplace(LinkageName, FD).second) {
+          error(object_error::parse_failed);
+          return;
+        }
+        break;
+      }
       }
 
       Offset += SubSectionSize;
@@ -803,6 +832,22 @@ void COFFDumper::printCodeViewSection(const SectionRef &Section) {
         }
       }
     }
+  }
+
+  for (auto FrameDataPair : FunctionFrameData) {
+    StringRef LinkageName = FrameDataPair.first;
+    const FrameData *FD = FrameDataPair.second;
+    ListScope S(W, "FunctionFrameData");
+    W.printString("LinkageName", LinkageName);
+    W.printHex("RvaStart", FD->ulRvaStart);
+    W.printHex("CodeSize", FD->cbBlock);
+    W.printHex("Locals", FD->cbLocals);
+    W.printHex("Params", FD->cbParams);
+    W.printHex("StackMax", FD->cbStkMax);
+    W.printString("FrameFunc", StringRef(CVStringTable.data() + FD->frameFunc));
+    W.printHex("PrologSize", FD->cbProlog);
+    W.printHex("SavedRegs", FD->cbSavedRegs);
+    W.printFlags("Flags", FD->flags, makeArrayRef(FrameDataFlags));
   }
 }
 
