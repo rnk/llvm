@@ -303,10 +303,10 @@ struct ProcSym {
   ulittle32_t DbgStart;     // Debug start offset
   ulittle32_t DbgEnd;       // Debug end offset
   ulittle32_t typind;       // Type index or ID
-  ulittle32_t off;
+  ulittle16_t off;
   ulittle32_t seg;
   uint8_t flags;              // Proc flags
-  unsigned char name[1];      // Length-prefixed name
+  char name[1];               // Length-prefixed name
 };
 
 }
