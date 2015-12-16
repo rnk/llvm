@@ -74,7 +74,7 @@ private:
   void printBaseOfDataField(const pe32_header *Hdr);
   void printBaseOfDataField(const pe32plus_header *Hdr);
 
-  void printCodeViewSection(const SectionRef &Section);
+  void printCodeViewSection(StringRef SectionName, const SectionRef &Section);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
                                       const SectionRef &Section,
@@ -628,14 +628,15 @@ void COFFDumper::printBaseOfDataField(const pe32plus_header *) {}
 
 void COFFDumper::printCodeViewDebugInfo() {
   for (const SectionRef &S : Obj->sections()) {
-    StringRef SecName;
-    error(S.getName(SecName));
-    if (SecName == ".debug$S")
-      printCodeViewSection(S);
+    StringRef SectionName;
+    error(S.getName(SectionName));
+    if (SectionName == ".debug$S")
+      printCodeViewSection(SectionName, S);
   }
 }
 
-void COFFDumper::printCodeViewSection(const SectionRef &Section) {
+void COFFDumper::printCodeViewSection(StringRef SectionName,
+                                      const SectionRef &Section) {
   StringRef Data;
   error(Section.getContents(Data));
 
@@ -644,6 +645,9 @@ void COFFDumper::printCodeViewSection(const SectionRef &Section) {
   std::map<StringRef, const FrameData *> FunctionFrameData;
 
   ListScope D(W, "CodeViewDebugInfo");
+  // Print the section to allow correlation with printSections.
+  W.printNumber("Section", SectionName, Obj->getSectionID(Section));
+
   {
     // FIXME: Add more offset correctness checks.
     DataExtractor DE(Data, true, 4);
@@ -973,6 +977,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printFlags("Flags", FrameProc->flags, makeArrayRef(FrameProcSymFlags));
       break;
     }
+
     case S_UDT: {
       DictScope S(W, "UDT");
       const auto *UDT = castSymRec<UDTSym>(Rec);
@@ -983,12 +988,38 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       }
       break;
     }
+
+    case S_BPREL32: {
+      DictScope S(W, "BPRelativeSym");
+      const auto *BPRel = castSymRec<BPRelativeSym>(Rec);
+      W.printHex("Offset", BPRel->off);
+      W.printHex("TypeIndex", BPRel->typind);
+      size_t NameLen = (BPRel->reclen + sizeof(BPRel->reclen)) - sizeof(*BPRel);
+      StringRef VarName = StringRef(BPRel->name, NameLen);
+      W.printString("VarName", VarName);
+      break;
+    }
+
+    case S_REGREL32: {
+      DictScope S(W, "RegRelativeSym");
+      const auto *RegRel = castSymRec<RegRelativeSym>(Rec);
+      W.printHex("Offset", RegRel->off);
+      W.printHex("TypeIndex", RegRel->typind);
+      W.printHex("Register", RegRel->reg);
+      size_t NameLen =
+          (RegRel->reclen + sizeof(RegRel->reclen)) - sizeof(*RegRel);
+      StringRef VarName = StringRef(RegRel->name, NameLen);
+      W.printString("VarName", VarName);
+      break;
+    }
+
     case S_BUILDINFO: {
       DictScope S(W, "BuildInfo");
       const auto *BuildInfo = castSymRec<BuildInfoSym>(Rec);
       W.printNumber("Id", BuildInfo->id);
       break;
     }
+
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");
