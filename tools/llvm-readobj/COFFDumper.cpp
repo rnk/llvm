@@ -476,6 +476,25 @@ void COFFDumper::printBaseOfDataField(const pe32_header *Hdr) {
 
 void COFFDumper::printBaseOfDataField(const pe32plus_header *) {}
 
+const char *getSubsectionName(unsigned SubsectionType) {
+  switch (SubsectionType) {
+  case DEBUG_S_SYMBOLS:              return "DEBUG_S_SYMBOLS";
+  case DEBUG_S_LINES:                return "DEBUG_S_LINES";
+  case DEBUG_S_STRINGTABLE:          return "DEBUG_S_STRINGTABLE";
+  case DEBUG_S_FILECHKSMS:           return "DEBUG_S_FILECHKSMS";
+  case DEBUG_S_FRAMEDATA:            return "DEBUG_S_FRAMEDATA";
+  case DEBUG_S_INLINEELINES:         return "DEBUG_S_INLINEELINES";
+  case DEBUG_S_CROSSSCOPEIMPORTS:    return "DEBUG_S_CROSSSCOPEIMPORTS";
+  case DEBUG_S_CROSSSCOPEEXPORTS:    return "DEBUG_S_CROSSSCOPEEXPORTS";
+  case DEBUG_S_IL_LINES:             return "DEBUG_S_IL_LINES";
+  case DEBUG_S_FUNC_MDTOKEN_MAP:     return "DEBUG_S_FUNC_MDTOKEN_MAP";
+  case DEBUG_S_TYPE_MDTOKEN_MAP:     return "DEBUG_S_TYPE_MDTOKEN_MAP";
+  case DEBUG_S_MERGED_ASSEMBLYINPUT: return "DEBUG_S_MERGED_ASSEMBLYINPUT";
+  case DEBUG_S_COFF_SYMBOL_RVA:      return "DEBUG_S_COFF_SYMBOL_RVA";
+  }
+  return "UnknownSubsection";
+}
+
 void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
   StringRef Data;
   error(Section.getContents(Data));
@@ -490,42 +509,38 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
     uint32_t Offset = 0,
              Magic = DE.getU32(&Offset);
     W.printHex("Magic", Magic);
-    if (Magic != COFF::DEBUG_SECTION_MAGIC) {
-      error(object_error::parse_failed);
-      return;
-    }
+    if (Magic != COFF::DEBUG_SECTION_MAGIC)
+      return error(object_error::parse_failed);
 
     bool Finished = false;
     while (DE.isValidOffset(Offset) && !Finished) {
       // The section consists of a number of subsection in the following format:
-      // |Type|PayloadSize|Payload...|
+      // |SubSectionType|SubSectionSize|Contents...|
       uint32_t SubSectionType = DE.getU32(&Offset),
-               PayloadSize = DE.getU32(&Offset);
-      ListScope S(W, "Subsection");
-      W.printHex("Type", SubSectionType);
-      W.printHex("PayloadSize", PayloadSize);
-      if (PayloadSize > Data.size() - Offset) {
-        error(object_error::parse_failed);
-        return;
-      }
+               SubSectionSize = DE.getU32(&Offset);
 
-      StringRef Contents = Data.substr(Offset, PayloadSize);
-      if (opts::CodeViewSubsectionBytes) {
-        // Print the raw contents to simplify debugging if anything goes wrong
-        // afterwards.
-        W.printBinaryBlock("Contents", Contents);
-      }
+      const char *SubSectionName = getSubsectionName(SubSectionType);
+      ListScope S(W, SubSectionName);
+
+      // Get the contents of the subsection.
+      if (SubSectionSize > Data.size() - Offset)
+        return error(object_error::parse_failed);
+      StringRef Contents = Data.substr(Offset, SubSectionSize);
 
       switch (SubSectionType) {
-      case COFF::DEBUG_SYMBOL_SUBSECTION:
+      default:
+        W.printHex("SubSectionType", SubSectionType);
+        W.printHex("SubSectionSize", SubSectionSize);
+        break;
+      case DEBUG_S_SYMBOLS:
         printCodeViewSymbolsSubsection(Contents, Section, Offset);
         break;
-      case COFF::DEBUG_LINE_TABLE_SUBSECTION: {
+      case DEBUG_S_LINES: {
         // Holds a PC to file:line table.  Some data to parse this subsection is
         // stored in the other subsections, so just check sanity and store the
         // pointers for deferred processing.
 
-        if (PayloadSize < 12) {
+        if (SubSectionSize < 12) {
           // There should be at least three words to store two function
           // relocations and size of the code.
           error(object_error::parse_failed);
@@ -546,8 +561,8 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         FunctionNames.push_back(LinkageName);
         break;
       }
-      case COFF::DEBUG_STRING_TABLE_SUBSECTION:
-        if (PayloadSize == 0 || CVStringTable.data() != nullptr ||
+      case DEBUG_S_STRINGTABLE:
+        if (SubSectionSize == 0 || CVStringTable.data() != nullptr ||
             Contents.back() != '\0') {
           // Empty or duplicate or non-null-terminated subsection.
           error(object_error::parse_failed);
@@ -555,11 +570,11 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         }
         CVStringTable = Contents;
         break;
-      case COFF::DEBUG_INDEX_SUBSECTION:
+      case DEBUG_S_FILECHKSMS:
         // Holds the translation table from file indices
         // to offsets in the string table.
 
-        if (PayloadSize == 0 ||
+        if (SubSectionSize == 0 ||
             CVFileIndexToStringOffsetTable.data() != nullptr) {
           // Empty or duplicate subsection.
           error(object_error::parse_failed);
@@ -568,7 +583,14 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
         CVFileIndexToStringOffsetTable = Contents;
         break;
       }
-      Offset += PayloadSize;
+
+      if (opts::CodeViewSubsectionBytes) {
+        // Print the raw contents to simplify debugging if anything goes wrong
+        // afterwards.
+        W.printBinaryBlock("Contents", Contents);
+      }
+
+      Offset += SubSectionSize;
 
       // Align the reading pointer by 4.
       Offset += (-Offset) % 4;
@@ -654,93 +676,8 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
   }
 }
 
-#if 0
-void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
-                                                const SectionRef &Section,
-                                                uint32_t OffsetInSection) {
-  if (Subsection.size() == 0) {
-    error(object_error::parse_failed);
-    return;
-  }
-  DataExtractor DE(Subsection, true, 4);
-  uint32_t Offset = 0;
-
-  // Function-level subsections have "procedure start" and "procedure end"
-  // commands that should come in pairs and surround relevant info.
-  bool InFunctionScope = false;
-  while (DE.isValidOffset(Offset)) {
-    // Read subsection segments one by one.
-    uint16_t Size = DE.getU16(&Offset);
-    // The section size includes the size of the type identifier.
-    if (Size < 2 || !DE.isValidOffsetForDataOfSize(Offset, Size)) {
-      error(object_error::parse_failed);
-      return;
-    }
-    Size -= 2;
-    uint16_t Type = DE.getU16(&Offset);
-    switch (Type) {
-    case COFF::DEBUG_SYMBOL_TYPE_LOCAL_PROC_START:
-    case COFF::DEBUG_SYMBOL_TYPE_PROC_START: {
-      DictScope S(W, "ProcStart");
-      if (InFunctionScope || Size < 36) {
-        error(object_error::parse_failed);
-        return;
-      }
-      InFunctionScope = true;
-
-      // We're currently interested in a limited subset of fields in this
-      // segment, just ignore the rest of the fields for now.
-      uint8_t Unused[12];
-      DE.getU8(&Offset, Unused, 12);
-      uint32_t CodeSize = DE.getU32(&Offset);
-      DE.getU8(&Offset, Unused, 12);
-      StringRef SectionName;
-      error(resolveSymbolName(Obj->getCOFFSection(Section),
-                              OffsetInSection + Offset, SectionName));
-      Offset += 4;
-      DE.getU8(&Offset, Unused, 3);
-      StringRef DisplayName = DE.getCStr(&Offset);
-      if (!DE.isValidOffset(Offset)) {
-        error(object_error::parse_failed);
-        return;
-      }
-      W.printString("DisplayName", DisplayName);
-      W.printString("Section", SectionName);
-      W.printHex("CodeSize", CodeSize);
-
-      break;
-    }
-    case COFF::DEBUG_SYMBOL_TYPE_PROC_END: {
-      W.startLine() << "ProcEnd\n";
-      if (!InFunctionScope || Size > 0) {
-        error(object_error::parse_failed);
-        return;
-      }
-      InFunctionScope = false;
-      break;
-    }
-    default: {
-      if (opts::CodeViewSubsectionBytes) {
-        ListScope S(W, "Record");
-        W.printHex("Size", Size);
-        W.printHex("Type", Type);
-
-        StringRef Contents = DE.getData().substr(Offset, Size);
-        W.printBinaryBlock("Contents", Contents);
-      }
-
-      Offset += Size;
-      break;
-    }
-    }
-  }
-
-  if (InFunctionScope)
-    error(object_error::parse_failed);
-}
-#else
-
-/// Get the next symbol record.
+/// Get the next symbol record. Returns null on reaching the end of Data, or if
+/// the next record extends beyond the end of Data.
 static const SymRecord *nextRecord(const SymRecord *Rec, StringRef Data) {
   const char *Next =
       reinterpret_cast<const char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
@@ -822,8 +759,8 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     default: {
       if (opts::CodeViewSubsectionBytes) {
         ListScope S(W, "Record");
-        W.printHex("Size", Rec->reclen);
         W.printHex("Type", Rec->rectyp);
+        W.printHex("Size", Rec->reclen);
 
         StringRef Contents =
             StringRef(reinterpret_cast<const char *>(Rec + 1), Rec->reclen - 2);
@@ -834,7 +771,6 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     }
   }
 }
-#endif
 
 void COFFDumper::printSections() {
   ListScope SectionsD(W, "Sections");
@@ -878,6 +814,8 @@ void COFFDumper::printSections() {
     }
 
     if (Name == ".debug$S" && opts::CodeView)
+      printCodeViewDebugInfo(Sec);
+    if (Name == ".debug$T" && opts::CodeView)
       printCodeViewDebugInfo(Sec);
 
     if (opts::SectionData &&
