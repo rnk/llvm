@@ -309,6 +309,13 @@ struct ProcSym {
   char name[1];               // Length-prefixed name
 };
 
+struct ObjNameSym {
+  ulittle16_t reclen;      // Record length
+  ulittle16_t rectyp;      // S_OBJNAME
+  ulittle32_t signature;   // signature
+  char name[1];            // Length-prefixed name
+};
+
 }
 }
 
