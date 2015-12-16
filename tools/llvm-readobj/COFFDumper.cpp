@@ -757,7 +757,7 @@ static const SymRecord *nextRecord(const SymRecord *Rec, StringRef Data) {
 
 template <typename T>
 static const T *castSymRec(const SymRecord *Rec) {
-  if (sizeof(T) > Rec->reclen + 2)
+  if (sizeof(T) > Rec->reclen + sizeof(Rec->reclen))
     return nullptr;
   return reinterpret_cast<const T*>(Rec);
 }
@@ -805,6 +805,18 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
         return error(object_error::parse_failed);
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
+      break;
+    }
+    case S_OBJNAME: {
+      DictScope S(W, "ObjectName");
+      const auto *ObjName = castSymRec<ObjNameSym>(Rec);
+      W.printHex("Signature", ObjName->signature);
+      size_t ObjectNameLen =
+          (ObjName->reclen + sizeof(ObjName->reclen)) - sizeof(*ObjName);
+      if (ObjectNameLen) {
+        StringRef ObjectName = StringRef(ObjName->name, ObjectNameLen);
+        W.printString("ObjectName", ObjectName);
+      }
       break;
     }
     default: {
