@@ -518,8 +518,7 @@ void COFFDumper::printCodeViewDebugInfo(const SectionRef &Section) {
 
       switch (SubSectionType) {
       case COFF::DEBUG_SYMBOL_SUBSECTION:
-        if (opts::SectionSymbols)
-          printCodeViewSymbolsSubsection(Contents, Section, Offset);
+        printCodeViewSymbolsSubsection(Contents, Section, Offset);
         break;
       case COFF::DEBUG_LINE_TABLE_SUBSECTION: {
         // Holds a PC to file:line table.  Some data to parse this subsection is
@@ -745,10 +744,13 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
 static const SymRecord *nextRecord(const SymRecord *Rec, StringRef Data) {
   const char *Next =
       reinterpret_cast<const char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
-  if (Next - Data.data() + sizeof(SymRecord) > Data.size())
+  ptrdiff_t Diff = Next - Data.data();
+  if (Diff < 0)
+    return nullptr;
+  if (size_t(Diff) + sizeof(SymRecord) > Data.size())
     return nullptr;
   Rec = reinterpret_cast<const SymRecord *>(Next);
-  if (Next - Data.data() + Rec->reclen > Data.size())
+  if (size_t(Diff) + Rec->reclen > Data.size())
     return nullptr;
   return Rec;
 }
@@ -770,7 +772,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
   for (const SymRecord *Rec =
            reinterpret_cast<const SymRecord *>(Subsection.data());
        Rec != nullptr; Rec = nextRecord(Rec, Subsection)) {
-    SymType Type = static_cast<SymType>(unsigned(Rec->rectyp));
+    SymType Type = static_cast<SymType>(uint16_t(Rec->rectyp));
     switch (Type) {
     case S_LPROC32_ID:
     case S_GPROC32_ID: {
@@ -782,19 +784,24 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
 
       // Find the relocation that will be applied to the 'off' field, and get
       // the symbol associated with it.
-      uint64_t OffsetOfOff =
-          Subsection.data() - reinterpret_cast<const char *>(&Proc->off);
+      ptrdiff_t OffsetOfOff =
+          reinterpret_cast<const char *>(&Proc->off) - Subsection.data();
       StringRef LinkageName;
       error(resolveSymbolName(Obj->getCOFFSection(Section),
                               OffsetInSection + OffsetOfOff, LinkageName));
 
       W.printHex("CodeSize", Proc->len);
-      W.printString("DisplayName", Proc->name);
+      size_t DisplayNameLen =
+          (Proc->reclen + sizeof(Proc->reclen)) - sizeof(*Proc);
+      if (DisplayNameLen) {
+        StringRef DisplayName = StringRef(Proc->name, DisplayNameLen);
+        W.printString("DisplayName", DisplayName);
+      }
       W.printString("LinkageName", LinkageName);
       break;
     }
     case S_PROC_ID_END: {
-      if (!InFunctionScope || Rec->reclen != 0)
+      if (!InFunctionScope || Rec->reclen != sizeof(Rec->rectyp))
         return error(object_error::parse_failed);
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
@@ -810,8 +817,6 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
             StringRef(reinterpret_cast<const char *>(Rec + 1), Rec->reclen - 2);
         W.printBinaryBlock("Contents", Contents);
       }
-
-      Offset += Size;
       break;
     }
     }

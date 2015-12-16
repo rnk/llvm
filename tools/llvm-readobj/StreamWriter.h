@@ -288,7 +288,8 @@ private:
 };
 
 template <>
-void StreamWriter::printHex<ulittle16_t>(StringRef Label, ulittle16_t Value) {
+inline void StreamWriter::printHex<ulittle16_t>(StringRef Label,
+                                                ulittle16_t Value) {
   startLine() << Label << ": " << hex(Value) << "\n";
 }
 
