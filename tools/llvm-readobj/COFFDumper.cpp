@@ -943,7 +943,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_BPREL32: {
       DictScope S(W, "BPRelativeSym");
       const auto *BPRel = castSymRec<BPRelativeSym>(Rec);
-      W.printHex("FrameOffset", BPRel->off);
+      W.printHex("Offset", BPRel->off);
       W.printHex("TypeIndex", BPRel->typind);
       size_t NameLen = (BPRel->reclen + sizeof(BPRel->reclen)) - sizeof(*BPRel);
       StringRef VarName = StringRef(BPRel->name, NameLen);
@@ -954,7 +954,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_REGREL32: {
       DictScope S(W, "RegRelativeSym");
       const auto *RegRel = castSymRec<RegRelativeSym>(Rec);
-      W.printHex("FrameOffset", RegRel->off);
+      W.printHex("Offset", RegRel->off);
       W.printHex("TypeIndex", RegRel->typind);
       W.printHex("Register", RegRel->reg);
       size_t NameLen =
