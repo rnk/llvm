@@ -1299,8 +1299,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printFlags("Properties", uint16_t(Class->property),
                    makeArrayRef(TagPropertyFlags));
       printTypeIndex("FieldTypeIndex", Class->field);
-      W.printNumber("DerivedFrom", Class->derived);
-      W.printNumber("VShape", Class->vshape);
+      printTypeIndex("DerivedFrom", Class->derived);
+      printTypeIndex("VShape", Class->vshape);
       StringRef NameData = getRemainingTypeBytes(Rec, &Class->data[0]);
       uint64_t SizeOf;
       error(decodeUIntLeaf(NameData, SizeOf));
@@ -1349,7 +1349,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("IsUnaligned", Ptr->isUnaligned());
 
       StringRef Tail =
-          getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Rec + 1));
+          getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Ptr + 1));
       if (Ptr->isPointerToMember()) {
         const PointerToMemberTail *PMT;
         error(getObjectPtr(Tail, PMT));
@@ -1370,6 +1370,19 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ModifiedType", Ptr->type);
       W.printFlags("Modifiers", Ptr->attr, makeArrayRef(TypeModifierNames));
+      break;
+    }
+
+    case LF_VTSHAPE: {
+      auto *Shape = castTypeRec<VTableShape>(Rec);
+      if (!Shape)
+        return error(object_error::parse_failed);
+      DictScope S(W, "VTableShape");
+      W.printHex("TypeIndex", NextTypeIndex);
+      unsigned MethodCount = Shape->count;
+      W.printNumber("MethodCount", MethodCount);
+      // We could print out whether the methods are near or far, but in practice
+      // today everything is CV_VTS_near32, so it's just noise.
       break;
     }
     }
