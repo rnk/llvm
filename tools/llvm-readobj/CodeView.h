@@ -784,6 +784,17 @@ enum TagProperties : uint16_t {
   mocom1 = (1 << 15),    // CV_MOCOM_UDT_e
 };
 
+enum MemberAttributes : uint16_t {
+  MA_Access = (0x3 << 0),      // access protection CV_access_t
+  MA_MProp = (0x7 << 2),       // method properties CV_methodprop_t
+  MA_Pseudo = (0x1 << 5),      // compiler generated fcn and does not exist
+  MA_NoInherit = (0x1 << 6),   // true if class cannot be inherited
+  MA_NoConstruct = (0x1 << 7), // true if class cannot be constructed
+  MA_CompilerGenerated = (0x1 << 8), // compiler generated fcn and does exist
+  MA_Sealed = (0x1 << 9),            // true if method cannot be overridden
+  MA_Unused = (0x3f << 10),          // unused
+};
+
 struct TypeRecord {
   ulittle16_t len;
   ulittle16_t leaf;
@@ -806,6 +817,41 @@ struct ClassType {
   TypeIndex vshape;     // type index of vshape table for this class
   char data[1];         // data describing length of structure in
                         // bytes and name
+};
+
+struct FieldList {
+  TypeRecord Base; // LF_FIELDLIST
+
+  char data[1];     // field list sub lists
+};
+
+struct NestedType {
+  // ulittle16_t leaf;   // LF_NESTTYPE
+  ulittle16_t pad0;      // internal padding, must be 0
+  TypeIndex index;       // index of nested type definition
+  // char Name[];        // length prefixed type name
+};
+
+struct OneMethod {
+  // ulittle16_t leaf; // LF_ONEMETHOD
+  ulittle16_t attr;    // method attribute (MemberAttributes)
+  TypeIndex index;     // index to type record for procedure
+  // offset in vfunctable if intro virtual followed by length prefixed name of
+  // method
+};
+
+struct DataMember {
+  // ulittle16_t  leaf; // LF_MEMBER
+  ulittle16_t attr;     // attribute mask
+  TypeIndex index;      // index of type record for field
+  // variable length offset of field followed by length prefixed name of field
+};
+
+struct Enumerator {
+  // ulittle16_t  leaf; // LF_MEMBER
+  ulittle16_t attr;     // attribute mask
+  // variable length numeric leaf for the enumerator value followed by length
+  // prefixed name of the enumerator
 };
 
 struct TypeServer2 {

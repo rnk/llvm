@@ -76,6 +76,7 @@ private:
 
   void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
+  void printCodeViewFieldList(StringRef FieldData);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
                                       const SectionRef &Section,
@@ -500,6 +501,17 @@ static const EnumEntry<uint16_t> TagPropertyFlags[] = {
     LLVM_READOBJ_ENUM_ENT(TagProperties, intrinsic),
     LLVM_READOBJ_ENUM_ENT(TagProperties, mocom0),
     LLVM_READOBJ_ENUM_ENT(TagProperties, mocom1),
+};
+
+static const EnumEntry<uint16_t> MemberAttributeFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Access),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_MProp),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Pseudo),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_NoInherit),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_NoConstruct),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_CompilerGenerated),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Sealed),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Unused),
 };
 
 template <typename T>
@@ -1105,6 +1117,7 @@ std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
 StringRef getRemainingTypeBytes(const TypeRecord *Rec, const char *Start) {
   ptrdiff_t StartOffset = Start - reinterpret_cast<const char *>(Rec);
   size_t RecSize = Rec->len + 2;
+  assert(StartOffset <= RecSize && "Start beyond the end of Rec");
   return StringRef(Start, RecSize - StartOffset);
 }
 
@@ -1135,11 +1148,12 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     auto Leaf = static_cast<LeafType>(uint16_t(Rec->leaf));
 
     // Many of the leafs are just binary blobs.
-    StringRef LeafData(reinterpret_cast<const char *>(Rec + 1), Rec->len - 2);
+    StringRef LeafData =
+        getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Rec + 1));
 
     switch (Leaf) {
     default: {
-      ListScope S(W, "UnknownType");
+      DictScope S(W, "UnknownType");
       W.printHex("Leaf", Rec->leaf);
       W.printHex("Size", Rec->len);
       if (opts::CodeViewSubsectionBytes)
@@ -1148,7 +1162,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_STRING_ID: {
-      ListScope S(W, "StringId");
+      DictScope S(W, "StringId");
       auto *String = castTypeRec<StringId>(Rec);
       if (!String)
         return error(object_error::parse_failed);
@@ -1158,13 +1172,26 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_FIELDLIST: {
+      ListScope S(W, "FieldList");
+      W.printHex("Size", Rec->len);
+      auto *Fields = castTypeRec<FieldList>(Rec);
+      if (!Fields)
+        return error(object_error::parse_failed);
+      StringRef FieldData = getRemainingTypeBytes(Rec, &Fields->data[0]);
+      if (opts::CodeViewSubsectionBytes)
+        W.printBinaryBlock("LeafData", LeafData);
+      printCodeViewFieldList(FieldData);
+      break;
+    }
+
     case LF_CLASS:
     case LF_STRUCTURE:
     case LF_INTERFACE: {
       auto *Class = castTypeRec<ClassType>(Rec);
       if (!Class)
         return error(object_error::parse_failed);
-      ListScope S(W, "ClassType");
+      DictScope S(W, "ClassType");
       W.printNumber("MemberCount", Class->count);
       W.printFlags("Properties", uint16_t(Class->property),
                    makeArrayRef(TagPropertyFlags));
@@ -1190,7 +1217,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       auto *TypeServer = castTypeRec<TypeServer2>(Rec);
       if (!TypeServer)
         return error(object_error::parse_failed);
-      ListScope S(W, "TypeServer");
+      DictScope S(W, "TypeServer");
       W.printBinary("Signature", StringRef(TypeServer->sig70, 16));
       W.printNumber("Age", TypeServer->age);
       size_t NameLen = (Rec->len + sizeof(Rec->len)) - sizeof(*TypeServer);
@@ -1208,6 +1235,100 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
   }
 }
 
+static StringRef skipPadding(StringRef Data) {
+  if (Data.empty())
+    return Data;
+  uint8_t Leaf = Data.front();
+  if (Leaf < LF_PAD0)
+    return Data;
+  // Leaf is greater than 0xf0. We should advance by the number of bytes in the
+  // low 4 bits.
+  return Data.drop_front(Leaf & 0x0F);
+}
+
+template <typename T>
+static std::error_code getObjectPtr(StringRef &Data, const T *&Res) {
+  if (Data.size() < sizeof(*Res))
+    return object_error::parse_failed;
+  Res = reinterpret_cast<const T *>(Data.data());
+  Data = Data.drop_front(sizeof(*Res));
+  return std::error_code();
+}
+
+void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
+  while (!FieldData.empty()) {
+    if (FieldData.size() < sizeof(TypeRecord))
+      return error(object_error::parse_failed);
+
+    const ulittle16_t *LeafPtr;
+    error(getObjectPtr(FieldData, LeafPtr));
+    uint16_t Leaf = *LeafPtr;
+    switch (Leaf) {
+    default:
+      W.printHex("UnknownLeaf", Leaf);
+      // We can't advance once we hit an unknown field. The size is not encoded.
+      return;
+
+    case LF_NESTTYPE: {
+      const NestedType *Nested;
+      error(getObjectPtr(FieldData, Nested));
+      DictScope S(W, "NestedType");
+      W.printHex("TypeIndex", Nested->index);
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
+    case LF_ONEMETHOD: {
+      const OneMethod *Method;
+      error(getObjectPtr(FieldData, Method));
+      DictScope S(W, "OneMethod");
+      W.printFlags("MemberAttributes", Method->attr,
+                   makeArrayRef(MemberAttributeFlags));
+      W.printHex("TypeIndex", Method->index);
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
+    case LF_MEMBER: {
+      const DataMember *Field;
+      error(getObjectPtr(FieldData, Field));
+      DictScope S(W, "DataMember");
+      W.printFlags("MemberAttributes", Field->attr,
+                   makeArrayRef(MemberAttributeFlags));
+      W.printHex("TypeIndex", Field->index);
+      uint64_t FieldOffset;
+      error(decodeUIntLeaf(FieldData, FieldOffset));
+      W.printHex("FieldOffset", FieldOffset);
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
+    case LF_ENUMERATE: {
+      const Enumerator *Enum;
+      error(getObjectPtr(FieldData, Enum));
+      DictScope S(W, "Enumerator");
+      W.printFlags("MemberAttributes", Enum->attr,
+                   makeArrayRef(MemberAttributeFlags));
+      uint64_t EnumValue;
+      error(decodeUIntLeaf(FieldData, EnumValue));
+      W.printHex("EnumValue", EnumValue);
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+    }
+
+    // Handle padding.
+    FieldData = skipPadding(FieldData);
+  }
+}
 
 void COFFDumper::printSections() {
   ListScope SectionsD(W, "Sections");
