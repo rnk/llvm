@@ -1153,7 +1153,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       if (!String)
         return error(object_error::parse_failed);
       W.printHex("Id", String->id);
-      StringRef StrData = getRemainingBytesAsString(Rec, &String->data[0]);
+      StringRef StringData = getRemainingBytesAsString(Rec, &String->data[0]);
+      W.printString("StringData", StringData);
       break;
     }
 
@@ -1170,7 +1171,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("FieldTypeIndex", Class->field);
       W.printNumber("DerivedFrom", Class->derived);
       W.printNumber("VShape", Class->vshape);
-      StringRef NameData = getRemainingTypeBytes(Rec, &Rec->data[0]);
+      StringRef NameData = getRemainingTypeBytes(Rec, &Class->data[0]);
       uint64_t SizeOf;
       error(decodeUIntLeaf(NameData, SizeOf));
       W.printNumber("SizeOf", SizeOf);
