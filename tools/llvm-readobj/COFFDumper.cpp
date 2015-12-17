@@ -77,6 +77,7 @@ private:
   void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewFieldList(StringRef FieldData);
+  void printTypeIndex(StringRef FieldName, unsigned TypeIndex);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
                                       const SectionRef &Section,
@@ -100,6 +101,11 @@ private:
   RelocMapTy RelocMap;
   StringRef CVFileIndexToStringOffsetTable;
   StringRef CVStringTable;
+
+  /// All user defined type records in .debug$T live in here. Type indices
+  /// greater than 0x1000 are user defined. Subtract 0x1000 from the index to
+  /// index into this vector.
+  SmallVector<StringRef, 10> CVUDTNames;
 };
 
 } // namespace
@@ -524,6 +530,12 @@ static const EnumEntry<uint16_t> MethodPropertyNames[] = {
   LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_PureIntro),
 };
 
+static const EnumEntry<BuiltinTypes> BuiltinTypeNames[] = {
+#define BUILTIN_TYPE(name, val) LLVM_READOBJ_ENUM_ENT(BuiltinTypes, name),
+#include "CVBuiltinTypes.def"
+#undef BUILTIN_TYPE
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -669,13 +681,18 @@ void COFFDumper::printBaseOfDataField(const pe32_header *Hdr) {
 void COFFDumper::printBaseOfDataField(const pe32plus_header *) {}
 
 void COFFDumper::printCodeViewDebugInfo() {
+  // Print types first to build CVUDTNames, then print symbols.
+  for (const SectionRef &S : Obj->sections()) {
+    StringRef SectionName;
+    error(S.getName(SectionName));
+    if (SectionName == ".debug$T")
+      printCodeViewTypeSection(SectionName, S);
+  }
   for (const SectionRef &S : Obj->sections()) {
     StringRef SectionName;
     error(S.getName(SectionName));
     if (SectionName == ".debug$S")
       printCodeViewSymbolSection(SectionName, S);
-    else if (SectionName == ".debug$T")
-      printCodeViewTypeSection(SectionName, S);
   }
 }
 
@@ -1043,7 +1060,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "BPRelativeSym");
       const auto *BPRel = castSymRec<BPRelativeSym>(Rec);
       W.printHex("Offset", BPRel->off);
-      W.printHex("TypeIndex", BPRel->typind);
+      printTypeIndex("Type", BPRel->typind);
       size_t NameLen = (BPRel->reclen + sizeof(BPRel->reclen)) - sizeof(*BPRel);
       StringRef VarName = StringRef(BPRel->name, NameLen);
       W.printString("VarName", VarName);
@@ -1054,7 +1071,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "RegRelativeSym");
       const auto *RegRel = castSymRec<RegRelativeSym>(Rec);
       W.printHex("Offset", RegRel->off);
-      W.printHex("TypeIndex", RegRel->typind);
+      printTypeIndex("Type", RegRel->typind);
       W.printHex("Register", RegRel->reg);
       size_t NameLen =
           (RegRel->reclen + sizeof(RegRel->reclen)) - sizeof(*RegRel);
@@ -1138,6 +1155,20 @@ StringRef getRemainingBytesAsString(const TypeRecord *Rec, const char *Start) {
   return Leading;
 }
 
+void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
+  if (TypeIndex < 0x1000) {
+    // Basic type.
+    W.printEnum(FieldName, TypeIndex, makeArrayRef(BuiltinTypeNames));
+    return;
+  }
+  // User-defined type.
+  StringRef UDTName("(unknown)");
+  TypeIndex -= 0x1000;
+  if (TypeIndex < CVUDTNames.size())
+    UDTName = CVUDTNames[TypeIndex];
+  W.printHex(FieldName, UDTName, TypeIndex);
+}
+
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                                           const SectionRef &Section) {
   ListScope D(W, "CodeViewTypes");
@@ -1161,9 +1192,13 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     StringRef LeafData =
         getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Rec + 1));
 
+    unsigned NextTypeIndex = 0x1000 + CVUDTNames.size();
+    StringRef Name;
+
     switch (Leaf) {
     default: {
       DictScope S(W, "UnknownType");
+      W.printHex("TypeIndex", NextTypeIndex);
       W.printHex("Leaf", Rec->leaf);
       W.printHex("Size", Rec->len);
       if (opts::CodeViewSubsectionBytes)
@@ -1173,6 +1208,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
 
     case LF_STRING_ID: {
       DictScope S(W, "StringId");
+      W.printHex("TypeIndex", NextTypeIndex);
       auto *String = castTypeRec<StringId>(Rec);
       if (!String)
         return error(object_error::parse_failed);
@@ -1189,8 +1225,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       if (!Fields)
         return error(object_error::parse_failed);
       StringRef FieldData = getRemainingTypeBytes(Rec, &Fields->data[0]);
-      if (opts::CodeViewSubsectionBytes)
-        W.printBinaryBlock("LeafData", LeafData);
       printCodeViewFieldList(FieldData);
       break;
     }
@@ -1202,6 +1236,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       if (!Class)
         return error(object_error::parse_failed);
       DictScope S(W, "ClassType");
+      W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("MemberCount", Class->count);
       W.printFlags("Properties", uint16_t(Class->property),
                    makeArrayRef(TagPropertyFlags));
@@ -1212,7 +1247,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       uint64_t SizeOf;
       error(decodeUIntLeaf(NameData, SizeOf));
       W.printNumber("SizeOf", SizeOf);
-      StringRef Name, LinkageName;
+      StringRef LinkageName;
       std::tie(Name, LinkageName) = NameData.split('\0');
       W.printString("Name", Name);
       if (Class->property & hasuniquename) {
@@ -1228,16 +1263,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       if (!TypeServer)
         return error(object_error::parse_failed);
       DictScope S(W, "TypeServer");
+      W.printHex("TypeIndex", NextTypeIndex);
       W.printBinary("Signature", StringRef(TypeServer->sig70, 16));
       W.printNumber("Age", TypeServer->age);
       size_t NameLen = (Rec->len + sizeof(Rec->len)) - sizeof(*TypeServer);
-      StringRef Name = StringRef(TypeServer->name, NameLen).split('\0').first;
+      Name = StringRef(TypeServer->name, NameLen).split('\0').first;
       W.printString("Name", Name);
       break;
     }
 
-
     }
+
+    CVUDTNames.push_back(Name);
 
     Data = nextType(Data, Rec);
 
@@ -1283,7 +1320,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const NestedType *Nested;
       error(getObjectPtr(FieldData, Nested));
       DictScope S(W, "NestedType");
-      W.printHex("TypeIndex", Nested->index);
+      printTypeIndex("Type", Nested->index);
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);
@@ -1298,7 +1335,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
                    makeArrayRef(MemberAttributeFlags));
       W.printEnum("MethodProperties", Method->getMethodProperties(),
                   makeArrayRef(MethodPropertyNames));
-      W.printHex("TypeIndex", Method->index);
+      printTypeIndex("Type", Method->index);
       // If virtual, then read the vftable offset.
       if (Method->isVirtual()) {
         const ulittle32_t *VFTOffsetPtr;
@@ -1329,7 +1366,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       DictScope S(W, "DataMember");
       W.printFlags("MemberAttributes", Field->attr,
                    makeArrayRef(MemberAttributeFlags));
-      W.printHex("TypeIndex", Field->index);
+      printTypeIndex("Type", Field->index);
       uint64_t FieldOffset;
       error(decodeUIntLeaf(FieldData, FieldOffset));
       W.printHex("FieldOffset", FieldOffset);
@@ -1343,7 +1380,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const VirtualFunctionPointer *VFTable;
       error(getObjectPtr(FieldData, VFTable));
       DictScope S(W, "VirtualFunctionPointer");
-      W.printHex("TypeIndex", VFTable->type);
+      printTypeIndex("Type", VFTable->type);
       break;
     }
 
@@ -1369,7 +1406,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       DictScope S(W, "BaseClass");
       W.printFlags("MemberAttributes", Base->attr,
                    makeArrayRef(MemberAttributeFlags));
-      W.printHex("TypeIndex", Base->index);
+      printTypeIndex("Type", Base->index);
       uint64_t BaseOffset;
       error(decodeUIntLeaf(FieldData, BaseOffset));
       W.printHex("BaseOffset", BaseOffset);
@@ -1383,8 +1420,8 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       DictScope S(W, "VirtualBaseClass");
       W.printFlags("MemberAttributes", Base->attr,
                    makeArrayRef(MemberAttributeFlags));
-      W.printHex("TypeIndex", Base->index);
-      W.printHex("VBPtrTypeIndex", Base->vbptr);
+      printTypeIndex("Type",  Base->index);
+      printTypeIndex("VBPtrTypeIndex", Base->vbptr);
       uint64_t VBPtrOffset, VBTableIndex;
       error(decodeUIntLeaf(FieldData, VBPtrOffset));
       error(decodeUIntLeaf(FieldData, VBTableIndex));

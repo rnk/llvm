@@ -764,6 +764,13 @@ enum LeafType : uint16_t {
   LF_PAD15 = 0xff,
 };
 
+/// Builtin type indexes.
+enum BuiltinTypes : unsigned {
+#define BUILTIN_TYPE(name, val) name = val,
+#include "CVBuiltinTypes.def"
+#undef BUILTIN_TYPE
+};
+
 // CV_prop_t
 enum TagProperties : uint16_t {
   packed = (1 << 0),   // true if structure is packed
