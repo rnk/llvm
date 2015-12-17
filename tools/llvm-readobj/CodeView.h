@@ -784,8 +784,9 @@ enum TagProperties : uint16_t {
   mocom1 = (1 << 15),    // CV_MOCOM_UDT_e
 };
 
+/// (CV_fldattr_t)
 enum MemberAttributes : uint16_t {
-  MA_Access = (0x3 << 0),      // access protection CV_access_t
+  MA_Access = 0x3,             // access protection CV_access_t
   MA_MProp = (0x7 << 2),       // method properties CV_methodprop_t
   MA_Pseudo = (0x1 << 5),      // compiler generated fcn and does not exist
   MA_NoInherit = (0x1 << 6),   // true if class cannot be inherited
@@ -794,6 +795,32 @@ enum MemberAttributes : uint16_t {
   MA_Sealed = (0x1 << 9),            // true if method cannot be overridden
   MA_Unused = (0x3f << 10),          // unused
 };
+
+/// Possible values of MA_MProp. (CV_methodprop_t)
+enum MethodProperties {
+  MP_Vanilla = 0x00,
+  MP_Virtual = 0x01,
+  MP_Static = 0x02,
+  MP_Friend = 0x03,
+  MP_IntroVirt = 0x04,
+  MP_PureVirt = 0x05,
+  MP_PureIntro = 0x06
+};
+
+inline bool isVirtualMethodProperty(MethodProperties Prop) {
+  switch (Prop) {
+  case MP_Vanilla:
+  case MP_Static:
+  case MP_Friend:
+    return false;
+  case MP_Virtual:
+  case MP_IntroVirt:
+  case MP_PureVirt:
+  case MP_PureIntro:
+    return true;
+  }
+  return false;
+}
 
 struct TypeRecord {
   ulittle16_t len;
@@ -838,6 +865,28 @@ struct OneMethod {
   TypeIndex index;     // index to type record for procedure
   // offset in vfunctable if intro virtual followed by length prefixed name of
   // method
+
+  MethodProperties getMethodProperties() const {
+    return MethodProperties((attr & MA_MProp) >> 2);
+  }
+
+  bool isVirtual() const {
+    return isVirtualMethodProperty(getMethodProperties());
+  }
+};
+
+/// For method overload sets.
+struct OverloadedMethod {
+    // ulittle16_t leaf;            // LF_METHOD
+    ulittle16_t count;              // number of occurrences of function
+    TypeIndex mList;                // index to LF_METHODLIST record
+    // unsigned char   Name[1];     // length prefixed name of method
+};
+
+struct VirtualFunctionPointer {
+  // ulittle16_t  leaf; // LF_VFUNCTAB
+  ulittle16_t pad0; // internal padding, must be 0
+  TypeIndex type;   // type index of pointer
 };
 
 struct DataMember {
@@ -852,6 +901,24 @@ struct Enumerator {
   ulittle16_t attr;     // attribute mask
   // variable length numeric leaf for the enumerator value followed by length
   // prefixed name of the enumerator
+};
+
+struct BaseClass {
+  // ulittle16_t leaf; // LF_BCLASS, LF_BINTERFACE
+  ulittle16_t attr; // attribute
+  TypeIndex index;  // type index of base class
+  // variable length offset of base within class
+  // unsigned char offset[CV_ZEROLEN];
+};
+
+struct VirtualBaseClass {
+  // ulittle16_t leaf; // LF_VBCLASS | LV_IVBCLASS
+  ulittle16_t attr; // attribute
+  TypeIndex index;  // type index of direct virtual base class
+  TypeIndex vbptr;  // type index of virtual base pointer
+  // virtual base pointer offset from address point followed by virtual base
+  // offset from vbtable
+  // unsigned char vbpoff[CV_ZEROLEN];
 };
 
 struct TypeServer2 {

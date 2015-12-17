@@ -514,6 +514,16 @@ static const EnumEntry<uint16_t> MemberAttributeFlags[] = {
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Unused),
 };
 
+static const EnumEntry<uint16_t> MethodPropertyNames[] = {
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Vanilla),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Virtual),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Static),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Friend),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_IntroVirt),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_PureVirt),
+  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_PureIntro),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -1265,7 +1275,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
     uint16_t Leaf = *LeafPtr;
     switch (Leaf) {
     default:
-      W.printHex("UnknownLeaf", Leaf);
+      W.printHex("UnknownMember", Leaf);
       // We can't advance once we hit an unknown field. The size is not encoded.
       return;
 
@@ -1286,7 +1296,27 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       DictScope S(W, "OneMethod");
       W.printFlags("MemberAttributes", Method->attr,
                    makeArrayRef(MemberAttributeFlags));
+      W.printEnum("MethodProperties", Method->getMethodProperties(),
+                  makeArrayRef(MethodPropertyNames));
       W.printHex("TypeIndex", Method->index);
+      // If virtual, then read the vftable offset.
+      if (Method->isVirtual()) {
+        const ulittle32_t *VFTOffsetPtr;
+        error(getObjectPtr(FieldData, VFTOffsetPtr));
+        W.printHex("VFTableOffset", *VFTOffsetPtr);
+      }
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
+    case LF_METHOD: {
+      const OverloadedMethod *Method;
+      error(getObjectPtr(FieldData, Method));
+      DictScope S(W, "OverloadedMethod");
+      W.printHex("Count", Method->count);
+      W.printHex("MethodListIndex", Method->mList);
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);
@@ -1309,6 +1339,14 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       break;
     }
 
+    case LF_VFUNCTAB: {
+      const VirtualFunctionPointer *VFTable;
+      error(getObjectPtr(FieldData, VFTable));
+      DictScope S(W, "VirtualFunctionPointer");
+      W.printHex("TypeIndex", VFTable->type);
+      break;
+    }
+
     case LF_ENUMERATE: {
       const Enumerator *Enum;
       error(getObjectPtr(FieldData, Enum));
@@ -1321,6 +1359,37 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);
+      break;
+    }
+
+    case LF_BCLASS:
+    case LF_BINTERFACE: {
+      const BaseClass *Base;
+      error(getObjectPtr(FieldData, Base));
+      DictScope S(W, "BaseClass");
+      W.printFlags("MemberAttributes", Base->attr,
+                   makeArrayRef(MemberAttributeFlags));
+      W.printHex("TypeIndex", Base->index);
+      uint64_t BaseOffset;
+      error(decodeUIntLeaf(FieldData, BaseOffset));
+      W.printHex("BaseOffset", BaseOffset);
+      break;
+    }
+
+    case LF_VBCLASS:
+    case LF_IVBCLASS: {
+      const VirtualBaseClass *Base;
+      error(getObjectPtr(FieldData, Base));
+      DictScope S(W, "VirtualBaseClass");
+      W.printFlags("MemberAttributes", Base->attr,
+                   makeArrayRef(MemberAttributeFlags));
+      W.printHex("TypeIndex", Base->index);
+      W.printHex("VBPtrTypeIndex", Base->vbptr);
+      uint64_t VBPtrOffset, VBTableIndex;
+      error(decodeUIntLeaf(FieldData, VBPtrOffset));
+      error(decodeUIntLeaf(FieldData, VBTableIndex));
+      W.printHex("VBPtrOffset", VBPtrOffset);
+      W.printHex("VBTableIndex", VBTableIndex);
       break;
     }
     }
