@@ -834,6 +834,14 @@ struct TypeRecord {
   ulittle16_t leaf;
 };
 
+struct TypeServer2 {
+  TypeRecord Base; // LF_TYPESERVER2
+
+  char sig70[16];  // guid signature
+  ulittle32_t age; // age of database used by this module
+  char name[1];    // length prefixed name of PDB
+};
+
 struct StringId {
   TypeRecord Base;
 
@@ -858,6 +866,86 @@ struct FieldList {
 
   char data[1];     // field list sub lists
 };
+
+struct PointerType {
+  TypeRecord Base; // LF_POINTER
+
+  TypeIndex utype; // type index of pointee type
+  ulittle32_t attr; // pointer attributes
+  // if pointer to member:
+  //   TypeIndex pmclass;
+  //   ulittle16_t pmenum; // CV_pmtype_e
+  // else if CV_PTR_BASE_SEG:
+  //   ulittle16_t bseg;
+  //   char Sym[1]
+  // else if CV_PTR_BASE_TYPE:
+  //   CV_typ_t index;      // type index if CV_PTR_BASE_TYPE
+  //   char name[1];        // name of base type
+
+  enum CV_ptrtype_e : uint8_t {
+    CV_PTR_NEAR         = 0x00, // 16 bit pointer
+    CV_PTR_FAR          = 0x01, // 16:16 far pointer
+    CV_PTR_HUGE         = 0x02, // 16:16 huge pointer
+    CV_PTR_BASE_SEG     = 0x03, // based on segment
+    CV_PTR_BASE_VAL     = 0x04, // based on value of base
+    CV_PTR_BASE_SEGVAL  = 0x05, // based on segment value of base
+    CV_PTR_BASE_ADDR    = 0x06, // based on address of base
+    CV_PTR_BASE_SEGADDR = 0x07, // based on segment address of base
+    CV_PTR_BASE_TYPE    = 0x08, // based on type
+    CV_PTR_BASE_SELF    = 0x09, // based on self
+    CV_PTR_NEAR32       = 0x0a, // 32 bit pointer
+    CV_PTR_FAR32        = 0x0b, // 16:32 pointer
+    CV_PTR_64           = 0x0c, // 64 bit pointer
+    CV_PTR_UNUSEDPTR    = 0x0d  // first unused pointer type
+  };
+
+  enum CV_ptrmode_e : uint8_t {
+    CV_PTR_MODE_PTR     = 0x00, // "normal" pointer
+    CV_PTR_MODE_REF     = 0x01, // "old" reference
+    CV_PTR_MODE_LVREF   = 0x01, // l-value reference
+    CV_PTR_MODE_PMEM    = 0x02, // pointer to data member
+    CV_PTR_MODE_PMFUNC  = 0x03, // pointer to member function
+    CV_PTR_MODE_RVREF   = 0x04, // r-value reference
+    CV_PTR_MODE_RESERVED= 0x05  // first unused pointer mode
+  };
+
+  CV_ptrtype_e getPtrType() const { return CV_ptrtype_e(attr & 0x1f); }
+  CV_ptrmode_e getPtrMode() const { return CV_ptrmode_e((attr & 0x07) >> 5); }
+  bool isFlat()      const { return attr & (1 <<  8); }
+  bool isVolatile()  const { return attr & (1 <<  9); }
+  bool isConst()     const { return attr & (1 << 10); }
+  bool isUnaligned() const { return attr & (1 << 11); }
+
+  bool isPointerToDataMember() const {
+    return getPtrMode() == CV_PTR_MODE_PMEM;
+  }
+  bool isPointerToMemberFunction() const {
+    return getPtrMode() == CV_PTR_MODE_PMFUNC;
+  }
+  bool isPointerToMember() const {
+    return isPointerToMemberFunction() || isPointerToDataMember();
+  }
+};
+
+struct PointerToMemberTail {
+  TypeIndex pmclass;
+  ulittle16_t pmenum;
+
+  enum CV_pmtype_e {
+    CV_PMTYPE_Undef     = 0x00, // not specified (pre VC8)
+    CV_PMTYPE_D_Single  = 0x01, // member data, single inheritance
+    CV_PMTYPE_D_Multiple= 0x02, // member data, multiple inheritance
+    CV_PMTYPE_D_Virtual = 0x03, // member data, virtual inheritance
+    CV_PMTYPE_D_General = 0x04, // member data, most general
+    CV_PMTYPE_F_Single  = 0x05, // member function, single inheritance
+    CV_PMTYPE_F_Multiple= 0x06, // member function, multiple inheritance
+    CV_PMTYPE_F_Virtual = 0x07, // member function, virtual inheritance
+    CV_PMTYPE_F_General = 0x08, // member function, most general
+  };
+};
+
+//===----------------------------------------------------------------------===//
+// Field list records, which do not include leafs or sizes
 
 struct NestedType {
   // ulittle16_t leaf;   // LF_NESTTYPE
@@ -926,14 +1014,6 @@ struct VirtualBaseClass {
   // virtual base pointer offset from address point followed by virtual base
   // offset from vbtable
   // unsigned char vbpoff[CV_ZEROLEN];
-};
-
-struct TypeServer2 {
-  TypeRecord Base; // LF_TYPESERVER2
-
-  char sig70[16];  // guid signature
-  ulittle32_t age; // age of database used by this module
-  char name[1];    // length prefixed name of PDB
 };
 
 LLVM_PACKED_END

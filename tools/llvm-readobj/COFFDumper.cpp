@@ -536,6 +536,45 @@ static const EnumEntry<BuiltinTypes> BuiltinTypeNames[] = {
 #undef BUILTIN_TYPE
 };
 
+static const EnumEntry<PointerType::CV_ptrtype_e> PtrTypeNames[] = {
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_NEAR),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_FAR),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_HUGE),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_SEG),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_VAL),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_SEGVAL),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_ADDR),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_SEGADDR),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_TYPE),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_BASE_SELF),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_NEAR32),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_FAR32),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_64),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_UNUSEDPTR),
+};
+
+static const EnumEntry<PointerType::CV_ptrmode_e> PtrModeNames[] = {
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_PTR),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_REF),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_LVREF),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_PMEM),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_PMFUNC),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_RVREF),
+    LLVM_READOBJ_ENUM_ENT(PointerType, CV_PTR_MODE_RESERVED),
+};
+
+static const EnumEntry<PointerToMemberTail::CV_pmtype_e> PtrMemberRepNames[] = {
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_Undef),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_D_Single),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_D_Multiple),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_D_Virtual),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_D_General),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_F_Single),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_F_Multiple),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_F_Virtual),
+    LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_F_General),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -1172,6 +1211,15 @@ void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
     W.printHex(FieldName, TypeIndex);
 }
 
+template <typename T>
+static std::error_code getObjectPtr(StringRef &Data, const T *&Res) {
+  if (Data.size() < sizeof(*Res))
+    return object_error::parse_failed;
+  Res = reinterpret_cast<const T *>(Data.data());
+  Data = Data.drop_front(sizeof(*Res));
+  return std::error_code();
+}
+
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                                           const SectionRef &Section) {
   ListScope D(W, "CodeViewTypes");
@@ -1201,9 +1249,9 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     switch (Leaf) {
     default: {
       DictScope S(W, "UnknownType");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printHex("Leaf", Rec->leaf);
       W.printHex("Size", Rec->len);
+      W.printHex("TypeIndex", NextTypeIndex);
       if (opts::CodeViewSubsectionBytes)
         W.printBinaryBlock("LeafData", LeafData);
       break;
@@ -1262,6 +1310,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       }
       break;
     }
+
     case LF_TYPESERVER2: {
       auto *TypeServer = castTypeRec<TypeServer2>(Rec);
       if (!TypeServer)
@@ -1273,6 +1322,37 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       size_t NameLen = (Rec->len + sizeof(Rec->len)) - sizeof(*TypeServer);
       Name = StringRef(TypeServer->name, NameLen).split('\0').first;
       W.printString("Name", Name);
+      break;
+    }
+
+    case LF_POINTER: {
+      auto *Ptr = castTypeRec<PointerType>(Rec);
+      if (!Ptr)
+        return error(object_error::parse_failed);
+      DictScope S(W, "PointerType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("PointeeType", Ptr->utype);
+      W.printHex("PointerAttributes", Ptr->attr);
+      W.printEnum("PtrType", unsigned(Ptr->getPtrType()),
+                  makeArrayRef(PtrTypeNames));
+      W.printEnum("PtrMode", unsigned(Ptr->getPtrMode()),
+                  makeArrayRef(PtrModeNames));
+      W.printNumber("IsFlat", Ptr->isFlat());
+      W.printNumber("IsConst", Ptr->isConst());
+      W.printNumber("IsVolatile", Ptr->isVolatile());
+      W.printNumber("IsUnaligned", Ptr->isUnaligned());
+
+      StringRef Tail =
+          getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Rec + 1));
+      if (Ptr->isPointerToMember()) {
+        const PointerToMemberTail *PMT;
+        error(getObjectPtr(Tail, PMT));
+        printTypeIndex("ClassType", PMT->pmclass);
+        W.printEnum("Representation", PMT->pmenum,
+                    makeArrayRef(PtrMemberRepNames));
+      } else {
+        W.printBinaryBlock("TailData", Tail);
+      }
       break;
     }
 
@@ -1295,15 +1375,6 @@ static StringRef skipPadding(StringRef Data) {
   // Leaf is greater than 0xf0. We should advance by the number of bytes in the
   // low 4 bits.
   return Data.drop_front(Leaf & 0x0F);
-}
-
-template <typename T>
-static std::error_code getObjectPtr(StringRef &Data, const T *&Res) {
-  if (Data.size() < sizeof(*Res))
-    return object_error::parse_failed;
-  Res = reinterpret_cast<const T *>(Data.data());
-  Data = Data.drop_front(sizeof(*Res));
-  return std::error_code();
 }
 
 void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
