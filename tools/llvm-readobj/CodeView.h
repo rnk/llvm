@@ -789,9 +789,8 @@ struct TypeRecord {
   ulittle16_t leaf;
 };
 
-
 struct ClassType {
-  TypeRecord Tag;
+  TypeRecord Base;
 
   ulittle16_t count;     // count of number of elements in class
   ulittle16_t property;  // property attribute field (TagProperties)

@@ -1116,11 +1116,27 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     auto *Rec = reinterpret_cast<const TypeRecord *>(Data.data());
     auto Leaf = static_cast<LeafType>(uint16_t(Rec->leaf));
 
+    // Many of the leafs are just binary blobs.
+    StringRef LeafData(reinterpret_cast<const char *>(Rec + 1), Rec->len - 2);
+
     switch (Leaf) {
-    default:
+    default: {
+      ListScope S(W, "UnknownType");
+      W.printHex("Leaf", Rec->leaf);
+      W.printHex("Size", Rec->len);
+      if (opts::CodeViewSubsectionBytes)
+        W.printBinaryBlock("LeafData", LeafData);
       break;
+    }
+
+    case LF_FIELDLIST: {
+      ListScope S(W, "FieldList");
+      W.printBinaryBlock("LeafData", LeafData);
+      break;
+    }
+
     case LF_CLASS:
-    case LF_STRUCTURE:
+    case LF_STRUCTURE: {
       auto *Class = castTypeRec<ClassType>(Rec);
       if (!Class)
         return error(object_error::parse_failed);
@@ -1133,7 +1149,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("VShape", Class->vshape);
       StringRef NameData(&Class->data[0],
                          Rec->len + 2 - offsetof(ClassType, data));
-      W.printBinaryBlock("NameData", NameData);
       uint64_t SizeOf;
       error(decodeUIntLeaf(NameData, SizeOf));
       W.printNumber("SizeOf", SizeOf);
@@ -1149,6 +1164,9 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
         W.printString("LinkageName", LinkageName);
       }
       break;
+    }
+
+
     }
 
     Data = nextType(Data, Rec);
