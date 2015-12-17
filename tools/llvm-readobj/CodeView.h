@@ -944,6 +944,19 @@ struct PointerToMemberTail {
   };
 };
 
+/// In Clang parlance, these are "qualifiers".
+struct TypeModifier {
+  TypeRecord Base;   // LF_MODIFIER
+  TypeIndex type;    // modified type
+  ulittle16_t attr;  // modifier attribute (CV_modifier_t)
+
+  enum CV_modifier_t : uint16_t {
+    MOD_const       = (1 << 0),
+    MOD_volatile    = (1 << 1),
+    MOD_unaligned   = (1 << 2),
+  };
+};
+
 //===----------------------------------------------------------------------===//
 // Field list records, which do not include leafs or sizes
 

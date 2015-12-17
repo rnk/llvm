@@ -575,6 +575,12 @@ static const EnumEntry<PointerToMemberTail::CV_pmtype_e> PtrMemberRepNames[] = {
     LLVM_READOBJ_ENUM_ENT(PointerToMemberTail, CV_PMTYPE_F_General),
 };
 
+static const EnumEntry<uint16_t> TypeModifierNames[] = {
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_const),
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_volatile),
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_unaligned),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -1356,6 +1362,16 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_MODIFIER: {
+      auto *Ptr = castTypeRec<TypeModifier>(Rec);
+      if (!Ptr)
+        return error(object_error::parse_failed);
+      DictScope S(W, "TypeModifier");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ModifiedType", Ptr->type);
+      W.printFlags("Modifiers", Ptr->attr, makeArrayRef(TypeModifierNames));
+      break;
+    }
     }
 
     CVUDTNames.push_back(Name);
