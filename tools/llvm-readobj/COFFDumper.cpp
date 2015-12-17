@@ -913,8 +913,12 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
        Rec != nullptr; Rec = nextRecord(Rec, Subsection)) {
     SymType Type = static_cast<SymType>(uint16_t(Rec->rectyp));
     switch (Type) {
+    case S_LPROC32:
+    case S_GPROC32:
+    case S_GPROC32_ID:
     case S_LPROC32_ID:
-    case S_GPROC32_ID: {
+    case S_LPROC32_DPC:
+    case S_LPROC32_DPC_ID: {
       DictScope S(W, "ProcStart");
       const ProcSym *Proc = castSymRec<ProcSym>(Rec);
       if (!Proc || InFunctionScope)
@@ -1001,7 +1005,8 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       break;
     }
 
-    case S_UDT: {
+    case S_UDT:
+    case S_COBOLUDT: {
       DictScope S(W, "UDT");
       const auto *UDT = castSymRec<UDTSym>(Rec);
       size_t UDTNameLen = (UDT->reclen + sizeof(UDT->reclen)) - sizeof(*UDT);
@@ -1153,7 +1158,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_CLASS:
-    case LF_STRUCTURE: {
+    case LF_STRUCTURE:
+    case LF_INTERFACE: {
       auto *Class = castTypeRec<ClassType>(Rec);
       if (!Class)
         return error(object_error::parse_failed);
@@ -1177,6 +1183,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
           return error(object_error::parse_failed);
         W.printString("LinkageName", LinkageName);
       }
+      break;
+    }
+    case LF_TYPESERVER2: {
+      auto *TypeServer = castTypeRec<TypeServer2>(Rec);
+      if (!TypeServer)
+        return error(object_error::parse_failed);
+      ListScope S(W, "TypeServer");
+      W.printBinary("Signature", StringRef(TypeServer->sig70, 16));
+      W.printNumber("Age", TypeServer->age);
+      size_t NameLen = (Rec->len + sizeof(Rec->len)) - sizeof(*TypeServer);
+      StringRef Name = StringRef(TypeServer->name, NameLen).split('\0').first;
+      W.printString("Name", Name);
       break;
     }
 

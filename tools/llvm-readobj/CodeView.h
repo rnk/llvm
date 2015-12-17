@@ -797,15 +797,23 @@ struct StringId {
 };
 
 struct ClassType {
-  TypeRecord Base;
+  TypeRecord Base; // LF_CLASS, LF_STRUCT, LF_INTERFACE
 
-  ulittle16_t count;     // count of number of elements in class
-  ulittle16_t property;  // property attribute field (TagProperties)
-  TypeIndex field;       // type index of LF_FIELD descriptor list
-  TypeIndex derived;     // type index of derived from list if not zero
-  TypeIndex vshape;      // type index of vshape table for this class
-  char data[1];          // data describing length of structure in
-                         // bytes and name
+  ulittle16_t count;    // count of number of elements in class
+  ulittle16_t property; // property attribute field (TagProperties)
+  TypeIndex field;      // type index of LF_FIELD descriptor list
+  TypeIndex derived;    // type index of derived from list if not zero
+  TypeIndex vshape;     // type index of vshape table for this class
+  char data[1];         // data describing length of structure in
+                        // bytes and name
+};
+
+struct TypeServer2 {
+  TypeRecord Base; // LF_TYPESERVER2
+
+  char sig70[16];  // guid signature
+  ulittle32_t age; // age of database used by this module
+  char name[1];    // length prefixed name of PDB
 };
 
 LLVM_PACKED_END
