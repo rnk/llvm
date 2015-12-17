@@ -1162,11 +1162,14 @@ void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
     return;
   }
   // User-defined type.
-  StringRef UDTName("(unknown)");
-  TypeIndex -= 0x1000;
-  if (TypeIndex < CVUDTNames.size())
-    UDTName = CVUDTNames[TypeIndex];
-  W.printHex(FieldName, UDTName, TypeIndex);
+  StringRef UDTName;
+  unsigned UDTIndex = TypeIndex - 0x1000;
+  if (UDTIndex < CVUDTNames.size())
+    UDTName = CVUDTNames[UDTIndex];
+  if (!UDTName.empty())
+    W.printHex(FieldName, UDTName, TypeIndex);
+  else
+    W.printHex(FieldName, TypeIndex);
 }
 
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
@@ -1220,6 +1223,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
 
     case LF_FIELDLIST: {
       ListScope S(W, "FieldList");
+      W.printHex("TypeIndex", NextTypeIndex);
       W.printHex("Size", Rec->len);
       auto *Fields = castTypeRec<FieldList>(Rec);
       if (!Fields)
@@ -1240,7 +1244,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("MemberCount", Class->count);
       W.printFlags("Properties", uint16_t(Class->property),
                    makeArrayRef(TagPropertyFlags));
-      W.printNumber("FieldTypeIndex", Class->field);
+      printTypeIndex("FieldTypeIndex", Class->field);
       W.printNumber("DerivedFrom", Class->derived);
       W.printNumber("VShape", Class->vshape);
       StringRef NameData = getRemainingTypeBytes(Rec, &Class->data[0]);
