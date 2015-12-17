@@ -1097,6 +1097,19 @@ std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
   return object_error::parse_failed;
 }
 
+StringRef getRemainingTypeBytes(const TypeRecord *Rec, const char *Start) {
+  ptrdiff_t StartOffset = Start - reinterpret_cast<const char *>(Rec);
+  size_t RecSize = Rec->len + 2;
+  return StringRef(Start, RecSize - StartOffset);
+}
+
+StringRef getRemainingBytesAsString(const TypeRecord *Rec, const char *Start) {
+  StringRef Remaining = getRemainingTypeBytes(Rec, Start);
+  StringRef Leading, Trailing;
+  std::tie(Leading, Trailing) = Remaining.split('\0');
+  return Leading;
+}
+
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                                           const SectionRef &Section) {
   ListScope D(W, "CodeViewTypes");
@@ -1129,9 +1142,13 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
-    case LF_FIELDLIST: {
-      ListScope S(W, "FieldList");
-      W.printBinaryBlock("LeafData", LeafData);
+    case LF_STRING_ID: {
+      ListScope S(W, "StringId");
+      auto *String = castTypeRec<StringId>(Rec);
+      if (!String)
+        return error(object_error::parse_failed);
+      W.printHex("Id", String->id);
+      StringRef StrData = getRemainingBytesAsString(Rec, &String->data[0]);
       break;
     }
 
@@ -1147,8 +1164,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("FieldTypeIndex", Class->field);
       W.printNumber("DerivedFrom", Class->derived);
       W.printNumber("VShape", Class->vshape);
-      StringRef NameData(&Class->data[0],
-                         Rec->len + 2 - offsetof(ClassType, data));
+      StringRef NameData = getRemainingTypeBytes(Rec, &Rec->data[0]);
       uint64_t SizeOf;
       error(decodeUIntLeaf(NameData, SizeOf));
       W.printNumber("SizeOf", SizeOf);
@@ -1156,9 +1172,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       std::tie(Name, LinkageName) = NameData.split('\0');
       W.printString("Name", Name);
       if (Class->property & hasuniquename) {
-        size_t Pos = LinkageName.rfind('\0');
-        if (Pos != StringRef::npos)
-          LinkageName = LinkageName.substr(0, Pos);
+        LinkageName = getRemainingBytesAsString(Rec, LinkageName.data());
         if (LinkageName.empty())
           return error(object_error::parse_failed);
         W.printString("LinkageName", LinkageName);

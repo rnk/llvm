@@ -789,6 +789,13 @@ struct TypeRecord {
   ulittle16_t leaf;
 };
 
+struct StringId {
+  TypeRecord Base;
+
+  TypeIndex id;
+  char data[1];
+};
+
 struct ClassType {
   TypeRecord Base;
 
