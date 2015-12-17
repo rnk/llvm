@@ -221,43 +221,43 @@
 ; OBJ32-NEXT:   0x128 IMAGE_REL_I386_SECTION _f
 ; OBJ32-NEXT: ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF1
+; OBJ32-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ32-NOT:    ]
 ; OBJ32:        ProcStart {
 ; OBJ32-NEXT:     DisplayName: x
-; OBJ32-NEXT:     Section: _x
+; OBJ32-NEXT:     LinkageName: _x
 ; OBJ32-NEXT:     CodeSize: 0x6
 ; OBJ32-NEXT:   }
 ; OBJ32-NEXT:   ProcEnd
 ; OBJ32-NEXT: ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF2
+; OBJ32-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ32:      ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF1
+; OBJ32-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ32-NOT:    ]
 ; OBJ32:        ProcStart {
 ; OBJ32-NEXT:     DisplayName: y
-; OBJ32-NEXT:     Section: _y
+; OBJ32-NEXT:     LinkageName: _y
 ; OBJ32-NEXT:     CodeSize: 0x6
 ; OBJ32-NEXT:   }
 ; OBJ32-NEXT:   ProcEnd
 ; OBJ32-NEXT: ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF2
+; OBJ32-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ32:      ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF1
+; OBJ32-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ32-NOT:    ]
 ; OBJ32:        ProcStart {
 ; OBJ32-NEXT:     DisplayName: f
-; OBJ32-NEXT:     Section: _f
+; OBJ32-NEXT:     LinkageName: _f
 ; OBJ32-NEXT:     CodeSize: 0x10
 ; OBJ32-NEXT:   }
 ; OBJ32-NEXT:   ProcEnd
 ; OBJ32-NEXT: ]
 ; OBJ32:      Subsection [
-; OBJ32-NEXT:   Type: 0xF2
+; OBJ32-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ32:      ]
 ; OBJ32:      FunctionLineTable [
 ; OBJ32-NEXT:   Name: _x
@@ -531,43 +531,43 @@
 ; OBJ64-NEXT:   0x140 IMAGE_REL_AMD64_SECTION f
 ; OBJ64-NEXT: ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF1
+; OBJ64-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ64-NOT:    ]
 ; OBJ64:        ProcStart {
 ; OBJ64-NEXT:     DisplayName: x
-; OBJ64-NEXT:     Section: x
+; OBJ64-NEXT:     LinkageName: x
 ; OBJ64-NEXT:     CodeSize: 0xE
 ; OBJ64-NEXT:   }
 ; OBJ64-NEXT:   ProcEnd
 ; OBJ64-NEXT: ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF2
+; OBJ64-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ64:      ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF1
+; OBJ64-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ64-NOT:    ]
 ; OBJ64:        ProcStart {
 ; OBJ64-NEXT:     DisplayName: y
-; OBJ64-NEXT:     Section: y
+; OBJ64-NEXT:     LinkageName: y
 ; OBJ64-NEXT:     CodeSize: 0xE
 ; OBJ64-NEXT:   }
 ; OBJ64-NEXT:   ProcEnd
 ; OBJ64-NEXT: ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF2
+; OBJ64-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ64:      ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF1
+; OBJ64-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ64-NOT:    ]
 ; OBJ64:        ProcStart {
 ; OBJ64-NEXT:     DisplayName: f
-; OBJ64-NEXT:     Section: f
+; OBJ64-NEXT:     LinkageName: f
 ; OBJ64-NEXT:     CodeSize: 0x18
 ; OBJ64-NEXT:   }
 ; OBJ64-NEXT:   ProcEnd
 ; OBJ64-NEXT: ]
 ; OBJ64:      Subsection [
-; OBJ64-NEXT:   Type: 0xF2
+; OBJ64-NEXT:   SubSectionType: SUBSEC_LINES (0xF2)
 ; OBJ64:      ]
 ; OBJ64:      FunctionLineTable [
 ; OBJ64-NEXT:   Name: x

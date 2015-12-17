@@ -11,7 +11,7 @@
 ; CHECK:        ProcStart {
 ; FIXME: The display name should in fact be "foo::bar", see PR21528
 ; CHECK-NEXT:     DisplayName: ?bar@foo@@YAHH@Z
-; CHECK-NEXT:     Section: ?bar@foo@@YAHH@Z
+; CHECK-NEXT:     LinkageName: ?bar@foo@@YAHH@Z
 
 ; Function Attrs: nounwind
 define i32 @"\01?bar@foo@@YAHH@Z"(i32 %x) #0 {

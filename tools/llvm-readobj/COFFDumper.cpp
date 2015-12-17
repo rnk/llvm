@@ -1017,7 +1017,6 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       error(resolveSymbolName(Obj->getCOFFSection(Section),
                               OffsetInSection + OffsetOfOff, LinkageName));
 
-      W.printHex("CodeSize", Proc->len);
       size_t DisplayNameLen =
           (Proc->reclen + sizeof(Proc->reclen)) - sizeof(*Proc);
       if (DisplayNameLen) {
@@ -1025,6 +1024,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
         W.printString("DisplayName", DisplayName);
       }
       W.printString("LinkageName", LinkageName);
+      W.printHex("CodeSize", Proc->len);
       break;
     }
     case S_PROC_ID_END: {
