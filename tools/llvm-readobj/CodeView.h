@@ -31,25 +31,30 @@ LLVM_PACKED_START
 // FIXME: Maybe make this a wrapper struct type.
 typedef ulittle32_t TypeIndex;
 
+/// Any .debug$S section can be broken into subsections with these types.
+/// Equivalent to DEBUG_S_SUBSECTION_TYPE in cvinfo.h.
 enum SubSectionType : unsigned {
-    // If this bit is set in a subsection type then ignore the subsection
-    // contents.
-    SUBSEC_IGNORE = 0x80000000,
-    SUBSEC_SYMBOLS = 0xf1,
-    SUBSEC_LINES,
-    SUBSEC_STRINGTABLE,
-    SUBSEC_FILECHKSMS,
-    SUBSEC_FRAMEDATA,
-    SUBSEC_INLINEELINES,
-    SUBSEC_CROSSSCOPEIMPORTS,
-    SUBSEC_CROSSSCOPEEXPORTS,
-    SUBSEC_IL_LINES,
-    SUBSEC_FUNC_MDTOKEN_MAP,
-    SUBSEC_TYPE_MDTOKEN_MAP,
-    SUBSEC_MERGED_ASSEMBLYINPUT,
-    SUBSEC_COFF_SYMBOL_RVA,
+  // If this bit is set in a subsection type then ignore the subsection
+  // contents.
+  SUBSEC_IGNORE = 0x80000000,
+  SUBSEC_SYMBOLS = 0xf1,
+  SUBSEC_LINES,
+  SUBSEC_STRINGTABLE,
+  SUBSEC_FILECHKSMS,
+  SUBSEC_FRAMEDATA,
+  SUBSEC_INLINEELINES,
+  SUBSEC_CROSSSCOPEIMPORTS,
+  SUBSEC_CROSSSCOPEEXPORTS,
+  SUBSEC_IL_LINES,
+  SUBSEC_FUNC_MDTOKEN_MAP,
+  SUBSEC_TYPE_MDTOKEN_MAP,
+  SUBSEC_MERGED_ASSEMBLYINPUT,
+  SUBSEC_COFF_SYMBOL_RVA,
 };
 
+/// A SUBSEC_SYMBOLS subsection is a sequence of SymRecords. Advancing by 'len'
+/// bytes will find the next SymRecord. These are the possible types of a
+/// record. Equivalent to SYM_ENUM_e in cvinfo.h.
 enum SymType : unsigned short {
   S_COMPILE       =  0x0001,  // Compile flags symbol
   S_REGISTER_16t  =  0x0002,  // Register variable
@@ -307,8 +312,6 @@ enum SymType : unsigned short {
 };
 
 /// Generic record compatible with all symbol records.
-///
-/// TODO: Extend this with LLVM-style RTTI.
 struct SymRecord {
   ulittle16_t reclen; // Record length, starting from the next field
   ulittle16_t rectyp; // Record type
@@ -316,8 +319,7 @@ struct SymRecord {
 };
 
 struct ProcSym {
-  ulittle16_t reclen;   // Record length
-  ulittle16_t rectyp;   // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID,
+  SymRecord Base;       // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID,
                         // S_LPROC32_DPC or S_LPROC32_DPC_ID
   ulittle32_t pParent;  // pointer to the parent
   ulittle32_t pEnd;     // pointer to this blocks end
@@ -771,7 +773,7 @@ enum BuiltinTypes : unsigned {
 #undef BUILTIN_TYPE
 };
 
-// CV_prop_t
+/// Equvalent to CV_prop_t in cvinfo.h.
 enum TagProperties : uint16_t {
   packed = (1 << 0),   // true if structure is packed
   ctor = (1 << 1),     // true if constructors or destructors present
@@ -790,44 +792,6 @@ enum TagProperties : uint16_t {
   mocom0 = (1 << 14),    // CV_MOCOM_UDT_e
   mocom1 = (1 << 15),    // CV_MOCOM_UDT_e
 };
-
-/// (CV_fldattr_t)
-enum MemberAttributes : uint16_t {
-  MA_Access = 0x3,             // access protection CV_access_t
-  MA_MProp = (0x7 << 2),       // method properties CV_methodprop_t
-  MA_Pseudo = (0x1 << 5),      // compiler generated fcn and does not exist
-  MA_NoInherit = (0x1 << 6),   // true if class cannot be inherited
-  MA_NoConstruct = (0x1 << 7), // true if class cannot be constructed
-  MA_CompilerGenerated = (0x1 << 8), // compiler generated fcn and does exist
-  MA_Sealed = (0x1 << 9),            // true if method cannot be overridden
-  MA_Unused = (0x3f << 10),          // unused
-};
-
-/// Possible values of MA_MProp. (CV_methodprop_t)
-enum MethodProperties {
-  MP_Vanilla = 0x00,
-  MP_Virtual = 0x01,
-  MP_Static = 0x02,
-  MP_Friend = 0x03,
-  MP_IntroVirt = 0x04,
-  MP_PureVirt = 0x05,
-  MP_PureIntro = 0x06
-};
-
-inline bool isVirtualMethodProperty(MethodProperties Prop) {
-  switch (Prop) {
-  case MP_Vanilla:
-  case MP_Static:
-  case MP_Friend:
-    return false;
-  case MP_Virtual:
-  case MP_IntroVirt:
-  case MP_PureVirt:
-  case MP_PureIntro:
-    return true;
-  }
-  return false;
-}
 
 struct TypeRecord {
   ulittle16_t len;
@@ -984,20 +948,79 @@ struct NestedType {
   // char Name[];        // length prefixed type name
 };
 
-struct OneMethod {
-  // ulittle16_t leaf; // LF_ONEMETHOD
-  ulittle16_t attr;    // method attribute (MemberAttributes)
-  TypeIndex index;     // index to type record for procedure
-  // offset in vfunctable if intro virtual followed by length prefixed name of
-  // method
+/// Equvalent to CV_fldattr_t in cvinfo.h.
+struct MemberAttributes {
+  ulittle16_t attr;
 
+  enum Flags : uint16_t {
+    MA_Access = 0x3,
+    MA_MProp = (0x7 << 2),
+    MA_Pseudo = (0x1 << 5),      // compiler generated fcn and does not exist
+    MA_NoInherit = (0x1 << 6),   // true if class cannot be inherited
+    MA_NoConstruct = (0x1 << 7), // true if class cannot be constructed
+    MA_CompilerGenerated = (0x1 << 8), // compiler generated fcn and does exist
+    MA_Sealed = (0x1 << 9),            // true if method cannot be overridden
+  };
+
+  /// Get the flags that are not included in access control or method
+  /// properties.
+  Flags getFlags() const {
+    return Flags(unsigned(attr) & ~(MA_Access | MA_MProp));
+  }
+
+  /// Possible values of MA_MProp. (CV_methodprop_e)
+  enum MethodProperties {
+    MP_Vanilla = 0x00,
+    MP_Virtual = 0x01,
+    MP_Static = 0x02,
+    MP_Friend = 0x03,
+    MP_IntroVirt = 0x04,
+    MP_PureVirt = 0x05,
+    MP_PureIntro = 0x06
+  };
+
+  /// Indicates if a method is defined with friend, virtual, static, etc.
   MethodProperties getMethodProperties() const {
     return MethodProperties((attr & MA_MProp) >> 2);
   }
 
+  /// Is this method virtual.
   bool isVirtual() const {
-    return isVirtualMethodProperty(getMethodProperties());
+    auto MP = getMethodProperties();
+    return MP != MP_Vanilla && MP != MP_Friend && MP_Static;
   }
+
+  /// Does this member introduce a new virtual method.
+  bool isIntroducedVirtual() const {
+    auto MP = getMethodProperties();
+    return MP == MP_IntroVirt || MP == MP_PureIntro;
+  }
+
+  /// Source-level access specifier. (CV_access_e)
+  enum AccessSpecifier {
+    AS_private = 1,
+    AS_protected = 2,
+    AS_public = 3
+  };
+
+  AccessSpecifier getAccess() const {
+    return AccessSpecifier(attr & MA_Access);
+  }
+};
+
+struct OneMethod {
+  // ulittle16_t leaf; // LF_ONEMETHOD
+  MemberAttributes attr;
+  TypeIndex index;       // index to type record for procedure
+  // offset in vfunctable if intro virtual followed by length prefixed name of
+  // method
+
+  MemberAttributes::MethodProperties getMethodProperties() const {
+    return attr.getMethodProperties();
+  }
+
+  bool isVirtual() const { return attr.isVirtual(); }
+  bool isIntroducedVirtual() const { return attr.isIntroducedVirtual(); }
 };
 
 /// For method overload sets.
@@ -1016,31 +1039,31 @@ struct VirtualFunctionPointer {
 
 struct DataMember {
   // ulittle16_t  leaf; // LF_MEMBER
-  ulittle16_t attr;     // attribute mask
-  TypeIndex index;      // index of type record for field
+  MemberAttributes attr; // attribute mask
+  TypeIndex index;       // index of type record for field
   // variable length offset of field followed by length prefixed name of field
 };
 
 struct Enumerator {
   // ulittle16_t  leaf; // LF_MEMBER
-  ulittle16_t attr;     // attribute mask
+  MemberAttributes attr; // attribute mask
   // variable length numeric leaf for the enumerator value followed by length
   // prefixed name of the enumerator
 };
 
 struct BaseClass {
   // ulittle16_t leaf; // LF_BCLASS, LF_BINTERFACE
-  ulittle16_t attr; // attribute
-  TypeIndex index;  // type index of base class
+  MemberAttributes attr; // attribute
+  TypeIndex index;       // type index of base class
   // variable length offset of base within class
   // unsigned char offset[CV_ZEROLEN];
 };
 
 struct VirtualBaseClass {
   // ulittle16_t leaf; // LF_VBCLASS | LV_IVBCLASS
-  ulittle16_t attr; // attribute
-  TypeIndex index;  // type index of direct virtual base class
-  TypeIndex vbptr;  // type index of virtual base pointer
+  MemberAttributes attr; // attribute
+  TypeIndex index;       // type index of direct virtual base class
+  TypeIndex vbptr;       // type index of virtual base pointer
   // virtual base pointer offset from address point followed by virtual base
   // offset from vbtable
   // unsigned char vbpoff[CV_ZEROLEN];

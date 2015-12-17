@@ -83,6 +83,8 @@ private:
                                       const SectionRef &Section,
                                       uint32_t Offset);
 
+  void printMemberAttributes(MemberAttributes Attrs);
+
   void cacheRelocations();
 
   std::error_code resolveSymbol(const coff_section *Section, uint64_t Offset,
@@ -509,25 +511,28 @@ static const EnumEntry<uint16_t> TagPropertyFlags[] = {
     LLVM_READOBJ_ENUM_ENT(TagProperties, mocom1),
 };
 
-static const EnumEntry<uint16_t> MemberAttributeFlags[] = {
-    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Access),
-    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_MProp),
+static const EnumEntry<uint16_t> AccessSpecifierNames[] = {
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, AS_private),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, AS_protected),
+    LLVM_READOBJ_ENUM_ENT(MemberAttributes, AS_public),
+};
+
+static const EnumEntry<uint16_t> MemberAttributeNames[] = {
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Pseudo),
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_NoInherit),
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_NoConstruct),
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_CompilerGenerated),
     LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Sealed),
-    LLVM_READOBJ_ENUM_ENT(MemberAttributes, MA_Unused),
 };
 
 static const EnumEntry<uint16_t> MethodPropertyNames[] = {
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Vanilla),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Virtual),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Static),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_Friend),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_IntroVirt),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_PureVirt),
-  LLVM_READOBJ_ENUM_ENT(MethodProperties, MP_PureIntro),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_Vanilla),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_Virtual),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_Static),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_Friend),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_IntroVirt),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_PureVirt),
+  LLVM_READOBJ_ENUM_ENT(MemberAttributes, MP_PureIntro),
 };
 
 static const EnumEntry<BuiltinTypes> BuiltinTypeNames[] = {
@@ -1018,7 +1023,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                               OffsetInSection + OffsetOfOff, LinkageName));
 
       size_t DisplayNameLen =
-          (Proc->reclen + sizeof(Proc->reclen)) - sizeof(*Proc);
+          (Rec->reclen + sizeof(Rec->reclen)) - sizeof(*Rec);
       if (DisplayNameLen) {
         StringRef DisplayName = StringRef(Proc->name, DisplayNameLen);
         W.printString("DisplayName", DisplayName);
@@ -1406,6 +1411,19 @@ static StringRef skipPadding(StringRef Data) {
   return Data.drop_front(Leaf & 0x0F);
 }
 
+void COFFDumper::printMemberAttributes(MemberAttributes Attrs) {
+  W.printEnum("AccessSpecifier", Attrs.getAccess(),
+              makeArrayRef(AccessSpecifierNames));
+  auto MP = Attrs.getMethodProperties();
+  if (MP) {
+    W.printEnum("MethodProperties", MP, makeArrayRef(MethodPropertyNames));
+  }
+  if (Attrs.getFlags()) {
+    W.printFlags("MemberAttributes", unsigned(Attrs.getFlags()),
+                 makeArrayRef(MemberAttributeNames));
+  }
+}
+
 void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
   while (!FieldData.empty()) {
     if (FieldData.size() < sizeof(TypeRecord))
@@ -1435,10 +1453,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const OneMethod *Method;
       error(getObjectPtr(FieldData, Method));
       DictScope S(W, "OneMethod");
-      W.printFlags("MemberAttributes", Method->attr,
-                   makeArrayRef(MemberAttributeFlags));
-      W.printEnum("MethodProperties", Method->getMethodProperties(),
-                  makeArrayRef(MethodPropertyNames));
+      printMemberAttributes(Method->attr);
       printTypeIndex("Type", Method->index);
       // If virtual, then read the vftable offset.
       if (Method->isVirtual()) {
@@ -1468,8 +1483,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const DataMember *Field;
       error(getObjectPtr(FieldData, Field));
       DictScope S(W, "DataMember");
-      W.printFlags("MemberAttributes", Field->attr,
-                   makeArrayRef(MemberAttributeFlags));
+      printMemberAttributes(Field->attr);
       printTypeIndex("Type", Field->index);
       uint64_t FieldOffset;
       error(decodeUIntLeaf(FieldData, FieldOffset));
@@ -1492,8 +1506,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const Enumerator *Enum;
       error(getObjectPtr(FieldData, Enum));
       DictScope S(W, "Enumerator");
-      W.printFlags("MemberAttributes", Enum->attr,
-                   makeArrayRef(MemberAttributeFlags));
+      printMemberAttributes(Enum->attr);
       uint64_t EnumValue;
       error(decodeUIntLeaf(FieldData, EnumValue));
       W.printHex("EnumValue", EnumValue);
@@ -1508,8 +1521,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const BaseClass *Base;
       error(getObjectPtr(FieldData, Base));
       DictScope S(W, "BaseClass");
-      W.printFlags("MemberAttributes", Base->attr,
-                   makeArrayRef(MemberAttributeFlags));
+      printMemberAttributes(Base->attr);
       printTypeIndex("Type", Base->index);
       uint64_t BaseOffset;
       error(decodeUIntLeaf(FieldData, BaseOffset));
@@ -1522,8 +1534,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       const VirtualBaseClass *Base;
       error(getObjectPtr(FieldData, Base));
       DictScope S(W, "VirtualBaseClass");
-      W.printFlags("MemberAttributes", Base->attr,
-                   makeArrayRef(MemberAttributeFlags));
+      printMemberAttributes(Base->attr);
       printTypeIndex("Type",  Base->index);
       printTypeIndex("VBPtrTypeIndex", Base->vbptr);
       uint64_t VBPtrOffset, VBTableIndex;
