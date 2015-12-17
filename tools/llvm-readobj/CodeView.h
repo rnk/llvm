@@ -775,7 +775,7 @@ enum TagProperties : uint16_t {
   opcast = (1 << 6),   // true if casting methods
   fwdref = (1 << 7),   // true if forward reference (incomplete defn)
   scoped = (1 << 8),   // scoped definition
-  asuniquename = (1 << 9), // true if there is a decorated name following the regular name
+  hasuniquename = (1 << 9), // true if there is a decorated name following the regular name
   sealed = (1 << 10),    // true if class cannot be used as a base class
   hfa0 = (1 << 11),      // CV_HFA_e
   hfa1 = (1 << 12),      // CV_HFA_e

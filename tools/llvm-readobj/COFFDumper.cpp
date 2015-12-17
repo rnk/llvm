@@ -493,7 +493,7 @@ static const EnumEntry<uint16_t> TagPropertyFlags[] = {
     LLVM_READOBJ_ENUM_ENT(TagProperties, opcast),
     LLVM_READOBJ_ENUM_ENT(TagProperties, fwdref),
     LLVM_READOBJ_ENUM_ENT(TagProperties, scoped),
-    LLVM_READOBJ_ENUM_ENT(TagProperties, asuniquename),
+    LLVM_READOBJ_ENUM_ENT(TagProperties, hasuniquename),
     LLVM_READOBJ_ENUM_ENT(TagProperties, sealed),
     LLVM_READOBJ_ENUM_ENT(TagProperties, hfa0),
     LLVM_READOBJ_ENUM_ENT(TagProperties, hfa1),
@@ -1070,6 +1070,32 @@ static const T *castTypeRec(const TypeRecord *Rec) {
   return reinterpret_cast<const T*>(Rec);
 }
 
+/// Decode an unsigned integer numeric leaf value.
+std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
+  if (Data.size() < 2)
+    return object_error::parse_failed;
+  uint16_t Short = *reinterpret_cast<const ulittle16_t *>(Data.data());
+  Data = Data.drop_front(2);
+  if (Short < LF_NUMERIC) {
+    Num = Short;
+    return std::error_code();
+  }
+  switch (Short) {
+  case LF_USHORT:
+    Num = *reinterpret_cast<const ulittle16_t *>(Data.data());
+    Data = Data.drop_front(2);
+    return std::error_code();
+  case LF_ULONG:
+    Num = *reinterpret_cast<const ulittle32_t *>(Data.data());
+    Data = Data.drop_front(4);
+    return std::error_code();
+  case LF_UQUADWORD:
+    Num = *reinterpret_cast<const ulittle64_t *>(Data.data());
+    Data = Data.drop_front(8);
+    return std::error_code();
+  }
+  return object_error::parse_failed;
+}
 
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                                           const SectionRef &Section) {
@@ -1105,8 +1131,23 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("FieldTypeIndex", Class->field);
       W.printNumber("DerivedFrom", Class->derived);
       W.printNumber("VShape", Class->vshape);
-      StringRef NameData(&Class->data[0], Rec->len + 2 - sizeof(*Class));
+      StringRef NameData(&Class->data[0],
+                         Rec->len + 2 - offsetof(ClassType, data));
       W.printBinaryBlock("NameData", NameData);
+      uint64_t SizeOf;
+      error(decodeUIntLeaf(NameData, SizeOf));
+      W.printNumber("SizeOf", SizeOf);
+      StringRef Name, LinkageName;
+      std::tie(Name, LinkageName) = NameData.split('\0');
+      W.printString("Name", Name);
+      if (Class->property & hasuniquename) {
+        size_t Pos = LinkageName.rfind('\0');
+        if (Pos != StringRef::npos)
+          LinkageName = LinkageName.substr(0, Pos);
+        if (LinkageName.empty())
+          return error(object_error::parse_failed);
+        W.printString("LinkageName", LinkageName);
+      }
       break;
     }
 
