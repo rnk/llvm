@@ -1392,7 +1392,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       DictScope S(W, "VFTableType");
       W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("CompleteClass", VFT->CompleteClass);
-      printTypeIndex("OverriddenVFtable", VFT->OverriddenVFtable);
+      printTypeIndex("OverriddenVFTable", VFT->OverriddenVFTable);
       W.printHex("VFPtrOffset", VFT->VFPtrOffset);
       StringRef NamesData = LeafData.substr(0, VFT->NamesLen);
       std::tie(Name, NamesData) = NamesData.split('\0');
