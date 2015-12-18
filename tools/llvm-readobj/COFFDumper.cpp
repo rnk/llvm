@@ -534,7 +534,6 @@ static const EnumEntry<uint16_t> MethodPropertyNames[] = {
 static const EnumEntry<BuiltinType> BuiltinTypeNames[] = {
 #define BUILTIN_TYPE(name, val) LLVM_READOBJ_ENUM_ENT(BuiltinType, name),
 #include "CVBuiltinTypes.def"
-#undef BUILTIN_TYPE
 };
 
 static const EnumEntry<LeafType> LeafTypeNames[] = {

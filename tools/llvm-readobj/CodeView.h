@@ -567,7 +567,6 @@ enum LeafType : uint16_t {
 enum BuiltinType : unsigned {
 #define BUILTIN_TYPE(name, val) name = val,
 #include "CVBuiltinTypes.def"
-#undef BUILTIN_TYPE
 };
 
 /// Equvalent to CV_prop_t in cvinfo.h.
