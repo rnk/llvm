@@ -572,107 +572,97 @@ enum BuiltinType : unsigned {
 };
 
 /// Equvalent to CV_prop_t in cvinfo.h.
-enum TagProperties : uint16_t {
-  packed = (1 << 0),   // true if structure is packed
-  ctor = (1 << 1),     // true if constructors or destructors present
-  ovlops = (1 << 2),   // true if overloaded operators present
-  isnested = (1 << 3), // true if this is a nested class
-  cnested = (1 << 4),  // true if this class contains nested types
-  opassign = (1 << 5), // true if overloaded assignment (=)
-  opcast = (1 << 6),   // true if casting methods
-  fwdref = (1 << 7),   // true if forward reference (incomplete defn)
-  scoped = (1 << 8),   // scoped definition
-  hasuniquename = (1 << 9), // true if there is a decorated name following the regular name
-  sealed = (1 << 10),    // true if class cannot be used as a base class
-  hfa0 = (1 << 11),      // CV_HFA_e
-  hfa1 = (1 << 12),      // CV_HFA_e
-  intrinsic = (1 << 13), // true if class is an intrinsic type (e.g. __m128d)
-  mocom0 = (1 << 14),    // CV_MOCOM_UDT_e
-  mocom1 = (1 << 15),    // CV_MOCOM_UDT_e
+enum ClassOptions : uint16_t {
+  Packed = 0x0001,
+  HasConstructorOrDestructor = 0x0002,
+  HasOverloadedOperator = 0x0004,
+  Nested = 0x0008,
+  ContainsNestedClass = 0x0010,
+  HasOverloadedAssignmentOperator = 0x0020,
+  HasConversionOperator = 0x0040,
+  ForwardReference = 0x0080,
+  Scoped = 0x0100,
+  HasUniqueName = 0x0200,
+  Sealed = 0x0400,
+  // Two bits for HFA classification.
+  Intrinsic = 0x2000,
+  // Two bits for MOCOM classification.
 };
 
+// A CodeView type stream is a sequence of TypeRecords. Records larger than
+// 65536 must chain on to a second record. Each TypeRecord is followed by one of
+// the leaf types described below.
 struct TypeRecord {
-  ulittle16_t len;
-  ulittle16_t leaf;
+  ulittle16_t Len;  // Type record length, starting from &Leaf.
+  ulittle16_t Leaf; // Type record kind (LeafType)
 };
 
 // LF_TYPESERVER2
 struct TypeServer2 {
-  char sig70[16];  // guid signature
-  ulittle32_t age; // age of database used by this module
-  char name[1];    // length prefixed name of PDB
+  char Signature[16];  // GUID
+  ulittle32_t Age;
+  // Name: Name of the PDB as a null-terminated string
 };
 
 // LF_STRING_ID
 struct StringId {
   TypeIndex id;
-  char data[1];
 };
 
 // LF_CLASS, LF_STRUCT, LF_INTERFACE
 struct ClassType {
-  ulittle16_t count;    // count of number of elements in class
-  ulittle16_t property; // property attribute field (TagProperties)
-  TypeIndex field;      // type index of LF_FIELD descriptor list
-  TypeIndex derived;    // type index of derived from list if not zero
-  TypeIndex vshape;     // type index of vshape table for this class
+  ulittle16_t MemberCount; // Number of members in FieldList.
+  ulittle16_t Properties;  // ClassOptions bitset
+  TypeIndex FieldList;     // LF_FIELDLIST: List of all kinds of members
+  TypeIndex DerivedFrom;   // LF_DERIVED: List of known derived classes
+  TypeIndex VShape;        // LF_VTSHAPE: Shape of the vftable
   // SizeOf: The 'sizeof' the UDT in bytes is encoded as an LF_NUMERIC integer.
   // Name: The null-terminated name follows.
 };
 
 // LF_POINTER
 struct PointerType {
-  TypeIndex utype; // type index of pointee type
+  TypeIndex PointeeType;
   ulittle32_t Attrs; // pointer attributes
   // if pointer to member:
-  //   TypeIndex pmclass;
-  //   ulittle16_t pmenum; // CV_pmtype_e
-  // else if CV_PTR_BASE_SEG:
-  //   ulittle16_t bseg;
-  //   char Sym[1]
-  // else if CV_PTR_BASE_TYPE:
-  //   CV_typ_t index;      // type index if CV_PTR_BASE_TYPE
-  //   char name[1];        // name of base type
+  //   PointerToMemberTail
 
-  enum CV_ptrtype_e : uint8_t {
-    CV_PTR_NEAR         = 0x00, // 16 bit pointer
-    CV_PTR_FAR          = 0x01, // 16:16 far pointer
-    CV_PTR_HUGE         = 0x02, // 16:16 huge pointer
-    CV_PTR_BASE_SEG     = 0x03, // based on segment
-    CV_PTR_BASE_VAL     = 0x04, // based on value of base
-    CV_PTR_BASE_SEGVAL  = 0x05, // based on segment value of base
-    CV_PTR_BASE_ADDR    = 0x06, // based on address of base
-    CV_PTR_BASE_SEGADDR = 0x07, // based on segment address of base
-    CV_PTR_BASE_TYPE    = 0x08, // based on type
-    CV_PTR_BASE_SELF    = 0x09, // based on self
-    CV_PTR_NEAR32       = 0x0a, // 32 bit pointer
-    CV_PTR_FAR32        = 0x0b, // 16:32 pointer
-    CV_PTR_64           = 0x0c, // 64 bit pointer
-    CV_PTR_UNUSEDPTR    = 0x0d  // first unused pointer type
+  enum PointerKind : uint8_t {
+    Near16 = 0x00,                // 16 bit pointer
+    Far16 = 0x01,                 // 16:16 far pointer
+    Huge16 = 0x02,                // 16:16 huge pointer
+    BasedOnSegment = 0x03,        // based on segment
+    BasedOnValue = 0x04,          // based on value of base
+    BasedOnSegmentValue = 0x05,   // based on segment value of base
+    BasedOnAddress = 0x06,        // based on address of base
+    BasedOnSegmentAddress = 0x07, // based on segment address of base
+    BasedOnType = 0x08,           // based on type
+    BasedOnSelf = 0x09,           // based on self
+    Near32 = 0x0a,                // 32 bit pointer
+    Far32 = 0x0b,                 // 16:32 pointer
+    Near64 = 0x0c                 // 64 bit pointer
   };
 
-  enum CV_ptrmode_e : uint8_t {
-    CV_PTR_MODE_PTR     = 0x00, // "normal" pointer
-    CV_PTR_MODE_REF     = 0x01, // "old" reference
-    CV_PTR_MODE_LVREF   = 0x01, // l-value reference
-    CV_PTR_MODE_PMEM    = 0x02, // pointer to data member
-    CV_PTR_MODE_PMFUNC  = 0x03, // pointer to member function
-    CV_PTR_MODE_RVREF   = 0x04, // r-value reference
-    CV_PTR_MODE_RESERVED= 0x05  // first unused pointer mode
+  enum PointerMode : uint8_t {
+    Pointer = 0x00,                 // "normal" pointer
+    LValueReference = 0x01,         // "old" reference
+    PointerToDataMember = 0x02,     // pointer to data member
+    PointerToMemberFunction = 0x03, // pointer to member function
+    RValueReference = 0x04          // r-value reference
   };
 
-  CV_ptrtype_e getPtrType() const { return CV_ptrtype_e(Attrs & 0x1f); }
-  CV_ptrmode_e getPtrMode() const { return CV_ptrmode_e((Attrs & 0x07) >> 5); }
-  bool isFlat()      const { return Attrs & (1 <<  8); }
-  bool isVolatile()  const { return Attrs & (1 <<  9); }
-  bool isConst()     const { return Attrs & (1 << 10); }
+  PointerKind getPtrKind() const { return PointerKind(Attrs & 0x1f); }
+  PointerMode getPtrMode() const { return PointerMode((Attrs & 0x07) >> 5); }
+  bool isFlat() const { return Attrs & (1 << 8); }
+  bool isVolatile() const { return Attrs & (1 << 9); }
+  bool isConst() const { return Attrs & (1 << 10); }
   bool isUnaligned() const { return Attrs & (1 << 11); }
 
   bool isPointerToDataMember() const {
-    return getPtrMode() == CV_PTR_MODE_PMEM;
+    return getPtrMode() == PointerToDataMember;
   }
   bool isPointerToMemberFunction() const {
-    return getPtrMode() == CV_PTR_MODE_PMFUNC;
+    return getPtrMode() == PointerToMemberFunction;
   }
   bool isPointerToMember() const {
     return isPointerToMemberFunction() || isPointerToDataMember();
@@ -684,16 +674,16 @@ struct PointerToMemberTail {
   ulittle16_t Representation;
 
   /// Equivalent to CV_pmtype_e.
-  enum CV_pmtype_e {
-    CV_PMTYPE_Undef     = 0x00, // not specified (pre VC8)
-    CV_PMTYPE_D_Single  = 0x01, // member data, single inheritance
-    CV_PMTYPE_D_Multiple= 0x02, // member data, multiple inheritance
-    CV_PMTYPE_D_Virtual = 0x03, // member data, virtual inheritance
-    CV_PMTYPE_D_General = 0x04, // member data, most general
-    CV_PMTYPE_F_Single  = 0x05, // member function, single inheritance
-    CV_PMTYPE_F_Multiple= 0x06, // member function, multiple inheritance
-    CV_PMTYPE_F_Virtual = 0x07, // member function, virtual inheritance
-    CV_PMTYPE_F_General = 0x08, // member function, most general
+  enum PointerToMemberRepresentation : uint16_t {
+    Unknown = 0x00,                     // not specified (pre VC8)
+    SingleInheritanceData = 0x01,       // member data, single inheritance
+    MultipleInheritanceData = 0x02,     // member data, multiple inheritance
+    VirtualInheritanceData = 0x03,      // member data, virtual inheritance
+    GeneralData = 0x04,                 // member data, most general
+    SingleInheritanceFunction = 0x05,   // member function, single inheritance
+    MultipleInheritanceFunction = 0x06, // member function, multiple inheritance
+    VirtualInheritanceFunction = 0x07,  // member function, virtual inheritance
+    GeneralFunction = 0x08              // member function, most general
   };
 };
 
@@ -913,7 +903,7 @@ struct Enumerator {
 // LF_BCLASS, LF_BINTERFACE
 struct BaseClass {
   MemberAttributes Attrs; // Access control attributes, etc
-  TypeIndex BaseType;    // Base class type
+  TypeIndex BaseType;     // Base class type
   // BaseOffset: LF_NUMERIC encoded byte offset of base from derived.
 };
 
