@@ -1296,6 +1296,20 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_ARGLIST:
+    case LF_SUBSTR_LIST: {
+      const ArgList *Args;
+      error(consumeObject(LeafData, Args));
+      ListScope S(W, "ArgList");
+      W.printNumber("NumArgs", Args->NumArgs);
+      for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
+        const TypeIndex *Type;
+        error(consumeObject(LeafData, Type));
+        printTypeIndex("ArgType", *Type);
+      }
+      break;
+    }
+
     case LF_CLASS:
     case LF_STRUCTURE:
     case LF_INTERFACE: {
