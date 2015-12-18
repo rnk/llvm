@@ -798,44 +798,34 @@ struct TypeRecord {
   ulittle16_t leaf;
 };
 
+// LF_TYPESERVER2
 struct TypeServer2 {
-  TypeRecord Base; // LF_TYPESERVER2
-
   char sig70[16];  // guid signature
   ulittle32_t age; // age of database used by this module
   char name[1];    // length prefixed name of PDB
 };
 
+// LF_STRING_ID
 struct StringId {
-  TypeRecord Base;
-
   TypeIndex id;
   char data[1];
 };
 
+// LF_CLASS, LF_STRUCT, LF_INTERFACE
 struct ClassType {
-  TypeRecord Base; // LF_CLASS, LF_STRUCT, LF_INTERFACE
-
   ulittle16_t count;    // count of number of elements in class
   ulittle16_t property; // property attribute field (TagProperties)
   TypeIndex field;      // type index of LF_FIELD descriptor list
   TypeIndex derived;    // type index of derived from list if not zero
   TypeIndex vshape;     // type index of vshape table for this class
-  char data[1];         // data describing length of structure in
-                        // bytes and name
+  // SizeOf: The 'sizeof' the UDT in bytes is encoded as an LF_NUMERIC integer.
+  // Name: The null-terminated name follows.
 };
 
-struct FieldList {
-  TypeRecord Base; // LF_FIELDLIST
-
-  char data[1];     // field list sub lists
-};
-
+// LF_POINTER
 struct PointerType {
-  TypeRecord Base; // LF_POINTER
-
   TypeIndex utype; // type index of pointee type
-  ulittle32_t attr; // pointer attributes
+  ulittle32_t Attrs; // pointer attributes
   // if pointer to member:
   //   TypeIndex pmclass;
   //   ulittle16_t pmenum; // CV_pmtype_e
@@ -873,12 +863,12 @@ struct PointerType {
     CV_PTR_MODE_RESERVED= 0x05  // first unused pointer mode
   };
 
-  CV_ptrtype_e getPtrType() const { return CV_ptrtype_e(attr & 0x1f); }
-  CV_ptrmode_e getPtrMode() const { return CV_ptrmode_e((attr & 0x07) >> 5); }
-  bool isFlat()      const { return attr & (1 <<  8); }
-  bool isVolatile()  const { return attr & (1 <<  9); }
-  bool isConst()     const { return attr & (1 << 10); }
-  bool isUnaligned() const { return attr & (1 << 11); }
+  CV_ptrtype_e getPtrType() const { return CV_ptrtype_e(Attrs & 0x1f); }
+  CV_ptrmode_e getPtrMode() const { return CV_ptrmode_e((Attrs & 0x07) >> 5); }
+  bool isFlat()      const { return Attrs & (1 <<  8); }
+  bool isVolatile()  const { return Attrs & (1 <<  9); }
+  bool isConst()     const { return Attrs & (1 << 10); }
+  bool isUnaligned() const { return Attrs & (1 << 11); }
 
   bool isPointerToDataMember() const {
     return getPtrMode() == CV_PTR_MODE_PMEM;
@@ -892,9 +882,10 @@ struct PointerType {
 };
 
 struct PointerToMemberTail {
-  TypeIndex pmclass;
-  ulittle16_t pmenum;
+  TypeIndex ClassType;
+  ulittle16_t Representation;
 
+  /// Equivalent to CV_pmtype_e.
   enum CV_pmtype_e {
     CV_PMTYPE_Undef     = 0x00, // not specified (pre VC8)
     CV_PMTYPE_D_Single  = 0x01, // member data, single inheritance
@@ -908,38 +899,29 @@ struct PointerToMemberTail {
   };
 };
 
-/// In Clang parlance, these are "qualifiers".
+/// In Clang parlance, these are "qualifiers".  LF_MODIFIER
 struct TypeModifier {
-  TypeRecord Base;   // LF_MODIFIER
-  TypeIndex type;    // modified type
-  ulittle16_t attr;  // modifier attribute (CV_modifier_t)
+  TypeIndex ModifiedType;
+  ulittle16_t Modifiers;
 
-  enum CV_modifier_t : uint16_t {
-    MOD_const       = (1 << 0),
-    MOD_volatile    = (1 << 1),
-    MOD_unaligned   = (1 << 2),
+  /// Equivalent to CV_modifier_t.
+  enum QualFlags : uint16_t {
+    Const       = (1 << 0),
+    Volatile    = (1 << 1),
+    Unaligned   = (1 << 2),
   };
 };
 
+// LF_VTSHAPE
 struct VTableShape {
-  TypeRecord Base;                // LF_VTSHAPE
-  ulittle16_t count;              // number of entries in vfunctable
-  //unsigned char desc[CV_ZEROLEN]; // 4 bit (CV_VTS_desc) descriptors
-
-  enum CV_VTS_desc_e {
-    CV_VTS_near         = 0x00,
-    CV_VTS_far          = 0x01,
-    CV_VTS_thin         = 0x02,
-    CV_VTS_outer        = 0x03,
-    CV_VTS_meta         = 0x04,
-    CV_VTS_near32       = 0x05,
-    CV_VTS_far32        = 0x06,
-    CV_VTS_unused       = 0x07
-  };
+  // Number of vftable entries. Each method may have more than one entry due to
+  // things like covariant return types.
+  ulittle16_t VFEntryCount;
+  // Descriptors[]: 4-bit virtual method descriptors of type CV_VTS_desc_e.
 };
 
+// LF_UDT_SRC_LINE
 struct UDTSrcLine {
-  TypeRecord Base;      // LF_UDT_SRC_LINE
   TypeIndex UDT;        // The user-defined type
   TypeIndex SourceFile; // StringID containing the source filename
   ulittle32_t LineNumber;
@@ -948,16 +930,9 @@ struct UDTSrcLine {
 //===----------------------------------------------------------------------===//
 // Field list records, which do not include leafs or sizes
 
-struct NestedType {
-  // ulittle16_t leaf;   // LF_NESTTYPE
-  ulittle16_t pad0;      // internal padding, must be 0
-  TypeIndex index;       // index of nested type definition
-  // char Name[];        // length prefixed type name
-};
-
 /// Equvalent to CV_fldattr_t in cvinfo.h.
 struct MemberAttributes {
-  ulittle16_t attr;
+  ulittle16_t Attrs;
 
   enum Flags : uint16_t {
     MA_Access = 0x3,
@@ -972,7 +947,7 @@ struct MemberAttributes {
   /// Get the flags that are not included in access control or method
   /// properties.
   Flags getFlags() const {
-    return Flags(unsigned(attr) & ~(MA_Access | MA_MProp));
+    return Flags(unsigned(Attrs) & ~(MA_Access | MA_MProp));
   }
 
   /// Possible values of MA_MProp. (CV_methodprop_e)
@@ -988,7 +963,7 @@ struct MemberAttributes {
 
   /// Indicates if a method is defined with friend, virtual, static, etc.
   MethodProperties getMethodProperties() const {
-    return MethodProperties((attr & MA_MProp) >> 2);
+    return MethodProperties((Attrs & MA_MProp) >> 2);
   }
 
   /// Is this method virtual.
@@ -1011,69 +986,75 @@ struct MemberAttributes {
   };
 
   AccessSpecifier getAccess() const {
-    return AccessSpecifier(attr & MA_Access);
+    return AccessSpecifier(Attrs & MA_Access);
   }
 };
 
+// LF_NESTTYPE
+struct NestedType {
+  ulittle16_t Pad0; // Should be zero
+  TypeIndex Type;   // Type index of nested type
+  // Name: Null-terminated string
+};
+
+// LF_ONEMETHOD
 struct OneMethod {
-  // ulittle16_t leaf; // LF_ONEMETHOD
-  MemberAttributes attr;
-  TypeIndex index;       // index to type record for procedure
-  // offset in vfunctable if intro virtual followed by length prefixed name of
-  // method
+  MemberAttributes Attrs;
+  TypeIndex Type;
+  // If is introduced virtual method:
+  //   VFTableOffset: LF_NUMERIC encoded byte offset in vftable
+  // Name: Null-terminated string
 
   MemberAttributes::MethodProperties getMethodProperties() const {
-    return attr.getMethodProperties();
+    return Attrs.getMethodProperties();
   }
 
-  bool isVirtual() const { return attr.isVirtual(); }
-  bool isIntroducedVirtual() const { return attr.isIntroducedVirtual(); }
+  bool isVirtual() const { return Attrs.isVirtual(); }
+  bool isIntroducedVirtual() const { return Attrs.isIntroducedVirtual(); }
 };
 
-/// For method overload sets.
+/// For method overload sets.  LF_METHOD
 struct OverloadedMethod {
-    // ulittle16_t leaf;            // LF_METHOD
-    ulittle16_t count;              // number of occurrences of function
-    TypeIndex mList;                // index to LF_METHODLIST record
-    // unsigned char   Name[1];     // length prefixed name of method
+  ulittle16_t MethodCount; // Size of overload set
+  TypeIndex MethList;      // Type index of methods in overload set
+  // Name: Null-terminated string
 };
 
+// LF_VFUNCTAB
 struct VirtualFunctionPointer {
-  // ulittle16_t  leaf; // LF_VFUNCTAB
-  ulittle16_t pad0; // internal padding, must be 0
-  TypeIndex type;   // type index of pointer
+  ulittle16_t Pad0;
+  TypeIndex Type;   // Type of vfptr
 };
 
+// LF_MEMBER
 struct DataMember {
-  // ulittle16_t  leaf; // LF_MEMBER
-  MemberAttributes attr; // attribute mask
-  TypeIndex index;       // index of type record for field
-  // variable length offset of field followed by length prefixed name of field
+  MemberAttributes Attrs; // Access control attributes, etc
+  TypeIndex Type;
+  // FieldOffset: LF_NUMERIC encoded byte offset
+  // Name: Null-terminated string
 };
 
+// LF_ENUMERATE
 struct Enumerator {
-  // ulittle16_t  leaf; // LF_MEMBER
-  MemberAttributes attr; // attribute mask
-  // variable length numeric leaf for the enumerator value followed by length
-  // prefixed name of the enumerator
+  MemberAttributes Attrs; // Access control attributes, etc
+  // EnumValue: LF_NUMERIC encoded enumerator value
+  // Name: Null-terminated string
 };
 
+// LF_BCLASS, LF_BINTERFACE
 struct BaseClass {
-  // ulittle16_t leaf; // LF_BCLASS, LF_BINTERFACE
-  MemberAttributes attr; // attribute
-  TypeIndex index;       // type index of base class
-  // variable length offset of base within class
-  // unsigned char offset[CV_ZEROLEN];
+  MemberAttributes Attrs; // Access control attributes, etc
+  TypeIndex BaseType;    // Base class type
+  // BaseOffset: LF_NUMERIC encoded byte offset of base from derived.
 };
 
+// LF_VBCLASS | LV_IVBCLASS
 struct VirtualBaseClass {
-  // ulittle16_t leaf; // LF_VBCLASS | LV_IVBCLASS
-  MemberAttributes attr; // attribute
-  TypeIndex index;       // type index of direct virtual base class
-  TypeIndex vbptr;       // type index of virtual base pointer
-  // virtual base pointer offset from address point followed by virtual base
-  // offset from vbtable
-  // unsigned char vbpoff[CV_ZEROLEN];
+  MemberAttributes Attrs; // Access control attributes, etc.
+  TypeIndex BaseType;     // Base class type
+  TypeIndex vbptr;        // Virtual base pointer type
+  // VBPtrOffset: Offset of vbptr from vfptr encoded as LF_NUMERIC.
+  // VBTableIndex: Index of vbase within vbtable encoded as LF_NUMERIC.
 };
 
 LLVM_PACKED_END

@@ -581,9 +581,9 @@ static const EnumEntry<PointerToMemberTail::CV_pmtype_e> PtrMemberRepNames[] = {
 };
 
 static const EnumEntry<uint16_t> TypeModifierNames[] = {
-    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_const),
-    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_volatile),
-    LLVM_READOBJ_ENUM_ENT(TypeModifier, MOD_unaligned),
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, Const),
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, Volatile),
+    LLVM_READOBJ_ENUM_ENT(TypeModifier, Unaligned),
 };
 
 template <typename T>
@@ -1154,7 +1154,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
 }
 
 StringRef nextType(StringRef Data, const TypeRecord *Rec) {
-  return Data.drop_front(sizeof(Rec->len) + Rec->len);
+  return Data.drop_front(Rec->len - sizeof(Rec->leaf));
 }
 
 template <typename T>
@@ -1222,8 +1222,11 @@ void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
     W.printHex(FieldName, TypeIndex);
 }
 
+/// Consumes sizeof(T) bytes from the given byte sequence. Returns an error if
+/// there are not enough bytes remaining. Reinterprets the consumed bytes as a
+/// T object and points 'Res' at them.
 template <typename T>
-static std::error_code getObjectPtr(StringRef &Data, const T *&Res) {
+static std::error_code consumeObject(StringRef &Data, const T *&Res) {
   if (Data.size() < sizeof(*Res))
     return object_error::parse_failed;
   Res = reinterpret_cast<const T *>(Data.data());
@@ -1245,14 +1248,14 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
   Data = Data.drop_front(4);
 
   while (!Data.empty()) {
-    if (Data.size() < sizeof(TypeRecord))
-      return error(object_error::parse_failed);
-    auto *Rec = reinterpret_cast<const TypeRecord *>(Data.data());
+    const TypeRecord *Rec;
+    error(consumeObject(Data, Rec));
     auto Leaf = static_cast<LeafType>(uint16_t(Rec->leaf));
 
-    // Many of the leafs are just binary blobs.
-    StringRef LeafData =
-        getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Rec + 1));
+    // This record is 'len - 2' bytes, and the next one starts immediately
+    // afterwards.
+    StringRef LeafData = Data.substr(0, Rec->len - 2);
+    StringRef RemainingData = Data.drop_front(LeafData.size());
 
     unsigned NextTypeIndex = 0x1000 + CVUDTNames.size();
     StringRef Name;
@@ -1271,9 +1274,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_STRING_ID: {
       DictScope S(W, "StringId");
       W.printHex("TypeIndex", NextTypeIndex);
-      auto *String = castTypeRec<StringId>(Rec);
-      if (!String)
-        return error(object_error::parse_failed);
+      const StringId *String;
+      error(consumeObject(LeafData, String));
       W.printHex("Id", String->id);
       StringRef StringData = getRemainingBytesAsString(Rec, &String->data[0]);
       W.printString("StringData", StringData);
@@ -1286,20 +1288,17 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       ListScope S(W, "FieldList");
       W.printHex("TypeIndex", NextTypeIndex);
       W.printHex("Size", Rec->len);
-      auto *Fields = castTypeRec<FieldList>(Rec);
-      if (!Fields)
-        return error(object_error::parse_failed);
-      StringRef FieldData = getRemainingTypeBytes(Rec, &Fields->data[0]);
-      printCodeViewFieldList(FieldData);
+      // FieldList has no fixed prefix that can be described with a struct. All
+      // the bytes must be interpreted as more records.
+      printCodeViewFieldList(LeafData);
       break;
     }
 
     case LF_CLASS:
     case LF_STRUCTURE:
     case LF_INTERFACE: {
-      auto *Class = castTypeRec<ClassType>(Rec);
-      if (!Class)
-        return error(object_error::parse_failed);
+      const ClassType *Class;
+      error(consumeObject(LeafData, Class));
       DictScope S(W, "ClassType");
       W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("MemberCount", Class->count);
@@ -1308,12 +1307,11 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       printTypeIndex("FieldTypeIndex", Class->field);
       printTypeIndex("DerivedFrom", Class->derived);
       printTypeIndex("VShape", Class->vshape);
-      StringRef NameData = getRemainingTypeBytes(Rec, &Class->data[0]);
       uint64_t SizeOf;
-      error(decodeUIntLeaf(NameData, SizeOf));
+      error(decodeUIntLeaf(LeafData, SizeOf));
       W.printNumber("SizeOf", SizeOf);
       StringRef LinkageName;
-      std::tie(Name, LinkageName) = NameData.split('\0');
+      std::tie(Name, LinkageName) = LeafData.split('\0');
       W.printString("Name", Name);
       if (Class->property & hasuniquename) {
         LinkageName = getRemainingBytesAsString(Rec, LinkageName.data());
@@ -1325,9 +1323,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_TYPESERVER2: {
-      auto *TypeServer = castTypeRec<TypeServer2>(Rec);
-      if (!TypeServer)
-        return error(object_error::parse_failed);
+      const TypeServer2 *TypeServer;
+      error(consumeObject(LeafData, TypeServer));
       DictScope S(W, "TypeServer");
       W.printHex("TypeIndex", NextTypeIndex);
       W.printBinary("Signature", StringRef(TypeServer->sig70, 16));
@@ -1339,13 +1336,12 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_POINTER: {
-      auto *Ptr = castTypeRec<PointerType>(Rec);
-      if (!Ptr)
-        return error(object_error::parse_failed);
+      const PointerType *Ptr;
+      error(consumeObject(LeafData, Ptr));
       DictScope S(W, "PointerType");
       W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("PointeeType", Ptr->utype);
-      W.printHex("PointerAttributes", Ptr->attr);
+      W.printHex("PointerAttributes", Ptr->Attrs);
       W.printEnum("PtrType", unsigned(Ptr->getPtrType()),
                   makeArrayRef(PtrTypeNames));
       W.printEnum("PtrMode", unsigned(Ptr->getPtrMode()),
@@ -1359,9 +1355,9 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
           getRemainingTypeBytes(Rec, reinterpret_cast<const char *>(Ptr + 1));
       if (Ptr->isPointerToMember()) {
         const PointerToMemberTail *PMT;
-        error(getObjectPtr(Tail, PMT));
-        printTypeIndex("ClassType", PMT->pmclass);
-        W.printEnum("Representation", PMT->pmenum,
+        error(consumeObject(Tail, PMT));
+        printTypeIndex("ClassType", PMT->ClassType);
+        W.printEnum("Representation", PMT->Representation,
                     makeArrayRef(PtrMemberRepNames));
       } else {
         W.printBinaryBlock("TailData", Tail);
@@ -1370,33 +1366,31 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_MODIFIER: {
-      auto *Ptr = castTypeRec<TypeModifier>(Rec);
-      if (!Ptr)
-        return error(object_error::parse_failed);
+      const TypeModifier *Mod;
+      error(consumeObject(LeafData, Mod));
       DictScope S(W, "TypeModifier");
       W.printHex("TypeIndex", NextTypeIndex);
-      printTypeIndex("ModifiedType", Ptr->type);
-      W.printFlags("Modifiers", Ptr->attr, makeArrayRef(TypeModifierNames));
+      printTypeIndex("ModifiedType", Mod->ModifiedType);
+      W.printFlags("Modifiers", Mod->Modifiers,
+                   makeArrayRef(TypeModifierNames));
       break;
     }
 
     case LF_VTSHAPE: {
-      auto *Shape = castTypeRec<VTableShape>(Rec);
-      if (!Shape)
-        return error(object_error::parse_failed);
+      const VTableShape *Shape;
+      error(consumeObject(LeafData, Shape));
       DictScope S(W, "VTableShape");
       W.printHex("TypeIndex", NextTypeIndex);
-      unsigned MethodCount = Shape->count;
-      W.printNumber("MethodCount", MethodCount);
+      unsigned VFEntryCount = Shape->VFEntryCount;
+      W.printNumber("VFEntryCount", VFEntryCount);
       // We could print out whether the methods are near or far, but in practice
       // today everything is CV_VTS_near32, so it's just noise.
       break;
     }
 
     case LF_UDT_SRC_LINE: {
-      auto *Line = castTypeRec<UDTSrcLine>(Rec);
-      if (!Line)
-        return error(object_error::parse_failed);
+      const UDTSrcLine *Line;
+      error(consumeObject(LeafData, Line));
       DictScope S(W, "UDTSrcLine");
       W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("UDT", Line->UDT);
@@ -1408,9 +1402,10 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
 
     CVUDTNames.push_back(Name);
 
-    Data = nextType(Data, Rec);
-
-    // 0xF1... alignment
+    Data = RemainingData;
+    // FIXME: The stream contains LF_PAD bytes that we need to ignore, but those
+    // are typically included in LeafData. We may need to call skipPadding() if
+    // we ever find a record that doesn't count those bytes.
   }
 }
 
@@ -1440,11 +1435,8 @@ void COFFDumper::printMemberAttributes(MemberAttributes Attrs) {
 
 void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
   while (!FieldData.empty()) {
-    if (FieldData.size() < sizeof(TypeRecord))
-      return error(object_error::parse_failed);
-
     const ulittle16_t *LeafPtr;
-    error(getObjectPtr(FieldData, LeafPtr));
+    error(consumeObject(FieldData, LeafPtr));
     uint16_t Leaf = *LeafPtr;
     switch (Leaf) {
     default:
@@ -1454,9 +1446,9 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
 
     case LF_NESTTYPE: {
       const NestedType *Nested;
-      error(getObjectPtr(FieldData, Nested));
+      error(consumeObject(FieldData, Nested));
       DictScope S(W, "NestedType");
-      printTypeIndex("Type", Nested->index);
+      printTypeIndex("Type", Nested->Type);
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);
@@ -1465,14 +1457,14 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
 
     case LF_ONEMETHOD: {
       const OneMethod *Method;
-      error(getObjectPtr(FieldData, Method));
+      error(consumeObject(FieldData, Method));
       DictScope S(W, "OneMethod");
-      printMemberAttributes(Method->attr);
-      printTypeIndex("Type", Method->index);
+      printMemberAttributes(Method->Attrs);
+      printTypeIndex("Type", Method->Type);
       // If virtual, then read the vftable offset.
       if (Method->isVirtual()) {
         const ulittle32_t *VFTOffsetPtr;
-        error(getObjectPtr(FieldData, VFTOffsetPtr));
+        error(consumeObject(FieldData, VFTOffsetPtr));
         W.printHex("VFTableOffset", *VFTOffsetPtr);
       }
       StringRef Name;
@@ -1483,10 +1475,10 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
 
     case LF_METHOD: {
       const OverloadedMethod *Method;
-      error(getObjectPtr(FieldData, Method));
+      error(consumeObject(FieldData, Method));
       DictScope S(W, "OverloadedMethod");
-      W.printHex("Count", Method->count);
-      W.printHex("MethodListIndex", Method->mList);
+      W.printHex("MethodCount", Method->MethodCount);
+      W.printHex("MethodListIndex", Method->MethList);
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);
@@ -1495,10 +1487,10 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
 
     case LF_MEMBER: {
       const DataMember *Field;
-      error(getObjectPtr(FieldData, Field));
+      error(consumeObject(FieldData, Field));
       DictScope S(W, "DataMember");
-      printMemberAttributes(Field->attr);
-      printTypeIndex("Type", Field->index);
+      printMemberAttributes(Field->Attrs);
+      printTypeIndex("Type", Field->Type);
       uint64_t FieldOffset;
       error(decodeUIntLeaf(FieldData, FieldOffset));
       W.printHex("FieldOffset", FieldOffset);
@@ -1510,17 +1502,17 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
 
     case LF_VFUNCTAB: {
       const VirtualFunctionPointer *VFTable;
-      error(getObjectPtr(FieldData, VFTable));
+      error(consumeObject(FieldData, VFTable));
       DictScope S(W, "VirtualFunctionPointer");
-      printTypeIndex("Type", VFTable->type);
+      printTypeIndex("Type", VFTable->Type);
       break;
     }
 
     case LF_ENUMERATE: {
       const Enumerator *Enum;
-      error(getObjectPtr(FieldData, Enum));
+      error(consumeObject(FieldData, Enum));
       DictScope S(W, "Enumerator");
-      printMemberAttributes(Enum->attr);
+      printMemberAttributes(Enum->Attrs);
       uint64_t EnumValue;
       error(decodeUIntLeaf(FieldData, EnumValue));
       W.printHex("EnumValue", EnumValue);
@@ -1533,10 +1525,10 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
     case LF_BCLASS:
     case LF_BINTERFACE: {
       const BaseClass *Base;
-      error(getObjectPtr(FieldData, Base));
+      error(consumeObject(FieldData, Base));
       DictScope S(W, "BaseClass");
-      printMemberAttributes(Base->attr);
-      printTypeIndex("Type", Base->index);
+      printMemberAttributes(Base->Attrs);
+      printTypeIndex("BaseType", Base->BaseType);
       uint64_t BaseOffset;
       error(decodeUIntLeaf(FieldData, BaseOffset));
       W.printHex("BaseOffset", BaseOffset);
@@ -1546,10 +1538,10 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
     case LF_VBCLASS:
     case LF_IVBCLASS: {
       const VirtualBaseClass *Base;
-      error(getObjectPtr(FieldData, Base));
+      error(consumeObject(FieldData, Base));
       DictScope S(W, "VirtualBaseClass");
-      printMemberAttributes(Base->attr);
-      printTypeIndex("Type",  Base->index);
+      printMemberAttributes(Base->Attrs);
+      printTypeIndex("BaseType",  Base->BaseType);
       printTypeIndex("VBPtrTypeIndex", Base->vbptr);
       uint64_t VBPtrOffset, VBTableIndex;
       error(decodeUIntLeaf(FieldData, VBPtrOffset));
