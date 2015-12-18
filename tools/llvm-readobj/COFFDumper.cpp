@@ -23,6 +23,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/COFF.h"
@@ -77,6 +78,7 @@ private:
   void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewFieldList(StringRef FieldData);
+  StringRef getTypeName(unsigned TypeIndex);
   void printTypeIndex(StringRef FieldName, unsigned TypeIndex);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
@@ -108,6 +110,8 @@ private:
   /// greater than 0x1000 are user defined. Subtract 0x1000 from the index to
   /// index into this vector.
   SmallVector<StringRef, 10> CVUDTNames;
+
+  StringSet<> TypeNames;
 };
 
 } // namespace
@@ -1247,6 +1251,22 @@ StringRef getRemainingBytesAsString(const TypeRecord *Rec, const char *Start) {
   return Leading;
 }
 
+StringRef COFFDumper::getTypeName(unsigned TypeIndex) {
+  if (TypeIndex < 0x1000) {
+    for (const auto &BuiltinTypeName : BuiltinTypeNames) {
+      if (BuiltinTypeName.Value == TypeIndex)
+        return BuiltinTypeName.Name;
+    }
+    return StringRef();
+  }
+  // User-defined type.
+  StringRef UDTName;
+  unsigned UDTIndex = TypeIndex - 0x1000;
+  if (UDTIndex < CVUDTNames.size())
+    return CVUDTNames[UDTIndex];
+  return StringRef();
+}
+
 void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
   if (TypeIndex < 0x1000) {
     // Basic type.
@@ -1400,8 +1420,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                    makeArrayRef(ClassOptionNames));
       printTypeIndex("UnderlyingType", Enum->UnderlyingType);
       printTypeIndex("FieldListType", Enum->FieldListType);
-      StringRef Name, Null;
-      std::tie(Name, Null) = LeafData.split('\0');
+      Name = LeafData.split('\0').first;
       W.printString("Name", Name);
       break;
     }
@@ -1526,14 +1545,28 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("IsVolatile", Ptr->isVolatile());
       W.printNumber("IsUnaligned", Ptr->isUnaligned());
 
+      StringRef PointeeName = getTypeName(Ptr->PointeeType);
       if (Ptr->isPointerToMember()) {
         const PointerToMemberTail *PMT;
         error(consumeObject(LeafData, PMT));
         printTypeIndex("ClassType", PMT->ClassType);
         W.printEnum("Representation", PMT->Representation,
                     makeArrayRef(PtrMemberRepNames));
+        StringRef ClassName = getTypeName(PMT->ClassType);
+        if (!PointeeName.empty() && !ClassName.empty()) {
+          SmallString<256> TypeName(PointeeName);
+          TypeName.push_back(' ');
+          TypeName.append(ClassName);
+          TypeName.append("::*");
+          Name = TypeNames.insert(TypeName).first->getKey();
+        }
       } else {
         W.printBinaryBlock("TailData", LeafData);
+        if (!PointeeName.empty()) {
+          SmallString<256> TypeName(PointeeName);
+          TypeName.append(" *");
+          Name = TypeNames.insert(TypeName).first->getKey();
+        }
       }
       break;
     }
@@ -1544,6 +1577,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       printTypeIndex("ModifiedType", Mod->ModifiedType);
       W.printFlags("Modifiers", Mod->Modifiers,
                    makeArrayRef(TypeModifierNames));
+      StringRef ModifiedName = getTypeName(Mod->ModifiedType);
+      if (!ModifiedName.empty()) {
+        SmallString<256> TypeName;
+        if (Mod->Modifiers & TypeModifier::Const)
+          TypeName.append("const ");
+        if (Mod->Modifiers & TypeModifier::Volatile)
+          TypeName.append("volatile ");
+        if (Mod->Modifiers & TypeModifier::Unaligned)
+          TypeName.append("__unaligned ");
+        TypeName.append(ModifiedName);
+        Name = TypeNames.insert(TypeName).first->getKey();
+      }
       break;
     }
 
