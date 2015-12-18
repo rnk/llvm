@@ -1405,6 +1405,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_MFUNC_ID: {
+      const MemberFuncId *Id;
+      error(consumeObject(LeafData, Id));
+      DictScope S(W, "MemberFuncId");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ClassType", Id->ClassType);
+      printTypeIndex("FunctionType", Id->FunctionType);
+      Name = LeafData.split('\0').first;
+      W.printString("Name", Name);
+      break;
+    }
+
     case LF_PROCEDURE: {
       const ProcedureType *Proc;
       error(consumeObject(LeafData, Proc));

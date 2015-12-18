@@ -748,6 +748,13 @@ struct VFTableType {
   // names.
 };
 
+// LF_MFUNC_ID
+struct MemberFuncId {
+  TypeIndex ClassType;
+  TypeIndex FunctionType;
+  // Name: The null-terminated name follows.
+};
+
 enum CallingConvention : uint8_t {
   NearC = 0x00,       // near right to left push, caller pops stack
   FarC = 0x01,        // far right to left push, caller pops stack
