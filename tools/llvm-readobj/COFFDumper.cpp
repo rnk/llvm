@@ -1296,6 +1296,21 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_ARGLIST:
+    case LF_SUBSTR_LIST: {
+      const ArgList *Args;
+      error(consumeObject(LeafData, Args));
+      ListScope S(W, "ArgList");
+      W.printHex("TypeIndex", NextTypeIndex);
+      W.printNumber("NumArgs", Args->NumArgs);
+      for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
+        const TypeIndex *Type;
+        error(consumeObject(LeafData, Type));
+        printTypeIndex("ArgType", *Type);
+      }
+      break;
+    }
+
     case LF_CLASS:
     case LF_STRUCTURE:
     case LF_INTERFACE: {
@@ -1321,6 +1336,22 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
           return error(object_error::parse_failed);
         W.printString("LinkageName", LinkageName);
       }
+      break;
+    }
+
+    case LF_ENUM: {
+      const EnumType *Enum;
+      error(consumeObject(LeafData, Enum));
+      DictScope S(W, "EnumType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      W.printNumber("NumEnumerators", Enum->NumEnumerators);
+      W.printFlags("Properties", uint16_t(Enum->Properties),
+                   makeArrayRef(TagPropertyFlags));
+      printTypeIndex("UnderlyingType", Enum->UnderlyingType);
+      printTypeIndex("FieldListType", Enum->FieldListType);
+      StringRef Name, Null;
+      std::tie(Name, Null) = LeafData.split('\0');
+      W.printString("Name", Name);
       break;
     }
 

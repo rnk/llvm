@@ -20,13 +20,10 @@
 #ifndef LLVM_READOBJ_CODEVIEW_H
 #define LLVM_READOBJ_CODEVIEW_H
 
-#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
 
 namespace llvm {
 namespace codeview {
-
-LLVM_PACKED_START
 
 // FIXME: Maybe make this a wrapper struct type.
 typedef ulittle32_t TypeIndex;
@@ -721,6 +718,21 @@ struct UDTSrcLine {
   ulittle32_t LineNumber;
 };
 
+// LF_ARGLIST, LF_SUBSTR_LIST
+struct ArgList {
+  ulittle32_t NumArgs; // Number of arguments
+  // ArgTypes[]: Type indicies of arguments
+};
+
+// LF_ENUM
+struct EnumType {
+  ulittle16_t NumEnumerators; // Number of enumerators
+  ulittle16_t Properties;
+  TypeIndex UnderlyingType;
+  TypeIndex FieldListType;
+  // Name: The null-terminated name follows.
+};
+
 //===----------------------------------------------------------------------===//
 // Field list records, which do not include leafs or sizes
 
@@ -850,8 +862,6 @@ struct VirtualBaseClass {
   // VBPtrOffset: Offset of vbptr from vfptr encoded as LF_NUMERIC.
   // VBTableIndex: Index of vbase within vbtable encoded as LF_NUMERIC.
 };
-
-LLVM_PACKED_END
 
 } // namespace codeview
 } // namespace llvm
