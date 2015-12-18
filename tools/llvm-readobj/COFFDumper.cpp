@@ -1560,9 +1560,23 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       } else {
         W.printBinaryBlock("TailData", LeafData);
 
-        StringRef PointeeName = getTypeName(Ptr->PointeeType);
-        SmallString<256> TypeName(PointeeName);
-        TypeName.push_back('*');
+        SmallString<256> TypeName;
+        if (Ptr->isConst())
+          TypeName.append("const ");
+        if (Ptr->isVolatile())
+          TypeName.append("volatile ");
+        if (Ptr->isUnaligned())
+          TypeName.append("__unaligned ");
+
+        TypeName.append(getTypeName(Ptr->PointeeType));
+
+        if (Ptr->getPtrMode() == PointerType::LValueReference)
+          TypeName.append("&");
+        else if (Ptr->getPtrMode() == PointerType::RValueReference)
+          TypeName.append("&&");
+        else if (Ptr->getPtrMode() == PointerType::Pointer)
+          TypeName.append("*");
+
         Name = TypeNames.insert(TypeName).first->getKey();
       }
       break;
