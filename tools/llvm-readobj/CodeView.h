@@ -861,8 +861,24 @@ struct OneMethod {
   MemberAttributes Attrs;
   TypeIndex Type;
   // If is introduced virtual method:
-  //   VFTableOffset: LF_NUMERIC encoded byte offset in vftable
+  //   VFTableOffset: int32_t offset in vftable
   // Name: Null-terminated string
+
+  MemberAttributes::MethodProperties getMethodProperties() const {
+    return Attrs.getMethodProperties();
+  }
+
+  bool isVirtual() const { return Attrs.isVirtual(); }
+  bool isIntroducedVirtual() const { return Attrs.isIntroducedVirtual(); }
+};
+
+struct MethodListEntry {
+  MemberAttributes Attrs;
+  ulittle16_t Padding;
+
+  TypeIndex Type;
+  // If is introduced virtual method:
+  //   VFTableOffset: int32_t offset in vftable
 
   MemberAttributes::MethodProperties getMethodProperties() const {
     return Attrs.getMethodProperties();
