@@ -1277,6 +1277,8 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printHex("Id", String->id);
       StringRef StringData = getRemainingBytesAsString(Rec, &String->data[0]);
       W.printString("StringData", StringData);
+      // Put this in CVUDTNames so it gets printed with LF_UDT_SRC_LINE.
+      Name = StringData;
       break;
     }
 
@@ -1388,6 +1390,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("MethodCount", MethodCount);
       // We could print out whether the methods are near or far, but in practice
       // today everything is CV_VTS_near32, so it's just noise.
+      break;
+    }
+
+    case LF_UDT_SRC_LINE: {
+      auto *Line = castTypeRec<UDTSrcLine>(Rec);
+      if (!Line)
+        return error(object_error::parse_failed);
+      DictScope S(W, "UDTSrcLine");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("UDT", Line->UDT);
+      printTypeIndex("SourceFile", Line->SourceFile);
+      W.printNumber("LineNumber", Line->LineNumber);
       break;
     }
     }

@@ -938,6 +938,13 @@ struct VTableShape {
   };
 };
 
+struct UDTSrcLine {
+  TypeRecord Base;      // LF_UDT_SRC_LINE
+  TypeIndex UDT;        // The user-defined type
+  TypeIndex SourceFile; // StringID containing the source filename
+  ulittle32_t LineNumber;
+};
+
 //===----------------------------------------------------------------------===//
 // Field list records, which do not include leafs or sizes
 
