@@ -25,7 +25,9 @@
 namespace llvm {
 namespace codeview {
 
-// FIXME: Maybe make this a wrapper struct type.
+/// A 32-bit type reference. Types are indexed by their order of appearance in
+/// .debug$T plus 0x1000. Type indices less than 0x1000 refer to builtin types
+/// in the BuiltinType enum.
 typedef ulittle32_t TypeIndex;
 
 /// Any .debug$S section can be broken into subsections with these types.
@@ -315,9 +317,9 @@ struct SymRecord {
   // char data[];
 };
 
+// S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID, S_LPROC32_DPC or
+// S_LPROC32_DPC_ID
 struct ProcSym {
-  SymRecord Base;       // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID,
-                        // S_LPROC32_DPC or S_LPROC32_DPC_ID
   ulittle32_t pParent;  // pointer to the parent
   ulittle32_t pEnd;     // pointer to this blocks end
   ulittle32_t pNext;    // pointer to next symbol
@@ -328,7 +330,7 @@ struct ProcSym {
   ulittle32_t off;
   ulittle16_t seg;
   uint8_t flags; // Proc flags
-  char name[1];  // Length-prefixed name
+  //char name[1];  // Length-prefixed name
 };
 
 // LF_FUNC_ID
@@ -338,11 +340,10 @@ struct FuncId {
   // Name: The null-terminated name follows.
 };
 
+// S_OBJNAME
 struct ObjNameSym {
-  ulittle16_t reclen;    // Record length
-  ulittle16_t rectyp;    // S_OBJNAME
   ulittle32_t signature; // signature
-  char name[1];          // Length-prefixed name
+  // Name: The null-terminated name follows.
 };
 
 enum SourceLanguage : uint8_t {
@@ -433,9 +434,8 @@ enum CPUType : uint16_t {
   CPU_D3D11_SHADER = 0x100,
 };
 
+// S_COMPILE3
 struct CompileSym3 {
-  ulittle16_t reclen; // Record length
-  ulittle16_t rectyp; // S_COMPILE3
   ulittle32_t flags;
   uint8_t getLanguage() const { return flags & 0xff; }
   enum Flags : uint32_t {
@@ -461,12 +461,11 @@ struct CompileSym3 {
   ulittle16_t verMinor;   // back end minor version #
   ulittle16_t verBuild;   // back end build version #
   ulittle16_t verQFE;     // back end QFE version #
-  char verSz[1];          // Zero terminated compiler version string
+  //char verSz[1];          // Zero terminated compiler version string
 };
 
+// S_FRAMEPROC
 struct FrameProcSym {
-  ulittle16_t reclen;     // Record length
-  ulittle16_t rectyp;     // S_FRAMEPROC
   ulittle32_t cbFrame;    // count of bytes of total frame of procedure
   ulittle32_t cbPad;      // count of bytes of padding in the frame
   ulittle32_t offPad;     // offset (relative to frame poniter) to where
@@ -506,17 +505,30 @@ struct FrameProcSym {
   ulittle32_t flags;
 };
 
+// S_UDT | S_COBOLUDT
 struct UDTSym {
-  ulittle16_t reclen; // Record length
-  ulittle16_t rectyp; // S_UDT | S_COBOLUDT
   ulittle32_t typind; // Type index
   char name[1];       // Length-prefixed name
 };
 
+// S_BUILDINFO
 struct BuildInfoSym {
-  ulittle16_t reclen; // Record length
-  ulittle16_t rectyp; // S_BUILDINFO
   ulittle32_t id;     // CV_ItemId of Build Info.
+};
+
+// S_BPREL32
+struct BPRelativeSym {
+  ulittle32_t off;    // BP-relative offset
+  ulittle32_t typind; // Type index or Metadata token
+  //char name[1];       // Length-prefixed name
+};
+
+// S_REGREL32
+struct RegRelativeSym {
+  ulittle32_t off;    // BP-relative offset
+  ulittle32_t typind; // Type index or Metadata token
+  ulittle16_t reg;    // register index for symbol
+  //char name[1];       // Length-prefixed name
 };
 
 struct FrameData {
@@ -534,23 +546,6 @@ struct FrameData {
     HasEH = 1 << 1,
     IsFunctionStart = 1 << 2,
   };
-};
-
-struct BPRelativeSym {
-  ulittle16_t reclen; // Record length
-  ulittle16_t rectyp; // S_BPREL32
-  ulittle32_t off;    // BP-relative offset
-  ulittle32_t typind; // Type index or Metadata token
-  char name[1];       // Length-prefixed name
-};
-
-struct RegRelativeSym {
-  ulittle16_t reclen; // Record length
-  ulittle16_t rectyp; // S_BPREL32
-  ulittle32_t off;    // BP-relative offset
-  ulittle32_t typind; // Type index or Metadata token
-  ulittle16_t reg;    // register index for symbol
-  char name[1];       // Length-prefixed name
 };
 
 //===----------------------------------------------------------------------===//

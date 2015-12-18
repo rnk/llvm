@@ -1020,40 +1020,24 @@ void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
   }
 }
 
-
-/// Get the next symbol record. Returns null on reaching the end of Data, or if
-/// the next record extends beyond the end of Data.
-static const SymRecord *nextRecord(const SymRecord *Rec, StringRef Data) {
-  const char *Next =
-      reinterpret_cast<const char *>(Rec) + sizeof(Rec->reclen) + Rec->reclen;
-  ptrdiff_t Diff = Next - Data.data();
-  if (Diff < 0)
-    return nullptr;
-  if (size_t(Diff) + sizeof(SymRecord) > Data.size())
-    return nullptr;
-  Rec = reinterpret_cast<const SymRecord *>(Next);
-  if (size_t(Diff) + Rec->reclen > Data.size())
-    return nullptr;
-  return Rec;
-}
-
-template <typename T>
-static const T *castSymRec(const SymRecord *Rec) {
-  if (sizeof(T) > Rec->reclen + sizeof(Rec->reclen))
-    return nullptr;
-  return reinterpret_cast<const T*>(Rec);
-}
-
 void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                                                 const SectionRef &Section,
                                                 uint32_t OffsetInSection) {
   if (Subsection.size() < sizeof(SymRecord))
     return error(object_error::parse_failed);
 
+  // This holds the remaining data to parse.
+  StringRef Data = Subsection;
+
   bool InFunctionScope = false;
-  for (const SymRecord *Rec =
-           reinterpret_cast<const SymRecord *>(Subsection.data());
-       Rec != nullptr; Rec = nextRecord(Rec, Subsection)) {
+  while (!Data.empty()) {
+    const SymRecord *Rec;
+    error(consumeObject(Data, Rec));
+
+    StringRef SymData = Data.substr(0, Rec->reclen - 2);
+
+    Data = Data.drop_front(Rec->reclen - 2);
+
     SymType Type = static_cast<SymType>(uint16_t(Rec->rectyp));
     switch (Type) {
     case S_LPROC32:
@@ -1063,8 +1047,9 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_LPROC32_DPC:
     case S_LPROC32_DPC_ID: {
       DictScope S(W, "ProcStart");
-      const ProcSym *Proc = castSymRec<ProcSym>(Rec);
-      if (!Proc || InFunctionScope)
+      const ProcSym *Proc;
+      error(consumeObject(SymData, Proc));
+      if (InFunctionScope)
         return error(object_error::parse_failed);
       InFunctionScope = true;
 
@@ -1076,38 +1061,30 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       error(resolveSymbolName(Obj->getCOFFSection(Section),
                               OffsetInSection + OffsetOfOff, LinkageName));
 
-      size_t DisplayNameLen =
-          (Rec->reclen + sizeof(Rec->reclen)) - sizeof(*Proc);
-      if (DisplayNameLen) {
-        StringRef DisplayName = StringRef(Proc->name, DisplayNameLen);
-        W.printString("DisplayName", DisplayName);
-      }
+      StringRef DisplayName = SymData.split('\0').first;
+      W.printString("DisplayName", DisplayName);
       W.printString("LinkageName", LinkageName);
       W.printHex("CodeSize", Proc->len);
       break;
     }
     case S_PROC_ID_END: {
-      if (!InFunctionScope || Rec->reclen != sizeof(Rec->rectyp))
-        return error(object_error::parse_failed);
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
       break;
     }
     case S_OBJNAME: {
       DictScope S(W, "ObjectName");
-      const auto *ObjName = castSymRec<ObjNameSym>(Rec);
+      const ObjNameSym *ObjName;
+      error(consumeObject(SymData, ObjName));
       W.printHex("Signature", ObjName->signature);
-      size_t ObjectNameLen =
-          (ObjName->reclen + sizeof(ObjName->reclen)) - sizeof(*ObjName);
-      if (ObjectNameLen) {
-        StringRef ObjectName = StringRef(ObjName->name, ObjectNameLen);
-        W.printString("ObjectName", ObjectName);
-      }
+      StringRef ObjectName = SymData.split('\0').first;
+      W.printString("ObjectName", ObjectName);
       break;
     }
     case S_COMPILE3: {
       DictScope S(W, "CompilerFlags");
-      const auto *CompFlags = castSymRec<CompileSym3>(Rec);
+      const CompileSym3 *CompFlags;
+      error(consumeObject(SymData, CompFlags));
       W.printEnum("Language", CompFlags->getLanguage(),
                   makeArrayRef(SourceLanguages));
       W.printFlags("Flags", CompFlags->flags & ~0xff,
@@ -1127,17 +1104,14 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       }
       W.printString("FrontendVersion", FrontendVersion);
       W.printString("BackendVersion", BackendVersion);
-      size_t VersionNameLen =
-          (CompFlags->reclen + sizeof(CompFlags->reclen)) - sizeof(*CompFlags);
-      if (VersionNameLen) {
-        StringRef VersionName = StringRef(CompFlags->verSz, VersionNameLen);
-        W.printString("VersionName", VersionName);
-      }
+      StringRef VersionName = SymData.split('\0').first;
+      W.printString("VersionName", VersionName);
       break;
     }
     case S_FRAMEPROC: {
       DictScope S(W, "FrameProc");
-      const auto *FrameProc = castSymRec<FrameProcSym>(Rec);
+      const FrameProcSym *FrameProc;
+      error(consumeObject(SymData, FrameProc));
       W.printHex("TotalFrameBytes", FrameProc->cbFrame);
       W.printHex("PaddingFrameBytes", FrameProc->cbPad);
       W.printHex("OffsetToPadding", FrameProc->offPad);
@@ -1151,43 +1125,41 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_UDT:
     case S_COBOLUDT: {
       DictScope S(W, "UDT");
-      const auto *UDT = castSymRec<UDTSym>(Rec);
+      const UDTSym *UDT;
+      error(consumeObject(SymData, UDT));
       printTypeIndex("Type", UDT->typind);
-      size_t UDTNameLen = (UDT->reclen + sizeof(UDT->reclen)) - sizeof(*UDT);
-      if (UDTNameLen) {
-        StringRef UDTName = StringRef(UDT->name, UDTNameLen);
-        W.printString("Name", UDTName);
-      }
+      StringRef UDTName = SymData.split('\0').first;
+      W.printString("UDTName", UDTName);
       break;
     }
 
     case S_BPREL32: {
       DictScope S(W, "BPRelativeSym");
-      const auto *BPRel = castSymRec<BPRelativeSym>(Rec);
+      const BPRelativeSym *BPRel;
+      error(consumeObject(SymData, BPRel));
       W.printHex("Offset", BPRel->off);
       printTypeIndex("Type", BPRel->typind);
-      size_t NameLen = (BPRel->reclen + sizeof(BPRel->reclen)) - sizeof(*BPRel);
-      StringRef VarName = StringRef(BPRel->name, NameLen);
+      StringRef VarName = SymData.split('\0').first;
       W.printString("VarName", VarName);
       break;
     }
 
     case S_REGREL32: {
       DictScope S(W, "RegRelativeSym");
-      const auto *RegRel = castSymRec<RegRelativeSym>(Rec);
+      const RegRelativeSym *RegRel;
+      error(consumeObject(SymData, RegRel));
       W.printHex("Offset", RegRel->off);
       printTypeIndex("Type", RegRel->typind);
       W.printHex("Register", RegRel->reg);
-      size_t NameLen =
-          (RegRel->reclen + sizeof(RegRel->reclen)) - sizeof(*RegRel);
-      StringRef VarName = StringRef(RegRel->name, NameLen);
+      StringRef VarName = SymData.split('\0').first;
       W.printString("VarName", VarName);
       break;
     }
 
     case S_BUILDINFO: {
       DictScope S(W, "BuildInfo");
-      const auto *BuildInfo = castSymRec<BuildInfoSym>(Rec);
+      const BuildInfoSym *BuildInfo;
+      error(consumeObject(SymData, BuildInfo));
       W.printNumber("Id", BuildInfo->id);
       break;
     }
@@ -1197,10 +1169,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
         ListScope S(W, "Record");
         W.printHex("Type", Rec->rectyp);
         W.printHex("Size", Rec->reclen);
-
-        StringRef Contents =
-            StringRef(reinterpret_cast<const char *>(Rec + 1), Rec->reclen - 2);
-        W.printBinaryBlock("Contents", Contents);
+        W.printBinaryBlock("SymData", SymData);
       }
       break;
     }
