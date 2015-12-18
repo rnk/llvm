@@ -730,6 +730,24 @@ struct EnumType {
   // Name: The null-terminated name follows.
 };
 
+// LF_ARRAY
+struct ArrayType {
+  TypeIndex ElementType;
+  TypeIndex IndexType;
+  // SizeOf: LF_NUMERIC encoded size in bytes. Not element count!
+  // Name: The null-terminated name follows.
+};
+
+// LF_VFTABLE
+struct VFTableType {
+  TypeIndex CompleteClass;     // Class that owns this vftable.
+  TypeIndex OverriddenVFTable; // VFTable that this overrides.
+  ulittle32_t VFPtrOffset;     // VFPtr offset in CompleteClass
+  ulittle32_t NamesLen;        // Length of subsequent names array in bytes.
+  // Names: A sequence of null-terminated strings. First string is vftable
+  // names.
+};
+
 enum CallingConvention : uint8_t {
   NearC = 0x00,       // near right to left push, caller pops stack
   FarC = 0x01,        // far right to left push, caller pops stack
