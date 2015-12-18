@@ -1389,9 +1389,9 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_PROCEDURE: {
-      const ProceduceType *Proc;
+      const ProcedureType *Proc;
       error(consumeObject(LeafData, Proc));
-      DictScope S(W, "ProcType");
+      DictScope S(W, "ProcedureType");
       W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ReturnType", Proc->ReturnType);
       W.printEnum("CallingConvention", uint8_t(Proc->CallConv),
@@ -1400,6 +1400,24 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                    makeArrayRef(FunctionOptionEnum));
       W.printNumber("NumParameters", Proc->NumParameters);
       printTypeIndex("ArgListType", Proc->ArgListType);
+      break;
+    }
+
+    case LF_MFUNCTION: {
+      const MemberFunctionType *MemberFunc;
+      error(consumeObject(LeafData, MemberFunc));
+      DictScope S(W, "MemberFunctionType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ReturnType", MemberFunc->ReturnType);
+      printTypeIndex("ClassType", MemberFunc->ClassType);
+      printTypeIndex("ThisType", MemberFunc->ThisType);
+      W.printEnum("CallingConvention", uint8_t(MemberFunc->CallConv),
+                  makeArrayRef(CallingConventions));
+      W.printFlags("FunctionOptions", uint8_t(MemberFunc->Options),
+                   makeArrayRef(FunctionOptionEnum));
+      W.printNumber("NumParameters", MemberFunc->NumParameters);
+      printTypeIndex("ArgListType", MemberFunc->ArgListType);
+      W.printNumber("ThisAdjustment", MemberFunc->ThisAdjustment);
       break;
     }
 

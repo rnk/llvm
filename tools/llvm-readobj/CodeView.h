@@ -776,12 +776,24 @@ enum FunctionOptions : uint8_t {
 };
 
 // LF_PROCEDURE
-struct ProceduceType {
+struct ProcedureType {
   TypeIndex ReturnType;
   CallingConvention CallConv;
   FunctionOptions Options;
   ulittle16_t NumParameters;
   TypeIndex ArgListType;
+};
+
+// LF_MFUNCTION
+struct MemberFunctionType {
+  TypeIndex ReturnType;
+  TypeIndex ClassType;
+  TypeIndex ThisType;
+  CallingConvention CallConv;
+  FunctionOptions Options;
+  ulittle16_t NumParameters;
+  TypeIndex ArgListType;
+  int32_t ThisAdjustment;
 };
 
 //===----------------------------------------------------------------------===//
