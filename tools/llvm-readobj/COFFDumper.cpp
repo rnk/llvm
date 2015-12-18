@@ -1450,6 +1450,24 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_METHODLIST: {
+      DictScope S(W, "MethodList");
+      W.printHex("TypeIndex", NextTypeIndex);
+      while (!LeafData.empty()) {
+        const MethodListEntry *Method;
+        error(consumeObject(LeafData, Method));
+        ListScope S(W, "Method");
+        printMemberAttributes(Method->Attrs);
+        printTypeIndex("Type", Method->Type);
+        if (Method->isIntroducedVirtual()) {
+          const little32_t *VFTOffsetPtr;
+          error(consumeObject(LeafData, VFTOffsetPtr));
+          W.printHex("VFTableOffset", *VFTOffsetPtr);
+        }
+      }
+      break;
+    }
+
     case LF_FUNC_ID: {
       const FuncId *Func;
       error(consumeObject(LeafData, Func));
@@ -1600,8 +1618,8 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       printMemberAttributes(Method->Attrs);
       printTypeIndex("Type", Method->Type);
       // If virtual, then read the vftable offset.
-      if (Method->isVirtual()) {
-        const ulittle32_t *VFTOffsetPtr;
+      if (Method->isIntroducedVirtual()) {
+        const little32_t *VFTOffsetPtr;
         error(consumeObject(FieldData, VFTOffsetPtr));
         W.printHex("VFTableOffset", *VFTOffsetPtr);
       }
