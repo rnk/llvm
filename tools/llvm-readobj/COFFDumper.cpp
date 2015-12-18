@@ -77,6 +77,7 @@ private:
   void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewFieldList(StringRef FieldData);
+  StringRef getTypeName(unsigned TypeIndex);
   void printTypeIndex(StringRef FieldName, unsigned TypeIndex);
 
   void printCodeViewSymbolsSubsection(StringRef Subsection,
@@ -1229,6 +1230,22 @@ StringRef getRemainingBytesAsString(const TypeRecord *Rec, const char *Start) {
   return Leading;
 }
 
+StringRef COFFDumper::getTypeName(unsigned TypeIndex) {
+  if (TypeIndex < 0x1000) {
+    for (const auto &BuiltinTypeName : BuiltinTypeNames) {
+      if (BuiltinTypeName.Value == TypeIndex)
+        return BuiltinTypeName.Name;
+    }
+    return StringRef();
+  }
+  // User-defined type.
+  StringRef UDTName;
+  unsigned UDTIndex = TypeIndex - 0x1000;
+  if (UDTIndex < CVUDTNames.size())
+    return CVUDTNames[UDTIndex];
+  return StringRef();
+}
+
 void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
   if (TypeIndex < 0x1000) {
     // Basic type.
@@ -1394,8 +1411,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                    makeArrayRef(ClassOptionNames));
       printTypeIndex("UnderlyingType", Enum->UnderlyingType);
       printTypeIndex("FieldListType", Enum->FieldListType);
-      StringRef Name, Null;
-      std::tie(Name, Null) = LeafData.split('\0');
+      Name = LeafData.split('\0').first;
       W.printString("Name", Name);
       break;
     }
@@ -1528,6 +1544,12 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                     makeArrayRef(PtrMemberRepNames));
       } else {
         W.printBinaryBlock("TailData", LeafData);
+        StringRef PointeeName = getTypeName(Ptr->PointeeType);
+        if (!PointeeName.empty()) {
+          auto *PointerName = new std::string(PointeeName);
+          PointerName->append(" *");
+          Name = *PointerName;
+        }
       }
       break;
     }
@@ -1538,6 +1560,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       printTypeIndex("ModifiedType", Mod->ModifiedType);
       W.printFlags("Modifiers", Mod->Modifiers,
                    makeArrayRef(TypeModifierNames));
+      StringRef ModifiedName = getTypeName(Mod->ModifiedType);
+      if (!ModifiedName.empty()) {
+        auto *NewTypeName = new std::string();
+        if (Mod->Modifiers & TypeModifier::Const)
+          NewTypeName->append("const ");
+        if (Mod->Modifiers & TypeModifier::Volatile)
+          NewTypeName->append("volatile ");
+        if (Mod->Modifiers & TypeModifier::Unaligned)
+          NewTypeName->append("__unaligned ");
+        NewTypeName->append(ModifiedName);
+        Name = *NewTypeName;
+      }
       break;
     }
 
