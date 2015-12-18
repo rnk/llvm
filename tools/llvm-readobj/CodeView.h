@@ -930,6 +930,15 @@ struct ArgList {
   // ArgTypes[]: Type indicies of arguments
 };
 
+// LF_ENUM
+struct EnumType {
+  ulittle16_t NumEnumerators; // Number of enumerators
+  ulittle16_t Properties;
+  TypeIndex UnderlyingType;
+  TypeIndex FieldListType;
+  // Name: The null-terminated name follows.
+};
+
 //===----------------------------------------------------------------------===//
 // Field list records, which do not include leafs or sizes
 
