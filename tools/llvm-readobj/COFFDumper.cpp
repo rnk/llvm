@@ -1371,6 +1371,40 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_ARRAY: {
+      const ArrayType *AT;
+      error(consumeObject(LeafData, AT));
+      DictScope S(W, "ArrayType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ElementType", AT->ElementType);
+      printTypeIndex("IndexType", AT->IndexType);
+      uint64_t SizeOf;
+      error(decodeUIntLeaf(LeafData, SizeOf));
+      W.printNumber("SizeOf", SizeOf);
+      Name = LeafData.split('\0').first;
+      W.printString("Name", Name);
+      break;
+    }
+
+    case LF_VFTABLE: {
+      const VFTableType *VFT;
+      error(consumeObject(LeafData, VFT));
+      DictScope S(W, "VFTableType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("CompleteClass", VFT->CompleteClass);
+      printTypeIndex("OverriddenVFTable", VFT->OverriddenVFTable);
+      W.printHex("VFPtrOffset", VFT->VFPtrOffset);
+      StringRef NamesData = LeafData.substr(0, VFT->NamesLen);
+      std::tie(Name, NamesData) = NamesData.split('\0');
+      W.printString("VFTableName", Name);
+      while (!NamesData.empty()) {
+        StringRef MethodName;
+        std::tie(MethodName, NamesData) = NamesData.split('\0');
+        W.printString("MethodName", MethodName);
+      }
+      break;
+    }
+
     case LF_PROCEDURE: {
       const ProcedureType *Proc;
       error(consumeObject(LeafData, Proc));
