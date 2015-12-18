@@ -23,6 +23,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/COFF.h"
@@ -109,6 +110,8 @@ private:
   /// greater than 0x1000 are user defined. Subtract 0x1000 from the index to
   /// index into this vector.
   SmallVector<StringRef, 10> CVUDTNames;
+
+  StringSet<> TypeNames;
 };
 
 } // namespace
@@ -1536,19 +1539,27 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("IsVolatile", Ptr->isVolatile());
       W.printNumber("IsUnaligned", Ptr->isUnaligned());
 
+      StringRef PointeeName = getTypeName(Ptr->PointeeType);
       if (Ptr->isPointerToMember()) {
         const PointerToMemberTail *PMT;
         error(consumeObject(LeafData, PMT));
         printTypeIndex("ClassType", PMT->ClassType);
         W.printEnum("Representation", PMT->Representation,
                     makeArrayRef(PtrMemberRepNames));
+        StringRef ClassName = getTypeName(PMT->ClassType);
+        if (!PointeeName.empty() && !ClassName.empty()) {
+          SmallString<256> TypeName(PointeeName);
+          TypeName.push_back(' ');
+          TypeName.append(ClassName);
+          TypeName.append("::*");
+          Name = TypeNames.insert(TypeName).first->getKey();
+        }
       } else {
         W.printBinaryBlock("TailData", LeafData);
-        StringRef PointeeName = getTypeName(Ptr->PointeeType);
         if (!PointeeName.empty()) {
-          auto *PointerName = new std::string(PointeeName);
-          PointerName->append(" *");
-          Name = *PointerName;
+          SmallString<256> TypeName(PointeeName);
+          TypeName.append(" *");
+          Name = TypeNames.insert(TypeName).first->getKey();
         }
       }
       break;
@@ -1562,15 +1573,15 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                    makeArrayRef(TypeModifierNames));
       StringRef ModifiedName = getTypeName(Mod->ModifiedType);
       if (!ModifiedName.empty()) {
-        auto *NewTypeName = new std::string();
+        SmallString<256> TypeName;
         if (Mod->Modifiers & TypeModifier::Const)
-          NewTypeName->append("const ");
+          TypeName.append("const ");
         if (Mod->Modifiers & TypeModifier::Volatile)
-          NewTypeName->append("volatile ");
+          TypeName.append("volatile ");
         if (Mod->Modifiers & TypeModifier::Unaligned)
-          NewTypeName->append("__unaligned ");
-        NewTypeName->append(ModifiedName);
-        Name = *NewTypeName;
+          TypeName.append("__unaligned ");
+        TypeName.append(ModifiedName);
+        Name = TypeNames.insert(TypeName).first->getKey();
       }
       break;
     }
