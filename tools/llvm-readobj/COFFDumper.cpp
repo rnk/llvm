@@ -1268,6 +1268,8 @@ static StringRef getLeafTypeName(LeafType LT) {
   case LF_MODIFIER: return "TypeModifier";
   case LF_VTSHAPE: return "VTableShape";
   case LF_UDT_SRC_LINE: return "UDTSrcLine";
+  case LF_BUILDINFO: return "BuildInfo";
+  default: break;
   }
   return "UnknownLeaf";
 }
@@ -1561,8 +1563,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_BUILDINFO: {
       const BuildInfo *Args;
       error(consumeObject(LeafData, Args));
-      ListScope S(W, "BuildInfo");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("NumArgs", Args->NumArgs);
 
       ListScope Arguments(W, "Arguments");
