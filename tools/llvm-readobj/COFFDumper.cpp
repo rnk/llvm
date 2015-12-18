@@ -1067,11 +1067,13 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printHex("CodeSize", Proc->len);
       break;
     }
+
     case S_PROC_ID_END: {
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
       break;
     }
+
     case S_OBJNAME: {
       DictScope S(W, "ObjectName");
       const ObjNameSym *ObjName;
@@ -1081,6 +1083,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printString("ObjectName", ObjectName);
       break;
     }
+
     case S_COMPILE3: {
       DictScope S(W, "CompilerFlags");
       const CompileSym3 *CompFlags;
@@ -1108,6 +1111,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printString("VersionName", VersionName);
       break;
     }
+
     case S_FRAMEPROC: {
       DictScope S(W, "FrameProc");
       const FrameProcSym *FrameProc;
