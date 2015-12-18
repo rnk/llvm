@@ -1023,7 +1023,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                               OffsetInSection + OffsetOfOff, LinkageName));
 
       size_t DisplayNameLen =
-          (Rec->reclen + sizeof(Rec->reclen)) - sizeof(*Rec);
+          (Rec->reclen + sizeof(Rec->reclen)) - sizeof(*Proc);
       if (DisplayNameLen) {
         StringRef DisplayName = StringRef(Proc->name, DisplayNameLen);
         W.printString("DisplayName", DisplayName);
