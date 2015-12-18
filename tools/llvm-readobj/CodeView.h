@@ -552,7 +552,7 @@ struct RegRelativeSym {
 /// Indicates the kind of TypeRecord we're dealing with here. The documentation
 /// and headers talk about this as the "leaf" type.
 enum LeafType : uint16_t {
-#define LEAF_TYPE(name, val) LF_##name = val,
+#define LEAF_TYPE(name, val) name = val,
 #include "CVLeafTypes.def"
 #undef LEAF_TYPE
 };
