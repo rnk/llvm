@@ -1194,7 +1194,9 @@ std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
 StringRef getRemainingTypeBytes(const TypeRecord *Rec, const char *Start) {
   ptrdiff_t StartOffset = Start - reinterpret_cast<const char *>(Rec);
   size_t RecSize = Rec->len + 2;
-  assert(StartOffset <= RecSize && "Start beyond the end of Rec");
+  assert(StartOffset >= 0 && "negative start-offset!");
+  assert(static_cast<size_t>(StartOffset) <= RecSize &&
+         "Start beyond the end of Rec");
   return StringRef(Start, RecSize - StartOffset);
 }
 
