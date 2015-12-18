@@ -586,6 +586,39 @@ static const EnumEntry<uint16_t> TypeModifierNames[] = {
     LLVM_READOBJ_ENUM_ENT(TypeModifier, Unaligned),
 };
 
+static const EnumEntry<uint8_t> CallingConventions[] = {
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearC),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, FarC),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearPascal),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, FarPascal),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearFast),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, FarFast),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearStdCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, FarStdCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearSysCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, FarSysCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, ThisCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, MipsCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, Generic),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, AlphaCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, PpcCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, SHCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, ArmCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, AM33Call),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, TriCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, SH5Call),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, M32RCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, ClrCall),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, Inline),
+    LLVM_READOBJ_ENUM_ENT(CallingConvention, NearVector),
+};
+
+static const EnumEntry<uint8_t> FunctionOptionEnum[] = {
+    LLVM_READOBJ_ENUM_ENT(FunctionOptions, CxxReturnUdt),
+    LLVM_READOBJ_ENUM_ENT(FunctionOptions, Constructor),
+    LLVM_READOBJ_ENUM_ENT(FunctionOptions, ConstructorWithVirtualBases),
+};
+
 template <typename T>
 static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
                                         COFFSymbolRef Symbol,
@@ -1352,6 +1385,21 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       StringRef Name, Null;
       std::tie(Name, Null) = LeafData.split('\0');
       W.printString("Name", Name);
+      break;
+    }
+
+    case LF_PROCEDURE: {
+      const ProceduceType *Proc;
+      error(consumeObject(LeafData, Proc));
+      DictScope S(W, "ProcType");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ReturnType", Proc->ReturnType);
+      W.printEnum("CallingConvention", uint8_t(Proc->CallConv),
+                  makeArrayRef(CallingConventions));
+      W.printFlags("FunctionOptions", uint8_t(Proc->Options),
+                   makeArrayRef(FunctionOptionEnum));
+      W.printNumber("NumParameters", Proc->NumParameters);
+      printTypeIndex("ArgListType", Proc->ArgListType);
       break;
     }
 
