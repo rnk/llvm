@@ -331,6 +331,13 @@ struct ProcSym {
   char name[1];  // Length-prefixed name
 };
 
+// LF_FUNC_ID
+struct FuncId {
+  TypeIndex ParentScope;
+  TypeIndex FunctionType;
+  // Name: The null-terminated name follows.
+};
+
 struct ObjNameSym {
   ulittle16_t reclen;    // Record length
   ulittle16_t rectyp;    // S_OBJNAME

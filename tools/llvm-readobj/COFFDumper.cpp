@@ -1403,6 +1403,19 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       break;
     }
 
+    case LF_FUNC_ID: {
+      const FuncId *Func;
+      error(consumeObject(LeafData, Func));
+      DictScope S(W, "FuncId");
+      W.printHex("TypeIndex", NextTypeIndex);
+      printTypeIndex("ParentScope", Func->ParentScope);
+      printTypeIndex("FunctionType", Func->FunctionType);
+      StringRef Name, Null;
+      std::tie(Name, Null) = LeafData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
     case LF_TYPESERVER2: {
       const TypeServer2 *TypeServer;
       error(consumeObject(LeafData, TypeServer));
