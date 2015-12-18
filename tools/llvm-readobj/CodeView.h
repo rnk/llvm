@@ -331,6 +331,13 @@ struct ProcSym {
   char name[1];  // Length-prefixed name
 };
 
+// LF_FUNC_ID
+struct FuncId {
+  TypeIndex ParentScope;
+  TypeIndex FunctionType;
+  // Name: The null-terminated name follows.
+};
+
 struct ObjNameSym {
   ulittle16_t reclen;    // Record length
   ulittle16_t rectyp;    // S_OBJNAME
@@ -721,6 +728,50 @@ struct EnumType {
   TypeIndex UnderlyingType;
   TypeIndex FieldListType;
   // Name: The null-terminated name follows.
+};
+
+enum CallingConvention : uint8_t {
+  NearC = 0x00,       // near right to left push, caller pops stack
+  FarC = 0x01,        // far right to left push, caller pops stack
+  NearPascal = 0x02,  // near left to right push, callee pops stack
+  FarPascal = 0x03,   // far left to right push, callee pops stack
+  NearFast = 0x04,    // near left to right push with regs, callee pops stack
+  FarFast = 0x05,     // far left to right push with regs, callee pops stack
+  NearStdCall = 0x07, // near standard call
+  FarStdCall = 0x08,  // far standard call
+  NearSysCall = 0x09, // near sys call
+  FarSysCall = 0x0a,  // far sys call
+  ThisCall = 0x0b,    // this call (this passed in register)
+  MipsCall = 0x0c,    // Mips call
+  Generic = 0x0d,     // Generic call sequence
+  AlphaCall = 0x0e,   // Alpha call
+  PpcCall = 0x0f,     // PPC call
+  SHCall = 0x10,      // Hitachi SuperH call
+  ArmCall = 0x11,     // ARM call
+  AM33Call = 0x12,    // AM33 call
+  TriCall = 0x13,     // TriCore Call
+  SH5Call = 0x14,     // Hitachi SuperH-5 call
+  M32RCall = 0x15,    // M32R Call
+  ClrCall = 0x16,     // clr call
+  Inline =
+      0x17, // Marker for routines always inlined and thus lacking a convention
+  NearVector = 0x18 // near left to right push with regs, callee pops stack
+};
+
+enum FunctionOptions : uint8_t {
+  None = 0x00,
+  CxxReturnUdt = 0x01,
+  Constructor = 0x02,
+  ConstructorWithVirtualBases = 0x04
+};
+
+// LF_PROCEDURE
+struct ProceduceType {
+  TypeIndex ReturnType;
+  CallingConvention CallConv;
+  FunctionOptions Options;
+  ulittle16_t NumParameters;
+  TypeIndex ArgListType;
 };
 
 //===----------------------------------------------------------------------===//
