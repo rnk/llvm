@@ -537,6 +537,11 @@ static const EnumEntry<BuiltinType> BuiltinTypeNames[] = {
 #undef BUILTIN_TYPE
 };
 
+static const EnumEntry<LeafType> LeafTypeNames[] = {
+#define LEAF_TYPE(name, val) LLVM_READOBJ_ENUM_ENT(LeafType, name),
+#include "CVLeafTypes.def"
+};
+
 static const EnumEntry<PointerType::PointerKind> PtrTypeNames[] = {
     LLVM_READOBJ_ENUM_ENT(PointerType, Near16),
     LLVM_READOBJ_ENUM_ENT(PointerType, Far16),
@@ -1240,6 +1245,32 @@ void COFFDumper::printTypeIndex(StringRef FieldName, unsigned TypeIndex) {
     W.printHex(FieldName, TypeIndex);
 }
 
+static StringRef getLeafTypeName(LeafType LT) {
+  switch (LT) {
+  case LF_STRING_ID: return "StringId";
+  case LF_FIELDLIST: return "FieldList";
+  case LF_ARGLIST:
+  case LF_SUBSTR_LIST: return "ArgList";
+  case LF_CLASS:
+  case LF_STRUCTURE:
+  case LF_INTERFACE: return "ClassType";
+  case LF_ENUM: return "EnumType";
+  case LF_ARRAY: return "ArrayType";
+  case LF_VFTABLE: return "VFTableType";
+  case LF_MFUNC_ID: return "MemberFuncId";
+  case LF_PROCEDURE: return "ProcedureType";
+  case LF_MFUNCTION: return "MemberFunctionType";
+  case LF_METHODLIST: return "MethodListEntry";
+  case LF_FUNC_ID: return "FuncId";
+  case LF_TYPESERVER2: return "TypeServer2";
+  case LF_POINTER: return "PointerType";
+  case LF_MODIFIER: return "TypeModifier";
+  case LF_VTSHAPE: return "VTableShape";
+  case LF_UDT_SRC_LINE: return "UDTSrcLine";
+  }
+  return "UnknownLeaf";
+}
+
 /// Consumes sizeof(T) bytes from the given byte sequence. Returns an error if
 /// there are not enough bytes remaining. Reinterprets the consumed bytes as a
 /// T object and points 'Res' at them.
@@ -1275,23 +1306,25 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     StringRef LeafData = Data.substr(0, Rec->Len - 2);
     StringRef RemainingData = Data.drop_front(LeafData.size());
 
+    // Find the name of this leaf type.
+    StringRef LeafName = getLeafTypeName(Leaf);
+    DictScope S(W, LeafName);
     unsigned NextTypeIndex = 0x1000 + CVUDTNames.size();
+    W.printEnum("LeafType", unsigned(Leaf), makeArrayRef(LeafTypeNames));
+    W.printHex("TypeIndex", NextTypeIndex);
+
+    // Fill this in inside the switch to get something in CVUDTNames.
     StringRef Name;
 
     switch (Leaf) {
     default: {
-      DictScope S(W, "UnknownType");
-      W.printHex("Leaf", Rec->Leaf);
       W.printHex("Size", Rec->Len);
-      W.printHex("TypeIndex", NextTypeIndex);
       if (opts::CodeViewSubsectionBytes)
         W.printBinaryBlock("LeafData", LeafData);
       break;
     }
 
     case LF_STRING_ID: {
-      DictScope S(W, "StringId");
-      W.printHex("TypeIndex", NextTypeIndex);
       const StringId *String;
       error(consumeObject(LeafData, String));
       W.printHex("Id", String->id);
@@ -1303,8 +1336,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_FIELDLIST: {
-      ListScope S(W, "FieldList");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printHex("Size", Rec->Len);
       // FieldList has no fixed prefix that can be described with a struct. All
       // the bytes must be interpreted as more records.
@@ -1316,8 +1347,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_SUBSTR_LIST: {
       const ArgList *Args;
       error(consumeObject(LeafData, Args));
-      ListScope S(W, "ArgList");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("NumArgs", Args->NumArgs);
       for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
         const TypeIndex *Type;
@@ -1332,8 +1361,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_INTERFACE: {
       const ClassType *Class;
       error(consumeObject(LeafData, Class));
-      DictScope S(W, "ClassType");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("MemberCount", Class->MemberCount);
       W.printFlags("Properties", uint16_t(Class->Properties),
                    makeArrayRef(ClassOptionNames));
@@ -1358,8 +1385,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_ENUM: {
       const EnumType *Enum;
       error(consumeObject(LeafData, Enum));
-      DictScope S(W, "EnumType");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printNumber("NumEnumerators", Enum->NumEnumerators);
       W.printFlags("Properties", uint16_t(Enum->Properties),
                    makeArrayRef(ClassOptionNames));
@@ -1374,8 +1399,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_ARRAY: {
       const ArrayType *AT;
       error(consumeObject(LeafData, AT));
-      DictScope S(W, "ArrayType");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ElementType", AT->ElementType);
       printTypeIndex("IndexType", AT->IndexType);
       uint64_t SizeOf;
@@ -1389,8 +1412,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_VFTABLE: {
       const VFTableType *VFT;
       error(consumeObject(LeafData, VFT));
-      DictScope S(W, "VFTableType");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("CompleteClass", VFT->CompleteClass);
       printTypeIndex("OverriddenVFTable", VFT->OverriddenVFTable);
       W.printHex("VFPtrOffset", VFT->VFPtrOffset);
@@ -1408,8 +1429,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_MFUNC_ID: {
       const MemberFuncId *Id;
       error(consumeObject(LeafData, Id));
-      DictScope S(W, "MemberFuncId");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ClassType", Id->ClassType);
       printTypeIndex("FunctionType", Id->FunctionType);
       Name = LeafData.split('\0').first;
@@ -1420,8 +1439,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_PROCEDURE: {
       const ProcedureType *Proc;
       error(consumeObject(LeafData, Proc));
-      DictScope S(W, "ProcedureType");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ReturnType", Proc->ReturnType);
       W.printEnum("CallingConvention", uint8_t(Proc->CallConv),
                   makeArrayRef(CallingConventions));
@@ -1435,8 +1452,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_MFUNCTION: {
       const MemberFunctionType *MemberFunc;
       error(consumeObject(LeafData, MemberFunc));
-      DictScope S(W, "MemberFunctionType");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ReturnType", MemberFunc->ReturnType);
       printTypeIndex("ClassType", MemberFunc->ClassType);
       printTypeIndex("ThisType", MemberFunc->ThisType);
@@ -1451,8 +1466,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     }
 
     case LF_METHODLIST: {
-      DictScope S(W, "MethodList");
-      W.printHex("TypeIndex", NextTypeIndex);
       while (!LeafData.empty()) {
         const MethodListEntry *Method;
         error(consumeObject(LeafData, Method));
@@ -1471,8 +1484,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_FUNC_ID: {
       const FuncId *Func;
       error(consumeObject(LeafData, Func));
-      DictScope S(W, "FuncId");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ParentScope", Func->ParentScope);
       printTypeIndex("FunctionType", Func->FunctionType);
       StringRef Name, Null;
@@ -1484,8 +1495,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_TYPESERVER2: {
       const TypeServer2 *TypeServer;
       error(consumeObject(LeafData, TypeServer));
-      DictScope S(W, "TypeServer");
-      W.printHex("TypeIndex", NextTypeIndex);
       W.printBinary("Signature", StringRef(TypeServer->Signature, 16));
       W.printNumber("Age", TypeServer->Age);
       Name = LeafData.split('\0').first;
@@ -1496,8 +1505,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_POINTER: {
       const PointerType *Ptr;
       error(consumeObject(LeafData, Ptr));
-      DictScope S(W, "PointerType");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("PointeeType", Ptr->PointeeType);
       W.printHex("PointerAttributes", Ptr->Attrs);
       W.printEnum("PtrType", unsigned(Ptr->getPtrKind()),
@@ -1524,8 +1531,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_MODIFIER: {
       const TypeModifier *Mod;
       error(consumeObject(LeafData, Mod));
-      DictScope S(W, "TypeModifier");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("ModifiedType", Mod->ModifiedType);
       W.printFlags("Modifiers", Mod->Modifiers,
                    makeArrayRef(TypeModifierNames));
@@ -1535,8 +1540,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_VTSHAPE: {
       const VTableShape *Shape;
       error(consumeObject(LeafData, Shape));
-      DictScope S(W, "VTableShape");
-      W.printHex("TypeIndex", NextTypeIndex);
       unsigned VFEntryCount = Shape->VFEntryCount;
       W.printNumber("VFEntryCount", VFEntryCount);
       // We could print out whether the methods are near or far, but in practice
@@ -1547,8 +1550,6 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
     case LF_UDT_SRC_LINE: {
       const UDTSrcLine *Line;
       error(consumeObject(LeafData, Line));
-      DictScope S(W, "UDTSrcLine");
-      W.printHex("TypeIndex", NextTypeIndex);
       printTypeIndex("UDT", Line->UDT);
       printTypeIndex("SourceFile", Line->SourceFile);
       W.printNumber("LineNumber", Line->LineNumber);

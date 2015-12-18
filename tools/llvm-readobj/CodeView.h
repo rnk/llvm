@@ -561,7 +561,6 @@ struct RegRelativeSym {
 enum LeafType : uint16_t {
 #define LEAF_TYPE(name, val) name = val,
 #include "CVLeafTypes.def"
-#undef LEAF_TYPE
 };
 
 /// Builtin type indexes.

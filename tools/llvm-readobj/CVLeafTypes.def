@@ -11,6 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LEAF_TYPE
+#define LEAF_TYPE(ename, value)
+#endif
+
 // 16 bit type records.
 LEAF_TYPE(LF_MODIFIER_16t, 0x0001)
 LEAF_TYPE(LF_POINTER_16t, 0x0002)
@@ -203,3 +207,5 @@ LEAF_TYPE(LF_PAD12, 0xfc)
 LEAF_TYPE(LF_PAD13, 0xfd)
 LEAF_TYPE(LF_PAD14, 0xfe)
 LEAF_TYPE(LF_PAD15, 0xff)
+
+#undef LEAF_TYPE
