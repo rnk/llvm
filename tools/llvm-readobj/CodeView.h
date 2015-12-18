@@ -720,6 +720,12 @@ struct ArgList {
   // ArgTypes[]: Type indicies of arguments
 };
 
+// LF_BUILDINFO
+struct BuildInfo {
+  ulittle16_t NumArgs; // Number of arguments
+  // ArgTypes[]: Type indicies of arguments
+};
+
 // LF_ENUM
 struct EnumType {
   ulittle16_t NumEnumerators; // Number of enumerators

@@ -1130,6 +1130,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_COBOLUDT: {
       DictScope S(W, "UDT");
       const auto *UDT = castSymRec<UDTSym>(Rec);
+      printTypeIndex("Type", UDT->typind);
       size_t UDTNameLen = (UDT->reclen + sizeof(UDT->reclen)) - sizeof(*UDT);
       if (UDTNameLen) {
         StringRef UDTName = StringRef(UDT->name, UDTNameLen);
@@ -1348,6 +1349,7 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       const ArgList *Args;
       error(consumeObject(LeafData, Args));
       W.printNumber("NumArgs", Args->NumArgs);
+      ListScope Arguments(W, "Arguments");
       for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
         const TypeIndex *Type;
         error(consumeObject(LeafData, Type));
@@ -1553,6 +1555,22 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       printTypeIndex("UDT", Line->UDT);
       printTypeIndex("SourceFile", Line->SourceFile);
       W.printNumber("LineNumber", Line->LineNumber);
+      break;
+    }
+
+    case LF_BUILDINFO: {
+      const BuildInfo *Args;
+      error(consumeObject(LeafData, Args));
+      ListScope S(W, "BuildInfo");
+      W.printHex("TypeIndex", NextTypeIndex);
+      W.printNumber("NumArgs", Args->NumArgs);
+
+      ListScope Arguments(W, "Arguments");
+      for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
+        const TypeIndex *Type;
+        error(consumeObject(LeafData, Type));
+        printTypeIndex("ArgType", *Type);
+      }
       break;
     }
     }
