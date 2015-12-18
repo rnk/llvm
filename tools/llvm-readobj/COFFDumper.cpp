@@ -777,10 +777,31 @@ void COFFDumper::printCodeViewDebugInfo() {
   }
 }
 
+/// Consumes sizeof(T) bytes from the given byte sequence. Returns an error if
+/// there are not enough bytes remaining. Reinterprets the consumed bytes as a
+/// T object and points 'Res' at them.
+template <typename T>
+static std::error_code consumeObject(StringRef &Data, const T *&Res) {
+  if (Data.size() < sizeof(*Res))
+    return object_error::parse_failed;
+  Res = reinterpret_cast<const T *>(Data.data());
+  Data = Data.drop_front(sizeof(*Res));
+  return std::error_code();
+}
+
+static std::error_code consumeUInt32(StringRef &Data, uint32_t &Res) {
+  const ulittle32_t *IntPtr;
+  if (auto EC = consumeObject(Data, IntPtr))
+    return EC;
+  Res = *IntPtr;
+  return std::error_code();
+}
+
 void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
                                             const SectionRef &Section) {
-  StringRef Data;
-  error(Section.getContents(Data));
+  StringRef SectionContents;
+  error(Section.getContents(SectionContents));
+  StringRef Data = SectionContents;
 
   SmallVector<StringRef, 10> FunctionNames;
   StringMap<StringRef> FunctionLineTables;
@@ -790,115 +811,113 @@ void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
   // Print the section to allow correlation with printSections.
   W.printNumber("Section", SectionName, Obj->getSectionID(Section));
 
-  {
-    // FIXME: Add more offset correctness checks.
-    DataExtractor DE(Data, true, 4);
-    uint32_t Offset = 0,
-             Magic = DE.getU32(&Offset);
-    W.printHex("Magic", Magic);
-    if (Magic != COFF::DEBUG_SECTION_MAGIC)
+  // FIXME: Add more offset correctness checks.
+  uint32_t Magic;
+  error(consumeUInt32(Data, Magic));
+  W.printHex("Magic", Magic);
+  if (Magic != COFF::DEBUG_SECTION_MAGIC)
+    return error(object_error::parse_failed);
+
+  while (!Data.empty()) {
+    // The section consists of a number of subsection in the following format:
+    // |SubSectionType|SubSectionSize|Contents...|
+    uint32_t SubType, SubSectionSize;
+    error(consumeUInt32(Data, SubType));
+    error(consumeUInt32(Data, SubSectionSize));
+
+    ListScope S(W, "Subsection");
+    W.printEnum("SubSectionType", SubType, makeArrayRef(SubSectionTypes));
+    W.printHex("SubSectionSize", SubSectionSize);
+
+    // Get the contents of the subsection.
+    if (SubSectionSize > Data.size())
       return error(object_error::parse_failed);
+    StringRef Contents = Data.substr(0, SubSectionSize);
 
-    bool Finished = false;
-    while (DE.isValidOffset(Offset) && !Finished) {
-      // The section consists of a number of subsection in the following format:
-      // |SubSectionType|SubSectionSize|Contents...|
-      uint32_t SubType = DE.getU32(&Offset),
-               SubSectionSize = DE.getU32(&Offset);
-      ListScope S(W, "Subsection");
-      W.printEnum("SubSectionType", SubType,
-                  makeArrayRef(SubSectionTypes));
-      W.printHex("SubSectionSize", SubSectionSize);
-      W.printHex("SubSectionContentOffset", Offset);
+    // Add SubSectionSize to the current offset and align that offset to find
+    // the next subsection.
+    size_t SectionOffset = Data.data() - SectionContents.data();
+    size_t NextOffset = SectionOffset + SubSectionSize;
+    NextOffset = RoundUpToAlignment(NextOffset, 4);
+    Data = SectionContents.drop_front(NextOffset);
 
-      // Get the contents of the subsection.
-      if (SubSectionSize > Data.size() - Offset)
-        return error(object_error::parse_failed);
-      StringRef Contents = Data.substr(Offset, SubSectionSize);
+    // Optionally print the subsection bytes in case our parsing gets confused
+    // later.
+    if (opts::CodeViewSubsectionBytes)
+      W.printBinaryBlock("SubSectionContents", Contents);
 
-      // Optionally print the subsection bytes in case our parsing gets confused
-      // later.
-      if (opts::CodeViewSubsectionBytes)
-        W.printBinaryBlock("SubSectionContents", Contents);
+    switch (SubType) {
+    case SUBSEC_SYMBOLS:
+      printCodeViewSymbolsSubsection(Contents, Section, SectionOffset);
+      break;
+    case SUBSEC_LINES: {
+      // Holds a PC to file:line table.  Some data to parse this subsection is
+      // stored in the other subsections, so just check sanity and store the
+      // pointers for deferred processing.
 
-      switch (SubType) {
-      case SUBSEC_SYMBOLS:
-        printCodeViewSymbolsSubsection(Contents, Section, Offset);
-        break;
-      case SUBSEC_LINES: {
-        // Holds a PC to file:line table.  Some data to parse this subsection is
-        // stored in the other subsections, so just check sanity and store the
-        // pointers for deferred processing.
-
-        if (SubSectionSize < 12) {
-          // There should be at least three words to store two function
-          // relocations and size of the code.
-          error(object_error::parse_failed);
-          return;
-        }
-
-        StringRef LinkageName;
-        error(resolveSymbolName(Obj->getCOFFSection(Section), Offset,
-                                LinkageName));
-        W.printString("LinkageName", LinkageName);
-        if (FunctionLineTables.count(LinkageName) != 0) {
-          // Saw debug info for this function already?
-          error(object_error::parse_failed);
-          return;
-        }
-
-        FunctionLineTables[LinkageName] = Contents;
-        FunctionNames.push_back(LinkageName);
-        break;
-      }
-      case SUBSEC_STRINGTABLE:
-        if (SubSectionSize == 0 || CVStringTable.data() != nullptr ||
-            Contents.back() != '\0') {
-          // Empty or duplicate or non-null-terminated subsection.
-          error(object_error::parse_failed);
-          return;
-        }
-        CVStringTable = Contents;
-        break;
-      case SUBSEC_FILECHKSMS:
-        // Holds the translation table from file indices
-        // to offsets in the string table.
-
-        if (SubSectionSize == 0 ||
-            CVFileIndexToStringOffsetTable.data() != nullptr) {
-          // Empty or duplicate subsection.
-          error(object_error::parse_failed);
-          return;
-        }
-        CVFileIndexToStringOffsetTable = Contents;
-        break;
-      case SUBSEC_FRAMEDATA: {
-        const size_t RelocationSize = 4;
-        if (SubSectionSize != sizeof(FrameData) + RelocationSize) {
-          // There should be exactly one relocation followed by the FrameData
-          // contents.
-          error(object_error::parse_failed);
-          return;
-        }
-
-        const auto *FD = reinterpret_cast<const FrameData *>(
-            Contents.drop_front(RelocationSize).data());
-
-        StringRef LinkageName;
-        error(resolveSymbolName(Obj->getCOFFSection(Section), Offset,
-                                LinkageName));
-        if (!FunctionFrameData.emplace(LinkageName, FD).second) {
-          error(object_error::parse_failed);
-          return;
-        }
-        break;
-      }
+      if (SubSectionSize < 12) {
+        // There should be at least three words to store two function
+        // relocations and size of the code.
+        error(object_error::parse_failed);
+        return;
       }
 
-      Offset += SubSectionSize;
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section), SectionOffset,
+                              LinkageName));
+      W.printString("LinkageName", LinkageName);
+      if (FunctionLineTables.count(LinkageName) != 0) {
+        // Saw debug info for this function already?
+        error(object_error::parse_failed);
+        return;
+      }
 
-      // Align the reading pointer by 4.
-      Offset += (-Offset) % 4;
+      FunctionLineTables[LinkageName] = Contents;
+      FunctionNames.push_back(LinkageName);
+      break;
+    }
+    case SUBSEC_STRINGTABLE:
+      if (SubSectionSize == 0 || CVStringTable.data() != nullptr ||
+          Contents.back() != '\0') {
+        // Empty or duplicate or non-null-terminated subsection.
+        error(object_error::parse_failed);
+        return;
+      }
+      CVStringTable = Contents;
+      break;
+    case SUBSEC_FILECHKSMS:
+      // Holds the translation table from file indices
+      // to offsets in the string table.
+
+      if (SubSectionSize == 0 ||
+          CVFileIndexToStringOffsetTable.data() != nullptr) {
+        // Empty or duplicate subsection.
+        error(object_error::parse_failed);
+        return;
+      }
+      CVFileIndexToStringOffsetTable = Contents;
+      break;
+    case SUBSEC_FRAMEDATA: {
+      const size_t RelocationSize = 4;
+      if (SubSectionSize != sizeof(FrameData) + RelocationSize) {
+        // There should be exactly one relocation followed by the FrameData
+        // contents.
+        error(object_error::parse_failed);
+        return;
+      }
+
+      const auto *FD = reinterpret_cast<const FrameData *>(
+          Contents.drop_front(RelocationSize).data());
+
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section), SectionOffset,
+                              LinkageName));
+      if (!FunctionFrameData.emplace(LinkageName, FD).second) {
+        error(object_error::parse_failed);
+        return;
+      }
+      break;
+    }
     }
   }
 
@@ -1271,18 +1290,6 @@ static StringRef getLeafTypeName(LeafType LT) {
   default: break;
   }
   return "UnknownLeaf";
-}
-
-/// Consumes sizeof(T) bytes from the given byte sequence. Returns an error if
-/// there are not enough bytes remaining. Reinterprets the consumed bytes as a
-/// T object and points 'Res' at them.
-template <typename T>
-static std::error_code consumeObject(StringRef &Data, const T *&Res) {
-  if (Data.size() < sizeof(*Res))
-    return object_error::parse_failed;
-  Res = reinterpret_cast<const T *>(Data.data());
-  Data = Data.drop_front(sizeof(*Res));
-  return std::error_code();
 }
 
 void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
