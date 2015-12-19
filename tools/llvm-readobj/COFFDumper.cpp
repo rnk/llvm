@@ -815,7 +815,6 @@ void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
   // Print the section to allow correlation with printSections.
   W.printNumber("Section", SectionName, Obj->getSectionID(Section));
 
-  // FIXME: Add more offset correctness checks.
   uint32_t Magic;
   error(consumeUInt32(Data, Magic));
   W.printHex("Magic", Magic);
@@ -1169,12 +1168,10 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     }
 
     default: {
-      if (opts::CodeViewSubsectionBytes) {
-        ListScope S(W, "Record");
-        W.printHex("Type", Rec->rectyp);
-        W.printHex("Size", Rec->reclen);
-        W.printBinaryBlock("SymData", SymData);
-      }
+      DictScope S(W, "UnknownSym");
+      W.printHex("Type", unsigned(Type));
+      W.printHex("Size", Rec->reclen);
+      W.printBinaryBlock("SymData", SymData);
       break;
     }
     }
