@@ -1234,6 +1234,7 @@ StringRef COFFDumper::getTypeName(unsigned TypeIndex) {
   unsigned UDTIndex = TypeIndex - 0x1000;
   if (UDTIndex < CVUDTNames.size())
     return CVUDTNames[UDTIndex];
+
   return StringRef();
 }
 
@@ -1348,11 +1349,18 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       error(consumeObject(LeafData, Args));
       W.printNumber("NumArgs", Args->NumArgs);
       ListScope Arguments(W, "Arguments");
+      SmallString<256> TypeName("(");
       for (uint32_t ArgI = 0; ArgI != Args->NumArgs; ++ArgI) {
         const TypeIndex *Type;
         error(consumeObject(LeafData, Type));
         printTypeIndex("ArgType", *Type);
+        StringRef ArgTypeName = getTypeName(*Type);
+        TypeName.append(ArgTypeName);
+        if (ArgI + 1 != Args->NumArgs)
+          TypeName.append(", ");
       }
+      TypeName.push_back(')');
+      Name = TypeNames.insert(TypeName).first->getKey();
       break;
     }
 
@@ -1445,6 +1453,13 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
                    makeArrayRef(FunctionOptionEnum));
       W.printNumber("NumParameters", Proc->NumParameters);
       printTypeIndex("ArgListType", Proc->ArgListType);
+
+      StringRef ReturnTypeName = getTypeName(Proc->ReturnType);
+      StringRef ArgListTypeName = getTypeName(Proc->ArgListType);
+      SmallString<256> TypeName(ReturnTypeName);
+      TypeName.push_back(' ');
+      TypeName.append(ArgListTypeName);
+      Name = TypeNames.insert(TypeName).first->getKey();
       break;
     }
 
@@ -1461,6 +1476,16 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("NumParameters", MemberFunc->NumParameters);
       printTypeIndex("ArgListType", MemberFunc->ArgListType);
       W.printNumber("ThisAdjustment", MemberFunc->ThisAdjustment);
+
+      StringRef ReturnTypeName = getTypeName(MemberFunc->ReturnType);
+      StringRef ClassTypeName = getTypeName(MemberFunc->ClassType);
+      StringRef ArgListTypeName = getTypeName(MemberFunc->ArgListType);
+      SmallString<256> TypeName(ReturnTypeName);
+      TypeName.push_back(' ');
+      TypeName.append(ClassTypeName);
+      TypeName.append("::");
+      TypeName.append(ArgListTypeName);
+      Name = TypeNames.insert(TypeName).first->getKey();
       break;
     }
 
@@ -1515,28 +1540,41 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       W.printNumber("IsVolatile", Ptr->isVolatile());
       W.printNumber("IsUnaligned", Ptr->isUnaligned());
 
-      StringRef PointeeName = getTypeName(Ptr->PointeeType);
       if (Ptr->isPointerToMember()) {
         const PointerToMemberTail *PMT;
         error(consumeObject(LeafData, PMT));
         printTypeIndex("ClassType", PMT->ClassType);
         W.printEnum("Representation", PMT->Representation,
                     makeArrayRef(PtrMemberRepNames));
+
+        StringRef PointeeName = getTypeName(Ptr->PointeeType);
         StringRef ClassName = getTypeName(PMT->ClassType);
-        if (!PointeeName.empty() && !ClassName.empty()) {
-          SmallString<256> TypeName(PointeeName);
-          TypeName.push_back(' ');
-          TypeName.append(ClassName);
-          TypeName.append("::*");
-          Name = TypeNames.insert(TypeName).first->getKey();
-        }
+        SmallString<256> TypeName(PointeeName);
+        TypeName.push_back(' ');
+        TypeName.append(ClassName);
+        TypeName.append("::*");
+        Name = TypeNames.insert(TypeName).first->getKey();
       } else {
         W.printBinaryBlock("TailData", LeafData);
-        if (!PointeeName.empty()) {
-          SmallString<256> TypeName(PointeeName);
-          TypeName.append(" *");
-          Name = TypeNames.insert(TypeName).first->getKey();
-        }
+
+        SmallString<256> TypeName;
+        if (Ptr->isConst())
+          TypeName.append("const ");
+        if (Ptr->isVolatile())
+          TypeName.append("volatile ");
+        if (Ptr->isUnaligned())
+          TypeName.append("__unaligned ");
+
+        TypeName.append(getTypeName(Ptr->PointeeType));
+
+        if (Ptr->getPtrMode() == PointerType::LValueReference)
+          TypeName.append("&");
+        else if (Ptr->getPtrMode() == PointerType::RValueReference)
+          TypeName.append("&&");
+        else if (Ptr->getPtrMode() == PointerType::Pointer)
+          TypeName.append("*");
+
+        Name = TypeNames.insert(TypeName).first->getKey();
       }
       break;
     }
@@ -1547,18 +1585,17 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       printTypeIndex("ModifiedType", Mod->ModifiedType);
       W.printFlags("Modifiers", Mod->Modifiers,
                    makeArrayRef(TypeModifierNames));
+
       StringRef ModifiedName = getTypeName(Mod->ModifiedType);
-      if (!ModifiedName.empty()) {
-        SmallString<256> TypeName;
-        if (Mod->Modifiers & TypeModifier::Const)
-          TypeName.append("const ");
-        if (Mod->Modifiers & TypeModifier::Volatile)
-          TypeName.append("volatile ");
-        if (Mod->Modifiers & TypeModifier::Unaligned)
-          TypeName.append("__unaligned ");
-        TypeName.append(ModifiedName);
-        Name = TypeNames.insert(TypeName).first->getKey();
-      }
+      SmallString<256> TypeName;
+      if (Mod->Modifiers & TypeModifier::Const)
+        TypeName.append("const ");
+      if (Mod->Modifiers & TypeModifier::Volatile)
+        TypeName.append("volatile ");
+      if (Mod->Modifiers & TypeModifier::Unaligned)
+        TypeName.append("__unaligned ");
+      TypeName.append(ModifiedName);
+      Name = TypeNames.insert(TypeName).first->getKey();
       break;
     }
 

@@ -394,7 +394,7 @@ struct PointerType {
   };
 
   PointerKind getPtrKind() const { return PointerKind(Attrs & 0x1f); }
-  PointerMode getPtrMode() const { return PointerMode((Attrs & 0x07) >> 5); }
+  PointerMode getPtrMode() const { return PointerMode((Attrs >> 5) & 0x07); }
   bool isFlat() const { return Attrs & (1 << 8); }
   bool isVolatile() const { return Attrs & (1 << 9); }
   bool isConst() const { return Attrs & (1 << 10); }
