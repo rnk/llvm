@@ -125,10 +125,10 @@
 ; OBJ32-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ32-NOT:    ]
 ; OBJ32:        ProcStart {
-; OBJ32-NEXT:     DisplayName: f
-; OBJ32-NEXT:     LinkageName: _f
-; OBJ32-NEXT:     CodeSize: 0x10
-; OBJ32-NEXT:   }
+; OBJ32:          CodeSize: 0x10
+; OBJ32:          DisplayName: f
+; OBJ32:          LinkageName: _f
+; OBJ32:        }
 ; OBJ32-NEXT:   ProcEnd
 ; OBJ32-NEXT: ]
 ; OBJ32:      FunctionLineTable [
@@ -285,11 +285,11 @@
 ; OBJ64-NEXT:   SubSectionType: SUBSEC_SYMBOLS (0xF1)
 ; OBJ64-NOT:    ]
 ; OBJ64:        ProcStart {
-; OBJ64-NEXT:     DisplayName: f
-; OBJ64-NEXT:     LinkageName: f
-; OBJ64-NEXT:     CodeSize: 0x18
-; OBJ64-NEXT:   }
-; OBJ64-NEXT:   ProcEnd
+; OBJ64:          CodeSize: 0x18
+; OBJ64:          DisplayName: f
+; OBJ64:          LinkageName: f
+; OBJ64:        }
+; OBJ64:        ProcEnd
 ; OBJ64-NEXT: ]
 ; OBJ64:      FunctionLineTable [
 ; OBJ64-NEXT:   Name: f

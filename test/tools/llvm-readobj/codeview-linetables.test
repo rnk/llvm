@@ -42,10 +42,10 @@ MFUN32-NEXT:   Subsection [
 MFUN32-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN32-NEXT:     SubSectionSize: 0x4B
 MFUN32:          ProcStart {
-MFUN32-NEXT:       DisplayName: x
-MFUN32-NEXT:       LinkageName: _x
-MFUN32-NEXT:       CodeSize: 0xA
-MFUN32-NEXT:     }
+MFUN32:            CodeSize: 0xA
+MFUN32:            DisplayName: x
+MFUN32:            LinkageName: _x
+MFUN32:          }
 MFUN32:          ProcEnd
 MFUN32:        ]
 MFUN32-NEXT:   Subsection [
@@ -61,10 +61,10 @@ MFUN32-NEXT:   Subsection [
 MFUN32-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN32-NEXT:     SubSectionSize: 0x4B
 MFUN32:          ProcStart {
-MFUN32-NEXT:       DisplayName: y
-MFUN32-NEXT:       LinkageName: _y
-MFUN32-NEXT:       CodeSize: 0xA
-MFUN32-NEXT:     }
+MFUN32:            CodeSize: 0xA
+MFUN32:            DisplayName: y
+MFUN32:            LinkageName: _y
+MFUN32:          }
 MFUN32:          ProcEnd
 MFUN32:        ]
 MFUN32-NEXT:   Subsection [
@@ -80,10 +80,10 @@ MFUN32-NEXT:   Subsection [
 MFUN32-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN32-NEXT:     SubSectionSize: 0x4B
 MFUN32:          ProcStart {
-MFUN32-NEXT:       DisplayName: f
-MFUN32-NEXT:       LinkageName: _f
-MFUN32-NEXT:       CodeSize: 0x14
-MFUN32-NEXT:     }
+MFUN32:            CodeSize: 0x14
+MFUN32:            DisplayName: f
+MFUN32:            LinkageName: _f
+MFUN32:          }
 MFUN32:          ProcEnd
 MFUN32:        ]
 MFUN32-NEXT:   Subsection [
@@ -150,10 +150,10 @@ MFUN64:        Subsection [
 MFUN64-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN64-NEXT:     SubSectionSize: 0x4B
 MFUN64:          ProcStart {
-MFUN64-NEXT:       DisplayName: x
-MFUN64-NEXT:       LinkageName: x
-MFUN64-NEXT:       CodeSize: 0xE
-MFUN64-NEXT:     }
+MFUN64:            CodeSize: 0xE
+MFUN64:            DisplayName: x
+MFUN64:            LinkageName: x
+MFUN64:          }
 MFUN64:          ProcEnd
 MFUN64:        ]
 MFUN64-NEXT:   Subsection [
@@ -165,10 +165,10 @@ MFUN64-NEXT:   Subsection [
 MFUN64-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN64-NEXT:     SubSectionSize: 0x4B
 MFUN64:          ProcStart {
-MFUN64-NEXT:       DisplayName: y
-MFUN64-NEXT:       LinkageName: y
-MFUN64-NEXT:       CodeSize: 0xE
-MFUN64-NEXT:     }
+MFUN64:            CodeSize: 0xE
+MFUN64:            DisplayName: y
+MFUN64:            LinkageName: y
+MFUN64:          }
 MFUN64:          ProcEnd
 MFUN64:        ]
 MFUN64-NEXT:   Subsection [
@@ -180,10 +180,10 @@ MFUN64-NEXT:   Subsection [
 MFUN64-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFUN64-NEXT:     SubSectionSize: 0x4B
 MFUN64:          ProcStart {
-MFUN64-NEXT:       DisplayName: f
-MFUN64-NEXT:       LinkageName: f
-MFUN64-NEXT:       CodeSize: 0x18
-MFUN64-NEXT:     }
+MFUN64:            CodeSize: 0x18
+MFUN64:            DisplayName: f
+MFUN64:            LinkageName: f
+MFUN64:          }
 MFUN64:          ProcEnd
 MFUN64:        ]
 MFUN64-NEXT:   Subsection [
@@ -278,10 +278,10 @@ MFILE32-NEXT:   Subsection [
 MFILE32-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFILE32-NEXT:     SubSectionSize: 0x4B
 MFILE32:          ProcStart {
-MFILE32-NEXT:       DisplayName: f
-MFILE32-NEXT:       LinkageName: _f
-MFILE32-NEXT:       CodeSize: 0x14
-MFILE32-NEXT:     }
+MFILE32:            CodeSize: 0x14
+MFILE32:            DisplayName: f
+MFILE32:            LinkageName: _f
+MFILE32:          }
 MFILE32:          ProcEnd
 MFILE32:        ]
 MFILE32-NEXT:   Subsection [
@@ -335,10 +335,10 @@ MFILE64:        Subsection [
 MFILE64-NEXT:     SubSectionType: SUBSEC_SYMBOLS (0xF1)
 MFILE64-NEXT:     SubSectionSize: 0x4B
 MFILE64:          ProcStart {
-MFILE64-NEXT:       DisplayName: f
-MFILE64-NEXT:       LinkageName: f
-MFILE64-NEXT:       CodeSize: 0x18
-MFILE64-NEXT:     }
+MFILE64:            CodeSize: 0x18
+MFILE64:            DisplayName: f
+MFILE64:            LinkageName: f
+MFILE64:          }
 MFILE64:          ProcEnd
 MFILE64:        ]
 MFILE64-NEXT:   Subsection [
@@ -402,10 +402,10 @@ RUN: llvm-readobj -s -codeview -section-symbols %p/Inputs/comdat-function-lineta
 RUN:   | FileCheck %s -check-prefix MCOMDAT
 
 MCOMDAT:      ProcStart {
-MCOMDAT-NEXT:   DisplayName: f
-MCOMDAT-NEXT:   LinkageName: ?f@@YAHXZ
-MCOMDAT-NEXT:   CodeSize: 0x7
-MCOMDAT-NEXT: }
+MCOMDAT:        CodeSize: 0x7
+MCOMDAT:        DisplayName: f
+MCOMDAT:        LinkageName: ?f@@YAHXZ
+MCOMDAT:      }
 MCOMDAT:      FunctionLineTable [
 MCOMDAT-NEXT:   LinkageName: ?f@@YAHXZ
 MCOMDAT-NEXT:   Flags: 0x0
@@ -418,10 +418,10 @@ MCOMDAT-NEXT:     +0x5: 4
 MCOMDAT-NEXT:   ]
 MCOMDAT-NEXT: ]
 MCOMDAT:      ProcStart {
-MCOMDAT-NEXT:   DisplayName: g
-MCOMDAT-NEXT:   LinkageName: ?g@@YAHXZ
-MCOMDAT-NEXT:   CodeSize: 0x7
-MCOMDAT-NEXT: }
+MCOMDAT:        CodeSize: 0x7
+MCOMDAT:        DisplayName: g
+MCOMDAT:        LinkageName: ?g@@YAHXZ
+MCOMDAT:      }
 MCOMDAT:      FunctionLineTable [
 MCOMDAT-NEXT:   LinkageName: ?g@@YAHXZ
 MCOMDAT-NEXT:   Flags: 0x0

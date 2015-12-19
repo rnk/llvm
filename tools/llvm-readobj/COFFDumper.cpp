@@ -364,20 +364,20 @@ static const EnumEntry<CompileSym3::Flags> CompileSym3Flags[] = {
 
 static const EnumEntry<codeview::SourceLanguage> SourceLanguages[] = {
     LLVM_READOBJ_ENUM_ENT(SourceLanguage, C),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CXX),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, FORTRAN),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, MASM),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, PASCAL),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, BASIC),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, COBOL),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, LINK),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CVTRES),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CVTPGD),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CSHARP),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, VP),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, ILASM),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, JAVA),
-    LLVM_READOBJ_ENUM_ENT(SourceLanguage, JSCRIPT),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Cpp),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Fortran),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Masm),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Pascal),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Basic),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Cobol),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Link),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Cvtres),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Cvtpgd),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, CSharp),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, VB),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, ILAsm),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, Java),
+    LLVM_READOBJ_ENUM_ENT(SourceLanguage, JScript),
     LLVM_READOBJ_ENUM_ENT(SourceLanguage, MSIL),
     LLVM_READOBJ_ENUM_ENT(SourceLanguage, HLSL),
 };
@@ -398,99 +398,91 @@ static const EnumEntry<codeview::SubSectionType> SubSectionTypes[] = {
     LLVM_READOBJ_ENUM_ENT(SubSectionType, SUBSEC_COFF_SYMBOL_RVA),
 };
 
-static const EnumEntry<codeview::CPUType> CPUTypes[] = {
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8080),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_8086),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80286),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80386),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_80486),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUM),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUMPRO),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PENTIUMIII),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS16),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS32),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPS64),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSI),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSII),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSIII),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSIV),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_MIPSV),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68000),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68010),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68020),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68030),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M68040),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21064),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21164),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21164A),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21264),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ALPHA_21364),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC601),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC603),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC604),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPC620),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPCFP),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_PPCBE),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3E),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH3DSP),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SH4),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_SHMEDIA),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM3),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM4),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM4T),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM5),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM5T),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM6),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM_XMAC),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM_WMMX),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM7),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_OMNI),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64_1),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_IA64_2),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_CEE),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_AM33),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_M32R),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_TRICORE),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_X64),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_EBC),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_THUMB),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARMNT),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_ARM64),
-    LLVM_READOBJ_ENUM_ENT(CPUType, CPU_D3D11_SHADER),
+static const EnumEntry<codeview::CPUType> CPUTypeNames[] = {
+  LLVM_READOBJ_ENUM_ENT(CPUType, Intel8080),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Intel8086),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Intel80286),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Intel80386),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Intel80486),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Pentium),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PentiumPro),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Pentium3),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPS),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPS16),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPS32),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPS64),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPSI),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPSII),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPSIII),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPSIV),
+  LLVM_READOBJ_ENUM_ENT(CPUType, MIPSV),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M68000),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M68010),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M68020),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M68030),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M68040),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Alpha),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Alpha21164),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Alpha21164A),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Alpha21264),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Alpha21364),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPC601),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPC603),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPC604),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPC620),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPCFP),
+  LLVM_READOBJ_ENUM_ENT(CPUType, PPCBE),
+  LLVM_READOBJ_ENUM_ENT(CPUType, SH3),
+  LLVM_READOBJ_ENUM_ENT(CPUType, SH3E),
+  LLVM_READOBJ_ENUM_ENT(CPUType, SH3DSP),
+  LLVM_READOBJ_ENUM_ENT(CPUType, SH4),
+  LLVM_READOBJ_ENUM_ENT(CPUType, SHMedia),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM3),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM4),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM4T),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM5),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM5T),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM6),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM_XMAC),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM_WMMX),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARM7),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Omni),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Ia64),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Ia64_2),
+  LLVM_READOBJ_ENUM_ENT(CPUType, CEE),
+  LLVM_READOBJ_ENUM_ENT(CPUType, AM33),
+  LLVM_READOBJ_ENUM_ENT(CPUType, M32R),
+  LLVM_READOBJ_ENUM_ENT(CPUType, TriCore),
+  LLVM_READOBJ_ENUM_ENT(CPUType, X64),
+  LLVM_READOBJ_ENUM_ENT(CPUType, EBC),
+  LLVM_READOBJ_ENUM_ENT(CPUType, Thumb),
+  LLVM_READOBJ_ENUM_ENT(CPUType, ARMNT),
+  LLVM_READOBJ_ENUM_ENT(CPUType, D3D11_Shader),
 };
 
-
-static const EnumEntry<FrameProcSym::Flags> FrameProcSymFlags[] = {
+static const EnumEntry<uint32_t> FrameProcSymFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasAlloca),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasSetJmp),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasLongJmp),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasInlAsm),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasInlineAssembly),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasEH),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, InlSpec),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, MarkedInline),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasSEH),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, Naked),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, SecurityChecks),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, AsyncEH),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GSNoStackOrdering),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, WasInlined),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GSCheck),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, AsynchEH),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, NoStackOrderingForSecurityChecks),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, Inlined),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, StrictSecurityChecks),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, SafeBuffers),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedLocalBasePointer1),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedLocalBasePointer2),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedParamBasePointer1),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, encodedParamBasePointer2),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, PogoOn),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, ValidCounts),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, OptSpeed),
-    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCF),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, ProfileGuidedOptimization),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, ValidProfileCounts),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, OptimizedForSpeed),
+    LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCFG),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, GuardCFW),
 };
 
-static const EnumEntry<FrameData::Flags> FrameDataFlags[] = {
+static const EnumEntry<uint32_t> FrameDataFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameData, HasSEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, HasEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, IsFunctionStart),
@@ -1007,15 +999,15 @@ void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
     const FrameData *FD = FrameDataPair.second;
     ListScope S(W, "FunctionFrameData");
     W.printString("LinkageName", LinkageName);
-    W.printHex("RvaStart", FD->ulRvaStart);
-    W.printHex("CodeSize", FD->cbBlock);
-    W.printHex("Locals", FD->cbLocals);
-    W.printHex("Params", FD->cbParams);
-    W.printHex("StackMax", FD->cbStkMax);
-    W.printString("FrameFunc", StringRef(CVStringTable.data() + FD->frameFunc));
-    W.printHex("PrologSize", FD->cbProlog);
-    W.printHex("SavedRegs", FD->cbSavedRegs);
-    W.printFlags("Flags", FD->flags, makeArrayRef(FrameDataFlags));
+    W.printHex("RvaStart", FD->RvaStart);
+    W.printHex("CodeSize", FD->CodeSize);
+    W.printHex("LocalSize", FD->LocalSize);
+    W.printHex("ParamsSize", FD->ParamsSize);
+    W.printHex("MaxStackSize", FD->MaxStackSize);
+    W.printString("FrameFunc", StringRef(CVStringTable.data() + FD->FrameFunc));
+    W.printHex("PrologSize", FD->PrologSize);
+    W.printHex("SavedRegsSize", FD->SavedRegsSize);
+    W.printFlags("Flags", FD->Flags, makeArrayRef(FrameDataFlags));
   }
 }
 
@@ -1033,11 +1025,11 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     const SymRecord *Rec;
     error(consumeObject(Data, Rec));
 
-    StringRef SymData = Data.substr(0, Rec->reclen - 2);
+    StringRef SymData = Data.substr(0, Rec->RecordLength - 2);
 
-    Data = Data.drop_front(Rec->reclen - 2);
+    Data = Data.drop_front(Rec->RecordLength - 2);
 
-    SymType Type = static_cast<SymType>(uint16_t(Rec->rectyp));
+    SymType Type = static_cast<SymType>(uint16_t(Rec->RecordType));
     switch (Type) {
     case S_LPROC32:
     case S_GPROC32:
@@ -1052,18 +1044,29 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
         return error(object_error::parse_failed);
       InFunctionScope = true;
 
-      // Find the relocation that will be applied to the 'off' field, and get
-      // the symbol associated with it.
-      ptrdiff_t OffsetOfOff =
-          reinterpret_cast<const char *>(&Proc->off) - Subsection.data();
+      // In a COFF object file, the CodeOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfCodeOffset =
+          reinterpret_cast<const char *>(&Proc->CodeOffset) - Subsection.data();
       StringRef LinkageName;
       error(resolveSymbolName(Obj->getCOFFSection(Section),
-                              OffsetInSection + OffsetOfOff, LinkageName));
+                              OffsetInSection + SecOffsetOfCodeOffset,
+                              LinkageName));
 
       StringRef DisplayName = SymData.split('\0').first;
+      W.printHex("PtrParent", Proc->PtrParent);
+      W.printHex("PtrEnd", Proc->PtrEnd);
+      W.printHex("PtrNext", Proc->PtrNext);
+      W.printHex("CodeSize", Proc->CodeSize);
+      W.printHex("DbgStart", Proc->DbgStart);
+      W.printHex("DbgEnd", Proc->DbgEnd);
+      printTypeIndex("FunctionType", Proc->FunctionType);
+      W.printHex("CodeOffset", Proc->CodeOffset);
+      W.printHex("Segment", Proc->Segment);
+      W.printHex("Flags", Proc->Flags);
       W.printString("DisplayName", DisplayName);
       W.printString("LinkageName", LinkageName);
-      W.printHex("CodeSize", Proc->len);
       break;
     }
 
@@ -1077,7 +1080,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "ObjectName");
       const ObjNameSym *ObjName;
       error(consumeObject(SymData, ObjName));
-      W.printHex("Signature", ObjName->signature);
+      W.printHex("Signature", ObjName->Signature);
       StringRef ObjectName = SymData.split('\0').first;
       W.printString("ObjectName", ObjectName);
       break;
@@ -1091,18 +1094,23 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                   makeArrayRef(SourceLanguages));
       W.printFlags("Flags", CompFlags->flags & ~0xff,
                    makeArrayRef(CompileSym3Flags));
-      W.printEnum("Machine", CompFlags->machine, makeArrayRef(CPUTypes));
+      W.printEnum("Machine", unsigned(CompFlags->Machine),
+                  makeArrayRef(CPUTypeNames));
       std::string FrontendVersion;
       {
         raw_string_ostream Out(FrontendVersion);
-        Out << CompFlags->verFEMajor << '.' << CompFlags->verFEMinor << '.'
-            << CompFlags->verFEBuild << '.' << CompFlags->verFEQFE;
+        Out << CompFlags->VersionFrontendMajor << '.'
+            << CompFlags->VersionFrontendMinor << '.'
+            << CompFlags->VersionFrontendBuild << '.'
+            << CompFlags->VersionFrontendQFE;
       }
       std::string BackendVersion;
       {
         raw_string_ostream Out(BackendVersion);
-        Out << CompFlags->verMajor << '.' << CompFlags->verMinor << '.'
-            << CompFlags->verBuild << '.' << CompFlags->verQFE;
+        Out << CompFlags->VersionBackendMajor << '.'
+            << CompFlags->VersionBackendMinor << '.'
+            << CompFlags->VersionBackendBuild << '.'
+            << CompFlags->VersionBackendQFE;
       }
       W.printString("FrontendVersion", FrontendVersion);
       W.printString("BackendVersion", BackendVersion);
@@ -1115,13 +1123,13 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "FrameProc");
       const FrameProcSym *FrameProc;
       error(consumeObject(SymData, FrameProc));
-      W.printHex("TotalFrameBytes", FrameProc->cbFrame);
-      W.printHex("PaddingFrameBytes", FrameProc->cbPad);
-      W.printHex("OffsetToPadding", FrameProc->offPad);
-      W.printHex("BytesOfCalleeSavedRegister", FrameProc->cbSaveRegs);
-      W.printHex("OffsetOfExceptionHandler", FrameProc->offExHdlr);
-      W.printHex("SectionIdOfExceptionHandler", FrameProc->sectExHdlr);
-      W.printFlags("Flags", FrameProc->flags, makeArrayRef(FrameProcSymFlags));
+      W.printHex("TotalFrameBytes", FrameProc->TotalFrameBytes);
+      W.printHex("PaddingFrameBytes", FrameProc->PaddingFrameBytes);
+      W.printHex("OffsetToPadding", FrameProc->OffsetToPadding);
+      W.printHex("BytesOfCalleeSavedRegisters", FrameProc->BytesOfCalleeSavedRegisters);
+      W.printHex("OffsetOfExceptionHandler", FrameProc->OffsetOfExceptionHandler);
+      W.printHex("SectionIdOfExceptionHandler", FrameProc->SectionIdOfExceptionHandler);
+      W.printFlags("Flags", FrameProc->Flags, makeArrayRef(FrameProcSymFlags));
       break;
     }
 
@@ -1130,7 +1138,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "UDT");
       const UDTSym *UDT;
       error(consumeObject(SymData, UDT));
-      printTypeIndex("Type", UDT->typind);
+      printTypeIndex("Type", UDT->Type);
       StringRef UDTName = SymData.split('\0').first;
       W.printString("UDTName", UDTName);
       break;
@@ -1140,8 +1148,8 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "BPRelativeSym");
       const BPRelativeSym *BPRel;
       error(consumeObject(SymData, BPRel));
-      W.printHex("Offset", BPRel->off);
-      printTypeIndex("Type", BPRel->typind);
+      W.printHex("Offset", BPRel->Offset);
+      printTypeIndex("Type", BPRel->Type);
       StringRef VarName = SymData.split('\0').first;
       W.printString("VarName", VarName);
       break;
@@ -1151,9 +1159,9 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "RegRelativeSym");
       const RegRelativeSym *RegRel;
       error(consumeObject(SymData, RegRel));
-      W.printHex("Offset", RegRel->off);
-      printTypeIndex("Type", RegRel->typind);
-      W.printHex("Register", RegRel->reg);
+      W.printHex("Offset", RegRel->Offset);
+      printTypeIndex("Type", RegRel->Type);
+      W.printHex("Register", RegRel->Register);
       StringRef VarName = SymData.split('\0').first;
       W.printString("VarName", VarName);
       break;
@@ -1163,14 +1171,14 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       DictScope S(W, "BuildInfo");
       const BuildInfoSym *BuildInfo;
       error(consumeObject(SymData, BuildInfo));
-      W.printNumber("Id", BuildInfo->id);
+      W.printNumber("BuildId", BuildInfo->BuildId);
       break;
     }
 
     default: {
       DictScope S(W, "UnknownSym");
       W.printHex("Type", unsigned(Type));
-      W.printHex("Size", Rec->reclen);
+      W.printHex("Size", Rec->RecordLength);
       W.printBinaryBlock("SymData", SymData);
       break;
     }
@@ -1775,7 +1783,7 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       DictScope S(W, "VirtualBaseClass");
       printMemberAttributes(Base->Attrs);
       printTypeIndex("BaseType",  Base->BaseType);
-      printTypeIndex("VBPtrTypeIndex", Base->vbptr);
+      printTypeIndex("VBPtrType", Base->VBPtrType);
       uint64_t VBPtrOffset, VBTableIndex;
       error(decodeUIntLeaf(FieldData, VBPtrOffset));
       error(decodeUIntLeaf(FieldData, VBTableIndex));

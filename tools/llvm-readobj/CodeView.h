@@ -61,126 +61,117 @@ enum SymType : uint16_t {
 
 /// Generic record compatible with all symbol records.
 struct SymRecord {
-  ulittle16_t reclen; // Record length, starting from the next field
-  ulittle16_t rectyp; // Record type
-  // char data[];
+  ulittle16_t RecordLength; // Record length, starting from the next field
+  ulittle16_t RecordType;   // Record type (SymType)
+  // Symbol data follows.
 };
 
 // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID, S_LPROC32_DPC or
 // S_LPROC32_DPC_ID
 struct ProcSym {
-  ulittle32_t pParent;  // pointer to the parent
-  ulittle32_t pEnd;     // pointer to this blocks end
-  ulittle32_t pNext;    // pointer to next symbol
-  ulittle32_t len;      // Proc length
-  ulittle32_t DbgStart; // Debug start offset
-  ulittle32_t DbgEnd;   // Debug end offset
-  ulittle32_t typind;   // Type index or ID
-  ulittle32_t off;
-  ulittle16_t seg;
-  uint8_t flags; // Proc flags
-  //char name[1];  // Length-prefixed name
-};
-
-// LF_FUNC_ID
-struct FuncId {
-  TypeIndex ParentScope;
-  TypeIndex FunctionType;
+  ulittle32_t PtrParent;
+  ulittle32_t PtrEnd;
+  ulittle32_t PtrNext;
+  ulittle32_t CodeSize;
+  ulittle32_t DbgStart;
+  ulittle32_t DbgEnd;
+  ulittle32_t FunctionType;
+  ulittle32_t CodeOffset;
+  ulittle16_t Segment;
+  uint8_t Flags; // CV_PROCFLAGS
   // Name: The null-terminated name follows.
 };
 
 // S_OBJNAME
 struct ObjNameSym {
-  ulittle32_t signature; // signature
+  ulittle32_t Signature;
   // Name: The null-terminated name follows.
 };
 
+/// These values correspond to the CV_CFL_LANG enumeration, and are documented
+/// here: https://msdn.microsoft.com/en-us/library/bw3aekw6.aspx
 enum SourceLanguage : uint8_t {
   C = 0x00,
-  CXX = 0x01,
-  FORTRAN = 0x02,
-  MASM = 0x03,
-  PASCAL = 0x04,
-  BASIC = 0x05,
-  COBOL = 0x06,
-  LINK = 0x07,
-  CVTRES = 0x08,
-  CVTPGD = 0x09,
-  CSHARP = 0x0A,
-  VP = 0x0B,
-  ILASM = 0x0C,
-  JAVA = 0x0D,
-  JSCRIPT = 0x0E,
-  MSIL = 0x0F,
-  HLSL = 0x10,
+  Cpp = 0x01,
+  Fortran = 0x02,
+  Masm = 0x03,
+  Pascal = 0x04,
+  Basic = 0x05,
+  Cobol = 0x06,
+  Link = 0x07,
+  Cvtres = 0x08,
+  Cvtpgd = 0x09,
+  CSharp = 0x0a,
+  VB = 0x0b,
+  ILAsm = 0x0c,
+  Java = 0x0d,
+  JScript = 0x0e,
+  MSIL = 0x0f,
+  HLSL = 0x10
 };
 
+/// These values correspond to the CV_CPU_TYPE_e enumeration, and are documented
+/// here: https://msdn.microsoft.com/en-us/library/b2fc64ek.aspx
 enum CPUType : uint16_t {
-  CPU_8080 = 0x00,
-  CPU_8086 = 0x01,
-  CPU_80286 = 0x02,
-  CPU_80386 = 0x03,
-  CPU_80486 = 0x04,
-  CPU_PENTIUM = 0x05,
-  CPU_PENTIUMII = 0x06,
-  CPU_PENTIUMPRO = CPU_PENTIUMII,
-  CPU_PENTIUMIII = 0x07,
-  CPU_MIPS = 0x10,
-  CPU_MIPSR4000 = CPU_MIPS,
-  CPU_MIPS16 = 0x11,
-  CPU_MIPS32 = 0x12,
-  CPU_MIPS64 = 0x13,
-  CPU_MIPSI = 0x14,
-  CPU_MIPSII = 0x15,
-  CPU_MIPSIII = 0x16,
-  CPU_MIPSIV = 0x17,
-  CPU_MIPSV = 0x18,
-  CPU_M68000 = 0x20,
-  CPU_M68010 = 0x21,
-  CPU_M68020 = 0x22,
-  CPU_M68030 = 0x23,
-  CPU_M68040 = 0x24,
-  CPU_ALPHA = 0x30,
-  CPU_ALPHA_21064 = 0x30,
-  CPU_ALPHA_21164 = 0x31,
-  CPU_ALPHA_21164A = 0x32,
-  CPU_ALPHA_21264 = 0x33,
-  CPU_ALPHA_21364 = 0x34,
-  CPU_PPC601 = 0x40,
-  CPU_PPC603 = 0x41,
-  CPU_PPC604 = 0x42,
-  CPU_PPC620 = 0x43,
-  CPU_PPCFP = 0x44,
-  CPU_PPCBE = 0x45,
-  CPU_SH3 = 0x50,
-  CPU_SH3E = 0x51,
-  CPU_SH3DSP = 0x52,
-  CPU_SH4 = 0x53,
-  CPU_SHMEDIA = 0x54,
-  CPU_ARM3 = 0x60,
-  CPU_ARM4 = 0x61,
-  CPU_ARM4T = 0x62,
-  CPU_ARM5 = 0x63,
-  CPU_ARM5T = 0x64,
-  CPU_ARM6 = 0x65,
-  CPU_ARM_XMAC = 0x66,
-  CPU_ARM_WMMX = 0x67,
-  CPU_ARM7 = 0x68,
-  CPU_OMNI = 0x70,
-  CPU_IA64 = 0x80,
-  CPU_IA64_1 = 0x80,
-  CPU_IA64_2 = 0x81,
-  CPU_CEE = 0x90,
-  CPU_AM33 = 0xA0,
-  CPU_M32R = 0xB0,
-  CPU_TRICORE = 0xC0,
-  CPU_X64 = 0xD0,
-  CPU_AMD64 = CPU_X64,
-  CPU_EBC = 0xE0,
-  CPU_THUMB = 0xF0,
-  CPU_ARMNT = 0xF4,
-  CPU_ARM64 = 0xF6,
-  CPU_D3D11_SHADER = 0x100,
+  Intel8080 = 0x0,
+  Intel8086 = 0x1,
+  Intel80286 = 0x2,
+  Intel80386 = 0x3,
+  Intel80486 = 0x4,
+  Pentium = 0x5,
+  PentiumPro = 0x6,
+  Pentium3 = 0x7,
+  MIPS = 0x10,
+  MIPS16 = 0x11,
+  MIPS32 = 0x12,
+  MIPS64 = 0x13,
+  MIPSI = 0x14,
+  MIPSII = 0x15,
+  MIPSIII = 0x16,
+  MIPSIV = 0x17,
+  MIPSV = 0x18,
+  M68000 = 0x20,
+  M68010 = 0x21,
+  M68020 = 0x22,
+  M68030 = 0x23,
+  M68040 = 0x24,
+  Alpha = 0x30,
+  Alpha21164 = 0x31,
+  Alpha21164A = 0x32,
+  Alpha21264 = 0x33,
+  Alpha21364 = 0x34,
+  PPC601 = 0x40,
+  PPC603 = 0x41,
+  PPC604 = 0x42,
+  PPC620 = 0x43,
+  PPCFP = 0x44,
+  PPCBE = 0x45,
+  SH3 = 0x50,
+  SH3E = 0x51,
+  SH3DSP = 0x52,
+  SH4 = 0x53,
+  SHMedia = 0x54,
+  ARM3 = 0x60,
+  ARM4 = 0x61,
+  ARM4T = 0x62,
+  ARM5 = 0x63,
+  ARM5T = 0x64,
+  ARM6 = 0x65,
+  ARM_XMAC = 0x66,
+  ARM_WMMX = 0x67,
+  ARM7 = 0x68,
+  Omni = 0x70,
+  Ia64 = 0x80,
+  Ia64_2 = 0x81,
+  CEE = 0x90,
+  AM33 = 0xa0,
+  M32R = 0xb0,
+  TriCore = 0xc0,
+  X64 = 0xd0,
+  EBC = 0xe0,
+  Thumb = 0xf0,
+  ARMNT = 0xf4,
+  D3D11_Shader = 0x100,
 };
 
 // S_COMPILE3
@@ -188,109 +179,102 @@ struct CompileSym3 {
   ulittle32_t flags;
   uint8_t getLanguage() const { return flags & 0xff; }
   enum Flags : uint32_t {
-    EC = 1 << 8,              // compiled for E/C
-    NoDbgInfo = 1 << 9,       // not compiled with debug info
-    LTCG = 1 << 10,           // compiled with LTCG
-    NoDataAlign = 1 << 11,    // compiled with -Bzalign
-    ManagedPresent = 1 << 12, // managed code/data present
-    SecurityChecks = 1 << 13, // compiled with /GS
-    HotPatch = 1 << 14,       // compiled with /hotpatch
-    CVTCIL = 1 << 15,         // converted with CVTCIL
-    MSILModule = 1 << 16,     // MSIL netmodule
-    Sdl = 1 << 17,            // compiled with /sdl
-    PGO = 1 << 18,            // compiled with /ltcg:pgo or pgu
-    Exp = 1 << 19,            // .exp module
+    EC = 1 << 8,
+    NoDbgInfo = 1 << 9,
+    LTCG = 1 << 10,
+    NoDataAlign = 1 << 11,
+    ManagedPresent = 1 << 12,
+    SecurityChecks = 1 << 13,
+    HotPatch = 1 << 14,
+    CVTCIL = 1 << 15,
+    MSILModule = 1 << 16,
+    Sdl = 1 << 17,
+    PGO = 1 << 18,
+    Exp = 1 << 19,
   };
-  ulittle16_t machine;    // target processor (CV_CPU_TYPE_e)
-  ulittle16_t verFEMajor; // front end major version #
-  ulittle16_t verFEMinor; // front end minor version #
-  ulittle16_t verFEBuild; // front end build version #
-  ulittle16_t verFEQFE;   // front end QFE version #
-  ulittle16_t verMajor;   // back end major version #
-  ulittle16_t verMinor;   // back end minor version #
-  ulittle16_t verBuild;   // back end build version #
-  ulittle16_t verQFE;     // back end QFE version #
-  //char verSz[1];          // Zero terminated compiler version string
+  ulittle16_t Machine; // CPUType
+  ulittle16_t VersionFrontendMajor;
+  ulittle16_t VersionFrontendMinor;
+  ulittle16_t VersionFrontendBuild;
+  ulittle16_t VersionFrontendQFE;
+  ulittle16_t VersionBackendMajor;
+  ulittle16_t VersionBackendMinor;
+  ulittle16_t VersionBackendBuild;
+  ulittle16_t VersionBackendQFE;
+  // VersionString: The null-terminated version string follows.
 };
 
 // S_FRAMEPROC
 struct FrameProcSym {
-  ulittle32_t cbFrame;    // count of bytes of total frame of procedure
-  ulittle32_t cbPad;      // count of bytes of padding in the frame
-  ulittle32_t offPad;     // offset (relative to frame poniter) to where
-                          //  padding starts
-  ulittle32_t cbSaveRegs; // count of bytes of callee save registers
-  ulittle32_t offExHdlr;  // offset of exception handler
-  ulittle16_t sectExHdlr; // section id of exception handler
-  enum Flags : uint32_t {
-    HasAlloca = 1 << 0,  // function uses _alloca()
-    HasSetJmp = 1 << 1,  // function uses setjmp()
-    HasLongJmp = 1 << 2, // function uses longjmp()
-    HasInlAsm = 1 << 3,  // function uses inline asm
-    HasEH = 1 << 4,      // function has EH states
-    InlSpec = 1 << 5,    // function was speced as inline
-    HasSEH = 1 << 6,     // function has SEH
-    Naked = 1 << 7,      // function is __declspec(naked)
-    SecurityChecks =
-        1 << 8,       // function has buffer security check introduced by /GS.
-    AsyncEH = 1 << 9, // function compiled with /EHa
-    GSNoStackOrdering = 1 << 10, // function has /GS buffer checks, but
-                                 // stack ordering couldn't be done
-    WasInlined = 1 << 11,        // function was inlined within another function
-    GSCheck = 1 << 12,           // function is __declspec(strict_gs_check)
-    SafeBuffers = 1 << 13,       // function is __declspec(safebuffers)
-    // record function's local pointer explicitly.
-    encodedLocalBasePointer1 = 1 << 14,
-    encodedLocalBasePointer2 = 1 << 15,
-    // record function's parameter pointer explicitly.
-    encodedParamBasePointer1 = 1 << 16,
-    encodedParamBasePointer2 = 1 << 17,
-    PogoOn = 1 << 18,      // function was compiled with PGO/PGU
-    ValidCounts = 1 << 19, // Do we have valid Pogo counts?
-    OptSpeed = 1 << 20,    // Did we optimize for speed?
-    GuardCF = 1 << 21,     // function contains CFG checks (and no write checks)
-    GuardCFW = 1 << 22, // function contains CFW checks and/or instrumentation
+  ulittle32_t TotalFrameBytes;
+  ulittle32_t PaddingFrameBytes;
+  ulittle32_t OffsetToPadding;
+  ulittle32_t BytesOfCalleeSavedRegisters;
+  ulittle32_t OffsetOfExceptionHandler;
+  ulittle16_t SectionIdOfExceptionHandler;
+  ulittle32_t Flags;
+
+  enum : uint32_t {
+    HasAlloca = 0x00000001,
+    HasSetJmp = 0x00000002,
+    HasLongJmp = 0x00000004,
+    HasInlineAssembly = 0x00000008,
+    HasEH = 0x00000010,
+    MarkedInline = 0x00000020,
+    HasSEH = 0x00000040,
+    Naked = 0x00000080,
+    SecurityChecks = 0x00000100, // /GS
+    AsynchEH = 0x00000200,
+    NoStackOrderingForSecurityChecks = 0x00000400,
+    Inlined = 0x00000800,
+    StrictSecurityChecks = 0x00001000,
+    SafeBuffers = 0x00002000,
+    ProfileGuidedOptimization = 0x00040000,
+    ValidProfileCounts = 0x00080000,
+    OptimizedForSpeed = 0x00100000,
+    GuardCFG = 0x00200000,
+    GuardCFW = 0x00400000
   };
-  ulittle32_t flags;
 };
 
-// S_UDT | S_COBOLUDT
+// S_UDT, S_COBOLUDT
 struct UDTSym {
-  ulittle32_t typind; // Type index
-  char name[1];       // Length-prefixed name
+  ulittle32_t Type; // Type of the UDT
+  // Name: The null-terminated name follows.
 };
 
 // S_BUILDINFO
 struct BuildInfoSym {
-  ulittle32_t id;     // CV_ItemId of Build Info.
+  ulittle32_t BuildId;
 };
 
 // S_BPREL32
 struct BPRelativeSym {
-  ulittle32_t off;    // BP-relative offset
-  ulittle32_t typind; // Type index or Metadata token
-  //char name[1];       // Length-prefixed name
+  ulittle32_t Offset; // Offset from the base pointer register
+  ulittle32_t Type;   // Type of the variable
+  // Name: The null-terminated name follows.
 };
 
 // S_REGREL32
 struct RegRelativeSym {
-  ulittle32_t off;    // BP-relative offset
-  ulittle32_t typind; // Type index or Metadata token
-  ulittle16_t reg;    // register index for symbol
-  //char name[1];       // Length-prefixed name
+  ulittle32_t Offset;   // Offset from the register
+  ulittle32_t Type;     // Type of the variable
+  ulittle16_t Register; // Register to which the variable is relative
+  // Name: The null-terminated name follows.
 };
 
+/// Data in the the SUBSEC_FRAMEDATA subection.
 struct FrameData {
-  ulittle32_t ulRvaStart;
-  ulittle32_t cbBlock;
-  ulittle32_t cbLocals;
-  ulittle32_t cbParams;
-  ulittle32_t cbStkMax;
-  ulittle32_t frameFunc;
-  ulittle16_t cbProlog;
-  ulittle16_t cbSavedRegs;
-  ulittle32_t flags;
-  enum Flags : uint32_t {
+  ulittle32_t RvaStart;
+  ulittle32_t CodeSize;
+  ulittle32_t LocalSize;
+  ulittle32_t ParamsSize;
+  ulittle32_t MaxStackSize;
+  ulittle32_t FrameFunc;
+  ulittle16_t PrologSize;
+  ulittle16_t SavedRegsSize;
+  ulittle32_t Flags;
+  enum : uint32_t {
     HasSEH = 1 << 0,
     HasEH = 1 << 1,
     IsFunctionStart = 1 << 2,
@@ -349,6 +333,13 @@ struct TypeServer2 {
 // LF_STRING_ID
 struct StringId {
   TypeIndex id;
+};
+
+// LF_FUNC_ID
+struct FuncId {
+  TypeIndex ParentScope;
+  TypeIndex FunctionType;
+  // Name: The null-terminated name follows.
 };
 
 // LF_CLASS, LF_STRUCT, LF_INTERFACE
@@ -700,7 +691,7 @@ struct BaseClass {
 struct VirtualBaseClass {
   MemberAttributes Attrs; // Access control attributes, etc.
   TypeIndex BaseType;     // Base class type
-  TypeIndex vbptr;        // Virtual base pointer type
+  TypeIndex VBPtrType;    // Virtual base pointer type
   // VBPtrOffset: Offset of vbptr from vfptr encoded as LF_NUMERIC.
   // VBTableIndex: Index of vbase within vbtable encoded as LF_NUMERIC.
 };
