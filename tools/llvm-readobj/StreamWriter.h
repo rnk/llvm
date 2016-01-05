@@ -10,6 +10,7 @@
 #ifndef LLVM_TOOLS_LLVM_READOBJ_STREAMWRITER_H
 #define LLVM_TOOLS_LLVM_READOBJ_STREAMWRITER_H
 
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -178,6 +179,10 @@ public:
 
   void printNumber(StringRef Label, int8_t Value) {
     startLine() << Label << ": " << int(Value) << "\n";
+  }
+
+  void printNumber(StringRef Label, APSInt Value) {
+    startLine() << Label << ": " << Value << "\n";
   }
 
   void printBoolean(StringRef Label, bool Value) {

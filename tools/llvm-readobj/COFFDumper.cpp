@@ -460,6 +460,17 @@ static const EnumEntry<codeview::CPUType> CPUTypeNames[] = {
   LLVM_READOBJ_ENUM_ENT(CPUType, D3D11_Shader),
 };
 
+static const EnumEntry<uint8_t> ProcSymFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, HasFP),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, HasIRET),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, HasFRET),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, IsNoReturn),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, IsUnreachable),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, HasCustomCallingConv),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, IsNoInline),
+    LLVM_READOBJ_ENUM_ENT(ProcFlags, HasOptimizedDebugInfo),
+};
+
 static const EnumEntry<uint32_t> FrameProcSymFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasAlloca),
     LLVM_READOBJ_ENUM_ENT(FrameProcSym, HasSetJmp),
@@ -486,6 +497,13 @@ static const EnumEntry<uint32_t> FrameDataFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameData, HasSEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, HasEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, IsFunctionStart),
+};
+
+static const EnumEntry<uint16_t> FrameCookieKinds[] = {
+    LLVM_READOBJ_ENUM_ENT(FrameCookieSym, Copy),
+    LLVM_READOBJ_ENUM_ENT(FrameCookieSym, XorStackPointer),
+    LLVM_READOBJ_ENUM_ENT(FrameCookieSym, XorFramePointer),
+    LLVM_READOBJ_ENUM_ENT(FrameCookieSym, XorR13),
 };
 
 static const EnumEntry<uint16_t> ClassOptionNames[] = {
@@ -1011,6 +1029,81 @@ void COFFDumper::printCodeViewSymbolSection(StringRef SectionName,
   }
 }
 
+std::error_code decodeNumerictLeaf(StringRef &Data, APSInt &Num) {
+  if (Data.size() < 2)
+    return object_error::parse_failed;
+  uint16_t Short = *reinterpret_cast<const ulittle16_t *>(Data.data());
+  Data = Data.drop_front(2);
+  if (Short < LF_NUMERIC) {
+    Num = APSInt(APInt(/*numBits=*/16, Short, /*isSigned=*/false),
+                 /*isUnsigned=*/true);
+    return std::error_code();
+  }
+  switch (Short) {
+  case LF_CHAR:
+    Num = APSInt(APInt(/*numBits=*/8,
+                       *reinterpret_cast<const int8_t *>(Data.data()),
+                       /*isSigned=*/true),
+                 /*isUnsigned=*/false);
+    Data = Data.drop_front(1);
+    return std::error_code();
+  case LF_SHORT:
+    Num = APSInt(APInt(/*numBits=*/16,
+                       *reinterpret_cast<const little16_t *>(Data.data()),
+                       /*isSigned=*/true),
+                 /*isUnsigned=*/false);
+    Data = Data.drop_front(2);
+    return std::error_code();
+  case LF_USHORT:
+    Num = APSInt(APInt(/*numBits=*/16,
+                       *reinterpret_cast<const ulittle16_t *>(Data.data()),
+                       /*isSigned=*/false),
+                 /*isUnsigned=*/true);
+    Data = Data.drop_front(2);
+    return std::error_code();
+  case LF_LONG:
+    Num = APSInt(APInt(/*numBits=*/32,
+                       *reinterpret_cast<const little32_t *>(Data.data()),
+                       /*isSigned=*/true),
+                 /*isUnsigned=*/false);
+    Data = Data.drop_front(4);
+    return std::error_code();
+  case LF_ULONG:
+    Num = APSInt(APInt(/*numBits=*/32,
+                       *reinterpret_cast<const ulittle32_t *>(Data.data()),
+                       /*isSigned=*/false),
+                 /*isUnsigned=*/true);
+    Data = Data.drop_front(4);
+    return std::error_code();
+  case LF_QUADWORD:
+    Num = APSInt(APInt(/*numBits=*/64,
+                       *reinterpret_cast<const little64_t *>(Data.data()),
+                       /*isSigned=*/true),
+                 /*isUnsigned=*/false);
+    Data = Data.drop_front(8);
+    return std::error_code();
+  case LF_UQUADWORD:
+    Num = APSInt(APInt(/*numBits=*/64,
+                       *reinterpret_cast<const ulittle64_t *>(Data.data()),
+                       /*isSigned=*/false),
+                 /*isUnsigned=*/true);
+    Data = Data.drop_front(8);
+    return std::error_code();
+  }
+  return object_error::parse_failed;
+}
+
+/// Decode an unsigned integer numeric leaf value.
+std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
+  APSInt N;
+  if (std::error_code err = decodeNumerictLeaf(Data, N))
+    return err;
+  if (N.isSigned() || !N.isIntN(64))
+    return object_error::parse_failed;
+  Num = N.getLimitedValue();
+  return std::error_code();
+}
+
 void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
                                                 const SectionRef &Section,
                                                 uint32_t OffsetInSection) {
@@ -1064,7 +1157,7 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       printTypeIndex("FunctionType", Proc->FunctionType);
       W.printHex("CodeOffset", Proc->CodeOffset);
       W.printHex("Segment", Proc->Segment);
-      W.printHex("Flags", Proc->Flags);
+      W.printFlags("Flags", Proc->Flags, makeArrayRef(ProcSymFlags));
       W.printString("DisplayName", DisplayName);
       W.printString("LinkageName", LinkageName);
       break;
@@ -1073,6 +1166,167 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     case S_PROC_ID_END: {
       W.startLine() << "ProcEnd\n";
       InFunctionScope = false;
+      break;
+    }
+
+    case S_BLOCK32: {
+      DictScope S(W, "BlockStart");
+      const BlockSym *Block;
+      error(consumeObject(SymData, Block));
+
+      // In a COFF object file, the CodeOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfCodeOffset =
+          reinterpret_cast<const char *>(&Block->CodeOffset) - Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfCodeOffset,
+                              LinkageName));
+
+      StringRef BlockName = SymData.split('\0').first;
+      W.printHex("PtrParent", Block->PtrParent);
+      W.printHex("PtrEnd", Block->PtrEnd);
+      W.printHex("CodeSize", Block->CodeSize);
+      W.printHex("CodeOffset", Block->CodeOffset);
+      W.printHex("Segment", Block->Segment);
+      W.printString("BlockName", BlockName);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+
+    case S_END: {
+      W.startLine() << "BlockEnd\n";
+      InFunctionScope = false;
+      break;
+    }
+
+    case S_LABEL32: {
+      DictScope S(W, "Label");
+      const LabelSym *Label;
+      error(consumeObject(SymData, Label));
+
+      // In a COFF object file, the CodeOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfCodeOffset =
+          reinterpret_cast<const char *>(&Label->CodeOffset) - Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfCodeOffset,
+                              LinkageName));
+
+      StringRef DisplayName = SymData.split('\0').first;
+      W.printHex("CodeOffset", Label->CodeOffset);
+      W.printHex("Segment", Label->Segment);
+      W.printHex("Flags", Label->Flags);
+      W.printFlags("Flags", Label->Flags, makeArrayRef(ProcSymFlags));
+      W.printString("DisplayName", DisplayName);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+
+    case S_CALLSITEINFO: {
+      DictScope S(W, "CallSiteInfo");
+      const CallSiteInfoSym *CallSiteInfo;
+      error(consumeObject(SymData, CallSiteInfo));
+
+      // In a COFF object file, the CodeOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfCodeOffset =
+          reinterpret_cast<const char *>(&CallSiteInfo->CodeOffset) - Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfCodeOffset,
+                              LinkageName));
+      W.printHex("CodeOffset", CallSiteInfo->CodeOffset);
+      W.printHex("Segment", CallSiteInfo->Segment);
+      W.printHex("Reserved", CallSiteInfo->Reserved);
+      printTypeIndex("Type", CallSiteInfo->Type);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+
+    case S_HEAPALLOCSITE: {
+      DictScope S(W, "HeapAllocationSite");
+      const HeapAllocationSiteSym *HeapAllocationSite;
+      error(consumeObject(SymData, HeapAllocationSite));
+
+      // In a COFF object file, the CodeOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfCodeOffset =
+          reinterpret_cast<const char *>(&HeapAllocationSite->CodeOffset) -
+          Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfCodeOffset,
+                              LinkageName));
+      W.printHex("CodeOffset", HeapAllocationSite->CodeOffset);
+      W.printHex("Segment", HeapAllocationSite->Segment);
+      W.printHex("CallInstructionSize",
+                 HeapAllocationSite->CallInstructionSize);
+      printTypeIndex("Type", HeapAllocationSite->Type);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+
+    case S_FRAMECOOKIE: {
+      DictScope S(W, "FrameCookie");
+      const FrameCookieSym *FrameCookie;
+      error(consumeObject(SymData, FrameCookie));
+      W.printHex("CodeOffset", FrameCookie->CodeOffset);
+      W.printHex("Register", FrameCookie->Register);
+      W.printEnum("CookieKind", uint16_t(FrameCookie->CookieKind),
+                  makeArrayRef(FrameCookieKinds));
+      break;
+    }
+
+    case S_LDATA32:
+    case S_GDATA32:
+    case S_LMANDATA:
+    case S_GMANDATA: {
+      DictScope S(W, "DataSym");
+      const DataSym *Data;
+      error(consumeObject(SymData, Data));
+
+      // In a COFF object file, the DataOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfDataOffset =
+          reinterpret_cast<const char *>(&Data->DataOffset) - Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfDataOffset,
+                              LinkageName));
+      StringRef DisplayName = SymData.split('\0').first;
+      W.printHex("DataOffset", Data->DataOffset);
+      printTypeIndex("Type", Data->Type);
+      W.printString("DisplayName", DisplayName);
+      W.printString("LinkageName", LinkageName);
+      break;
+    }
+    case S_LTHREAD32:
+    case S_GTHREAD32: {
+      DictScope S(W, "ThreadLocalDataSym");
+      const DataSym *Data;
+      error(consumeObject(SymData, Data));
+
+      // In a COFF object file, the DataOffset field is typically zero and has a
+      // relocation applied to it. Go and look up the symbol for that
+      // relocation.
+      ptrdiff_t SecOffsetOfDataOffset =
+          reinterpret_cast<const char *>(&Data->DataOffset) - Subsection.data();
+      StringRef LinkageName;
+      error(resolveSymbolName(Obj->getCOFFSection(Section),
+                              OffsetInSection + SecOffsetOfDataOffset,
+                              LinkageName));
+      StringRef DisplayName = SymData.split('\0').first;
+      W.printHex("DataOffset", Data->DataOffset);
+      printTypeIndex("Type", Data->Type);
+      W.printString("DisplayName", DisplayName);
+      W.printString("LinkageName", LinkageName);
       break;
     }
 
@@ -1175,6 +1429,20 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       break;
     }
 
+    case S_CONSTANT:
+    case S_MANCONSTANT: {
+      DictScope S(W, "Constant");
+      const ConstantSym *Constant;
+      error(consumeObject(SymData, Constant));
+      printTypeIndex("Type", Constant->Type);
+      APSInt Value;
+      error(decodeNumerictLeaf(SymData, Value));
+      W.printNumber("Value", Value);
+      StringRef Name = SymData.split('\0').first;
+      W.printString("Name", Name);
+      break;
+    }
+
     default: {
       DictScope S(W, "UnknownSym");
       W.printHex("Type", unsigned(Type));
@@ -1184,33 +1452,6 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
     }
     }
   }
-}
-
-/// Decode an unsigned integer numeric leaf value.
-std::error_code decodeUIntLeaf(StringRef &Data, uint64_t &Num) {
-  if (Data.size() < 2)
-    return object_error::parse_failed;
-  uint16_t Short = *reinterpret_cast<const ulittle16_t *>(Data.data());
-  Data = Data.drop_front(2);
-  if (Short < LF_NUMERIC) {
-    Num = Short;
-    return std::error_code();
-  }
-  switch (Short) {
-  case LF_USHORT:
-    Num = *reinterpret_cast<const ulittle16_t *>(Data.data());
-    Data = Data.drop_front(2);
-    return std::error_code();
-  case LF_ULONG:
-    Num = *reinterpret_cast<const ulittle32_t *>(Data.data());
-    Data = Data.drop_front(4);
-    return std::error_code();
-  case LF_UQUADWORD:
-    Num = *reinterpret_cast<const ulittle64_t *>(Data.data());
-    Data = Data.drop_front(8);
-    return std::error_code();
-  }
-  return object_error::parse_failed;
 }
 
 StringRef getRemainingTypeBytes(const TypeRecord *Rec, const char *Start) {
@@ -1272,6 +1513,7 @@ static StringRef getLeafTypeName(LeafType LT) {
   case LF_CLASS:
   case LF_STRUCTURE:
   case LF_INTERFACE: return "ClassType";
+  case LF_UNION: return "UnionType";
   case LF_ENUM: return "EnumType";
   case LF_ARRAY: return "ArrayType";
   case LF_VFTABLE: return "VFTableType";
@@ -1390,6 +1632,28 @@ void COFFDumper::printCodeViewTypeSection(StringRef SectionName,
       std::tie(Name, LinkageName) = LeafData.split('\0');
       W.printString("Name", Name);
       if (Class->Properties & HasUniqueName) {
+        LinkageName = getRemainingBytesAsString(Rec, LinkageName.data());
+        if (LinkageName.empty())
+          return error(object_error::parse_failed);
+        W.printString("LinkageName", LinkageName);
+      }
+      break;
+    }
+
+    case LF_UNION: {
+      const UnionType *Union;
+      error(consumeObject(LeafData, Union));
+      W.printNumber("MemberCount", Union->MemberCount);
+      W.printFlags("Properties", uint16_t(Union->Properties),
+                   makeArrayRef(ClassOptionNames));
+      printTypeIndex("FieldList", Union->FieldList);
+      uint64_t SizeOf;
+      error(decodeUIntLeaf(LeafData, SizeOf));
+      W.printNumber("SizeOf", SizeOf);
+      StringRef LinkageName;
+      std::tie(Name, LinkageName) = LeafData.split('\0');
+      W.printString("Name", Name);
+      if (Union->Properties & HasUniqueName) {
         LinkageName = getRemainingBytesAsString(Rec, LinkageName.data());
         if (LinkageName.empty())
           return error(object_error::parse_failed);
@@ -1741,6 +2005,18 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       break;
     }
 
+    case LF_STMEMBER: {
+      const StaticDataMember *Field;
+      error(consumeObject(FieldData, Field));
+      DictScope S(W, "StaticDataMember");
+      printMemberAttributes(Field->Attrs);
+      printTypeIndex("Type", Field->Type);
+      StringRef Name;
+      std::tie(Name, FieldData) = FieldData.split('\0');
+      W.printString("Name", Name);
+      break;
+    }
+
     case LF_VFUNCTAB: {
       const VirtualFunctionPointer *VFTable;
       error(consumeObject(FieldData, VFTable));
@@ -1754,9 +2030,9 @@ void COFFDumper::printCodeViewFieldList(StringRef FieldData) {
       error(consumeObject(FieldData, Enum));
       DictScope S(W, "Enumerator");
       printMemberAttributes(Enum->Attrs);
-      uint64_t EnumValue;
-      error(decodeUIntLeaf(FieldData, EnumValue));
-      W.printHex("EnumValue", EnumValue);
+      APSInt EnumValue;
+      error(decodeNumerictLeaf(FieldData, EnumValue));
+      W.printNumber("EnumValue", EnumValue);
       StringRef Name;
       std::tie(Name, FieldData) = FieldData.split('\0');
       W.printString("Name", Name);

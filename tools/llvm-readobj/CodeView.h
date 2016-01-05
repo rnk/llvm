@@ -66,6 +66,17 @@ struct SymRecord {
   // Symbol data follows.
 };
 
+enum ProcFlags : uint8_t {
+  HasFP = 1 << 0,
+  HasIRET = 1 << 1,
+  HasFRET = 1 << 2,
+  IsNoReturn = 1 << 3,
+  IsUnreachable = 1 << 4,
+  HasCustomCallingConv = 1 << 5,
+  IsNoInline = 1 << 6,
+  HasOptimizedDebugInfo = 1 << 7,
+};
+
 // S_GPROC32, S_LPROC32, S_GPROC32_ID, S_LPROC32_ID, S_LPROC32_DPC or
 // S_LPROC32_DPC_ID
 struct ProcSym {
@@ -76,6 +87,24 @@ struct ProcSym {
   ulittle32_t DbgStart;
   ulittle32_t DbgEnd;
   ulittle32_t FunctionType;
+  ulittle32_t CodeOffset;
+  ulittle16_t Segment;
+  uint8_t Flags; // CV_PROCFLAGS
+  // Name: The null-terminated name follows.
+};
+
+// S_BLOCK32
+struct BlockSym {
+  ulittle32_t PtrParent;
+  ulittle32_t PtrEnd;
+  ulittle32_t CodeSize;
+  ulittle32_t CodeOffset;
+  ulittle16_t Segment;
+  // Name: The null-terminated name follows.
+};
+
+// S_LABEL32
+struct LabelSym {
   ulittle32_t CodeOffset;
   ulittle16_t Segment;
   uint8_t Flags; // CV_PROCFLAGS
@@ -237,6 +266,36 @@ struct FrameProcSym {
   };
 };
 
+// S_CALLSITEINFO
+struct CallSiteInfoSym {
+  ulittle32_t CodeOffset;
+  ulittle16_t Segment;
+  ulittle16_t Reserved;
+  ulittle32_t Type;
+};
+
+// S_HEAPALLOCSITE
+struct HeapAllocationSiteSym {
+  ulittle32_t CodeOffset;
+  ulittle16_t Segment;
+  ulittle16_t CallInstructionSize;
+  ulittle32_t Type;
+};
+
+// S_FRAMECOOKIE
+struct FrameCookieSym {
+  ulittle32_t CodeOffset;
+  ulittle16_t Register;
+  ulittle16_t CookieKind;
+
+  enum : uint16_t {
+    Copy,
+    XorStackPointer,
+    XorFramePointer,
+    XorR13,
+  };
+};
+
 // S_UDT, S_COBOLUDT
 struct UDTSym {
   ulittle32_t Type; // Type of the UDT
@@ -260,6 +319,29 @@ struct RegRelativeSym {
   ulittle32_t Offset;   // Offset from the register
   ulittle32_t Type;     // Type of the variable
   ulittle16_t Register; // Register to which the variable is relative
+  // Name: The null-terminated name follows.
+};
+
+// S_CONSTANT, S_MANCONSTANT
+struct ConstantSym {
+  ulittle32_t Type;
+  // Value: The value of the constant.
+  // Name: The null-terminated name follows.
+};
+
+// S_LDATA32, S_GDATA32, S_LMANDATA, S_GMANDATA
+struct DataSym {
+  ulittle32_t Type;
+  ulittle32_t DataOffset;
+  ulittle16_t Segment;
+  // Name: The null-terminated name follows.
+};
+
+// S_LTHREAD32, S_GTHREAD32
+struct ThreadLocalDataSym {
+  ulittle32_t Type;
+  ulittle32_t DataOffset;
+  ulittle16_t Segment;
   // Name: The null-terminated name follows.
 };
 
@@ -349,6 +431,15 @@ struct ClassType {
   TypeIndex FieldList;     // LF_FIELDLIST: List of all kinds of members
   TypeIndex DerivedFrom;   // LF_DERIVED: List of known derived classes
   TypeIndex VShape;        // LF_VTSHAPE: Shape of the vftable
+  // SizeOf: The 'sizeof' the UDT in bytes is encoded as an LF_NUMERIC integer.
+  // Name: The null-terminated name follows.
+};
+
+// LF_UNION
+struct UnionType {
+  ulittle16_t MemberCount; // Number of members in FieldList.
+  ulittle16_t Properties;  // ClassOptions bitset
+  TypeIndex FieldList;     // LF_FIELDLIST: List of all kinds of members
   // SizeOf: The 'sizeof' the UDT in bytes is encoded as an LF_NUMERIC integer.
   // Name: The null-terminated name follows.
 };
@@ -670,6 +761,13 @@ struct DataMember {
   MemberAttributes Attrs; // Access control attributes, etc
   TypeIndex Type;
   // FieldOffset: LF_NUMERIC encoded byte offset
+  // Name: Null-terminated string
+};
+
+// LF_STMEMBER
+struct StaticDataMember {
+  MemberAttributes Attrs; // Access control attributes, etc
+  TypeIndex Type;
   // Name: Null-terminated string
 };
 
