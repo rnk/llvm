@@ -499,6 +499,20 @@ static const EnumEntry<uint32_t> FrameDataFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameData, IsFunctionStart),
 };
 
+static const EnumEntry<uint16_t> LocalFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsParameter),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsAddressTaken),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsCompilerGenerated),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsAggregate),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsAggregated),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsAliased),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsAlias),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsReturnValue),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsOptimizedOut),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsEnregisteredGlobal),
+    LLVM_READOBJ_ENUM_ENT(LocalSym, IsEnregisteredStatic),
+};
+
 static const EnumEntry<uint16_t> FrameCookieKinds[] = {
     LLVM_READOBJ_ENUM_ENT(FrameCookieSym, Copy),
     LLVM_READOBJ_ENUM_ENT(FrameCookieSym, XorStackPointer),
@@ -1223,6 +1237,33 @@ void COFFDumper::printCodeViewSymbolsSubsection(StringRef Subsection,
       W.printFlags("Flags", Label->Flags, makeArrayRef(ProcSymFlags));
       W.printString("DisplayName", DisplayName);
       W.printString("LinkageName", LinkageName);
+      break;
+    }
+
+    case S_INLINESITE: {
+      DictScope S(W, "InlineSite");
+      const InlineSiteSym *InlineSite;
+      error(consumeObject(SymData, InlineSite));
+      W.printHex("PtrParent", InlineSite->PtrParent);
+      W.printHex("PtrEnd", InlineSite->PtrEnd);
+      printTypeIndex("Inlinee", InlineSite->Inlinee);
+      W.printBinaryBlock("BinaryAnnotations", SymData);
+      break;
+    }
+
+    case S_INLINESITE_END: {
+      DictScope S(W, "InlineSiteEnd");
+      break;
+    }
+
+    case S_LOCAL: {
+      DictScope S(W, "Local");
+      const LocalSym *Local;
+      error(consumeObject(SymData, Local));
+      printTypeIndex("Type", Local->Type);
+      W.printFlags("Flags", uint16_t(Local->Flags), makeArrayRef(LocalFlags));
+      StringRef VarName = SymData.split('\0').first;
+      W.printString("VarName", VarName);
       break;
     }
 

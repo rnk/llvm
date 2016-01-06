@@ -93,6 +93,34 @@ struct ProcSym {
   // Name: The null-terminated name follows.
 };
 
+// S_INLINESITE
+struct InlineSiteSym {
+  ulittle32_t PtrParent;
+  ulittle32_t PtrEnd;
+  ulittle32_t Inlinee;
+  // BinaryAnnotations
+};
+
+// S_LOCAL
+struct LocalSym {
+  ulittle32_t Type;
+  ulittle16_t Flags;
+  enum : uint16_t {
+    IsParameter = 1 << 0,
+    IsAddressTaken = 1 << 1,
+    IsCompilerGenerated = 1 << 2,
+    IsAggregate = 1 << 3,
+    IsAggregated = 1 << 4,
+    IsAliased = 1 << 5,
+    IsAlias = 1 << 6,
+    IsReturnValue = 1 << 7,
+    IsOptimizedOut = 1 << 8,
+    IsEnregisteredGlobal = 1 << 9,
+    IsEnregisteredStatic = 1 << 10,
+  };
+  // Name: The null-terminated name follows.
+};
+
 // S_BLOCK32
 struct BlockSym {
   ulittle32_t PtrParent;
