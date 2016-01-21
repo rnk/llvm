@@ -564,6 +564,9 @@ void MCStreamer::EmitWinCFIEndProlog() {
   CurrentWinFrameInfo->PrologEnd = Label;
 }
 
+void MCStreamer::EmitCodeViewFileChecksumTable() { }
+void MCStreamer::EmitCodeViewStringTable() { }
+
 void MCStreamer::EmitCOFFSafeSEH(MCSymbol const *Symbol) {
 }
 

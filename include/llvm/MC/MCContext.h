@@ -16,7 +16,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SectionKind.h"
@@ -43,6 +42,7 @@ namespace llvm {
   class MCSectionMachO;
   class MCSectionELF;
   class MCSectionCOFF;
+  class CodeViewContext;
 
   /// Context object for machine code objects.  This class owns all of the
   /// sections that it creates.

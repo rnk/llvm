@@ -135,7 +135,7 @@ void CodeViewDebug::endModule() {
 
   // This subsection holds a file index to offset in string table table.
   Asm->OutStreamer->AddComment("File index to string table offset subsection");
-  Asm->OutStreamer->EmitCodeViewFileChecksums();
+  Asm->OutStreamer->EmitCodeViewFileChecksumTable();
 
 #if 0
   Asm->EmitInt32(unsigned(ModuleSubstreamKind::FileChecksums));
