@@ -135,6 +135,9 @@ void CodeViewDebug::endModule() {
 
   // This subsection holds a file index to offset in string table table.
   Asm->OutStreamer->AddComment("File index to string table offset subsection");
+  Asm->OutStreamer->EmitCodeViewFileChecksums();
+
+#if 0
   Asm->EmitInt32(unsigned(ModuleSubstreamKind::FileChecksums));
   size_t NumFilenames = FileNameRegistry.Infos.size();
   Asm->EmitInt32(8 * NumFilenames);
@@ -145,6 +148,7 @@ void CodeViewDebug::endModule() {
     // The function name offset is not followed by any additional data.
     Asm->EmitInt32(0);
   }
+#endif
 
   // This subsection holds the string table.
   Asm->OutStreamer->AddComment("String table");

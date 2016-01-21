@@ -16,6 +16,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SectionKind.h"
@@ -65,6 +66,8 @@ namespace llvm {
 
     /// The MCObjectFileInfo for this target.
     const MCObjectFileInfo *MOFI;
+
+    std::unique_ptr<CodeViewContext> CVContext;
 
     /// Allocator object used for creating machine code objects.
     ///
@@ -236,6 +239,12 @@ namespace llvm {
     const MCRegisterInfo *getRegisterInfo() const { return MRI; }
 
     const MCObjectFileInfo *getObjectFileInfo() const { return MOFI; }
+
+    CodeViewContext &getCVContext() {
+      if (!CVContext.get())
+        CVContext.reset(new CodeViewContext);
+      return *CVContext.get();
+    }
 
     void setAllowTemporaryLabels(bool Value) { AllowTemporaryLabels = Value; }
     void setUseNamesOnTempLabels(bool Value) { UseNamesOnTempLabels = Value; }
@@ -417,6 +426,8 @@ namespace llvm {
                           unsigned FileNumber, unsigned CUID);
 
     bool isValidDwarfFileNumber(unsigned FileNumber, unsigned CUID = 0);
+
+    bool isValidCVFileNumber(unsigned FileNumber, unsigned CUID = 0);
 
     const std::map<unsigned, MCDwarfLineTable> &getMCDwarfLineTables() const {
       return MCDwarfLineTablesCUMap;
