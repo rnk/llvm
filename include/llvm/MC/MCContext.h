@@ -240,11 +240,7 @@ namespace llvm {
 
     const MCObjectFileInfo *getObjectFileInfo() const { return MOFI; }
 
-    CodeViewContext &getCVContext() {
-      if (!CVContext.get())
-        CVContext.reset(new CodeViewContext);
-      return *CVContext.get();
-    }
+    CodeViewContext &getCVContext();
 
     void setAllowTemporaryLabels(bool Value) { AllowTemporaryLabels = Value; }
     void setUseNamesOnTempLabels(bool Value) { UseNamesOnTempLabels = Value; }

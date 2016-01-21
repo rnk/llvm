@@ -12,6 +12,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCLabel.h"
 #include "llvm/MC/MCObjectFileInfo.h"
@@ -472,6 +473,12 @@ bool MCContext::isValidDwarfFileNumber(unsigned FileNumber, unsigned CUID) {
 void MCContext::finalizeDwarfSections(MCStreamer &MCOS) {
   SectionsForRanges.remove_if(
       [&](MCSection *Sec) { return !MCOS.mayHaveInstructions(*Sec); });
+}
+
+CodeViewContext &MCContext::getCVContext() {
+  if (!CVContext.get())
+    CVContext.reset(new CodeViewContext);
+  return *CVContext.get();
 }
 
 //===----------------------------------------------------------------------===//
