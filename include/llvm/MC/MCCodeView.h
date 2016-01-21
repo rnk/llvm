@@ -32,6 +32,7 @@ public:
 
   bool isValidFileNumer(unsigned FileNumber);
   bool addFile(unsigned FileNumber, StringRef Filename);
+  ArrayRef<StringRef> getFilenames() { return Filenames; }
 };
 
 } // end namespace llvm

@@ -285,6 +285,12 @@ void MCWinCOFFStreamer::EmitWinEHHandlerData() {
   llvm_unreachable("not implemented");
 }
 
+void MCWinCOFFStreamer::EmitCodeViewFileChecksumTable() {
+}
+
+void MCWinCOFFStreamer::EmitCodeViewStringTable() {
+}
+
 void MCWinCOFFStreamer::FinishImpl() {
   MCObjectStreamer::FinishImpl();
 }
