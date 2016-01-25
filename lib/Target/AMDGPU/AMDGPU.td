@@ -73,11 +73,6 @@ def FeatureFP32Denormals : SubtargetFeature<"fp32-denormals",
         "true",
         "Enable single precision denormal handling">;
 
-def Feature64BitPtr : SubtargetFeature<"64BitPtr",
-        "Is64bit",
-        "true",
-        "Specify if 64-bit addressing should be used">;
-
 def FeatureR600ALUInst : SubtargetFeature<"R600ALUInst",
         "R600ALUInst",
         "false",
@@ -143,6 +138,11 @@ def FeatureEnableHugeScratchBuffer : SubtargetFeature<"huge-scratch-buffer",
         "EnableHugeScratchBuffer",
         "true",
         "Enable scratch buffer sizes greater than 128 GB">;
+
+def FeatureEnableSIScheduler : SubtargetFeature<"si-scheduler",
+        "EnableSIScheduler",
+        "true",
+        "Enable SI Machine Scheduler">;
 
 class SubtargetFeatureFetchLimit <string Value> :
                           SubtargetFeature <"fetch"#Value,
@@ -242,17 +242,17 @@ def FeatureNorthernIslands : SubtargetFeatureGeneration<"NORTHERN_ISLANDS",
 >;
 
 def FeatureSouthernIslands : SubtargetFeatureGeneration<"SOUTHERN_ISLANDS",
-        [Feature64BitPtr, FeatureFP64, FeatureLocalMemorySize32768,
+        [FeatureFP64, FeatureLocalMemorySize32768,
          FeatureWavefrontSize64, FeatureGCN, FeatureGCN1Encoding,
          FeatureLDSBankCount32]>;
 
 def FeatureSeaIslands : SubtargetFeatureGeneration<"SEA_ISLANDS",
-        [Feature64BitPtr, FeatureFP64, FeatureLocalMemorySize65536,
+        [FeatureFP64, FeatureLocalMemorySize65536,
          FeatureWavefrontSize64, FeatureGCN, FeatureFlatAddressSpace,
          FeatureGCN1Encoding, FeatureCIInsts]>;
 
 def FeatureVolcanicIslands : SubtargetFeatureGeneration<"VOLCANIC_ISLANDS",
-        [Feature64BitPtr, FeatureFP64, FeatureLocalMemorySize65536,
+        [FeatureFP64, FeatureLocalMemorySize65536,
          FeatureWavefrontSize64, FeatureFlatAddressSpace, FeatureGCN,
          FeatureGCN3Encoding, FeatureCIInsts, FeatureLDSBankCount32]>;
 

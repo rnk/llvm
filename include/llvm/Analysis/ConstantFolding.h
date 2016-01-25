@@ -51,8 +51,7 @@ ConstantFoldConstantExpression(const ConstantExpr *CE, const DataLayout &DL,
 /// fold instructions like loads and stores, which have no constant expression
 /// form.
 ///
-Constant *ConstantFoldInstOperands(unsigned Opcode, Type *DestTy,
-                                   ArrayRef<Constant *> Ops,
+Constant *ConstantFoldInstOperands(Instruction *I, ArrayRef<Constant *> Ops,
                                    const DataLayout &DL,
                                    const TargetLibraryInfo *TLI = nullptr);
 
@@ -64,6 +63,17 @@ Constant *
 ConstantFoldCompareInstOperands(unsigned Predicate, Constant *LHS,
                                 Constant *RHS, const DataLayout &DL,
                                 const TargetLibraryInfo *TLI = nullptr);
+
+/// \brief Attempt to constant fold a binary operation with the specified
+/// operands.  If it fails, it returns a constant expression of the specified
+/// operands.
+Constant *ConstantFoldBinaryOpOperands(unsigned Opcode, Constant *LHS,
+                                       Constant *RHS, const DataLayout &DL);
+
+/// \brief Attempt to constant fold a cast with the specified operand.  If it
+/// fails, it returns a constant expression of the specified operand.
+Constant *ConstantFoldCastOperand(unsigned Opcode, Constant *C, Type *DestTy,
+                                  const DataLayout &DL);
 
 /// ConstantFoldInsertValueInstruction - Attempt to constant fold an insertvalue
 /// instruction with the specified operands and indices.  The constant result is
@@ -85,7 +95,7 @@ Constant *ConstantFoldExtractElementInstruction(Constant *Val, Constant *Idx);
 /// ConstantFoldLoadFromConstPtr - Return the value that a load from C would
 /// produce if it is constant and determinable.  If this is not determinable,
 /// return null.
-Constant *ConstantFoldLoadFromConstPtr(Constant *C, const DataLayout &DL);
+Constant *ConstantFoldLoadFromConstPtr(Constant *C, Type *Ty, const DataLayout &DL);
 
 /// ConstantFoldLoadThroughGEPConstantExpr - Given a constant and a
 /// getelementptr constantexpr, return the constant value being addressed by the

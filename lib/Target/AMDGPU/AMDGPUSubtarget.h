@@ -59,7 +59,6 @@ public:
 
 private:
   std::string DevName;
-  bool Is64bit;
   bool DumpCode;
   bool R600ALUInst;
   bool HasVertexCache;
@@ -92,6 +91,7 @@ private:
   int LDSBankCount;
   unsigned IsaVersion;
   bool EnableHugeScratchBuffer;
+  bool EnableSIScheduler;
 
   std::unique_ptr<AMDGPUFrameLowering> FrameLowering;
   std::unique_ptr<AMDGPUTargetLowering> TLInfo;
@@ -122,10 +122,6 @@ public:
   }
 
   void ParseSubtargetFeatures(StringRef CPU, StringRef FS);
-
-  bool is64bit() const {
-    return Is64bit;
-  }
 
   bool hasVertexCache() const {
     return HasVertexCache;
@@ -284,6 +280,10 @@ public:
 
   bool enableHugeScratchBuffer() const {
     return EnableHugeScratchBuffer;
+  }
+
+  bool enableSIScheduler() const {
+    return EnableSIScheduler;
   }
 
   bool dumpCode() const {
