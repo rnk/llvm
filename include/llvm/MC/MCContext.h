@@ -16,6 +16,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SectionKind.h"
@@ -137,6 +138,10 @@ namespace llvm {
     /// The current dwarf line information from the last dwarf .loc directive.
     MCDwarfLoc CurrentDwarfLoc;
     bool DwarfLocSeen;
+
+    /// The current CodeView line information from the last .cv_loc directive.
+    MCCVLoc CurrentCVLoc = MCCVLoc(0, 0, 0, 0, false, true);
+    bool CVLocSeen = false;
 
     /// Generate dwarf debugging info for assembly source files.
     bool GenDwarfForAssembly;
@@ -423,8 +428,6 @@ namespace llvm {
 
     bool isValidDwarfFileNumber(unsigned FileNumber, unsigned CUID = 0);
 
-    bool isValidCVFileNumber(unsigned FileNumber, unsigned CUID = 0);
-
     const std::map<unsigned, MCDwarfLineTable> &getMCDwarfLineTables() const {
       return MCDwarfLineTablesCUMap;
     }
@@ -510,6 +513,32 @@ namespace llvm {
     void setDwarfVersion(uint16_t v) { DwarfVersion = v; }
     uint16_t getDwarfVersion() const { return DwarfVersion; }
 
+    /// @}
+
+
+    /// \name CodeView Management
+    /// @{
+
+    /// Saves the information from the currently parsed .cv_loc directive
+    /// and sets CVLocSeen.  When the next instruction is assembled an entry
+    /// in the line number table with this information and the address of the
+    /// instruction will be created.
+    void setCurrentCVLoc(unsigned FunctionId, unsigned FileNo, unsigned Line,
+                         unsigned Column, bool PrologueEnd, bool IsStmt) {
+      CurrentCVLoc.setFunctionId(FunctionId);
+      CurrentCVLoc.setFileNum(FileNo);
+      CurrentCVLoc.setLine(Line);
+      CurrentCVLoc.setColumn(Column);
+      CurrentCVLoc.setPrologueEnd(PrologueEnd);
+      CurrentCVLoc.setIsStmt(IsStmt);
+      CVLocSeen = true;
+    }
+    void clearCVLocSeen() { CVLocSeen = false; }
+
+    bool getCVLocSeen() { return CVLocSeen; }
+    const MCCVLoc &getCurrentCVLoc() { return CurrentCVLoc; }
+
+    bool isValidCVFileNumber(unsigned FileNumber);
     /// @}
 
     char *getSecureLogFile() { return SecureLogFile; }

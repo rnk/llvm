@@ -180,6 +180,14 @@ void MCStreamer::EnsureValidDwarfFrame() {
     report_fatal_error("No open frame");
 }
 
+void MCStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
+                                    unsigned Line, unsigned Column,
+                                    bool PrologueEnd, bool IsStmt,
+                                    StringRef FileName) {
+  getContext().setCurrentCVLoc(FunctionId, FileNo, Line, Column, PrologueEnd,
+                               IsStmt);
+}
+
 void MCStreamer::EmitEHSymAttributes(const MCSymbol *Symbol,
                                      MCSymbol *EHSymbol) {
 }
