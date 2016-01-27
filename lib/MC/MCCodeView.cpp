@@ -23,8 +23,9 @@ CodeViewContext::CodeViewContext() {}
 /// This is a valid number for use with .cv_loc if we've already seen a .cv_file
 /// for it.
 bool CodeViewContext::isValidFileNumber(unsigned FileNumber) const {
-  if (0 < FileNumber && FileNumber < Filenames.size())
-    return !Filenames[FileNumber].empty();
+  unsigned Idx = FileNumber - 1;
+  if (Idx < Filenames.size())
+    return !Filenames[Idx].empty();
   return false;
 }
 
