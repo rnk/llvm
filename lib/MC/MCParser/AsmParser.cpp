@@ -357,7 +357,7 @@ private:
     DK_IFNB, DK_IFC, DK_IFEQS, DK_IFNC, DK_IFNES, DK_IFDEF, DK_IFNDEF,
     DK_IFNOTDEF, DK_ELSEIF, DK_ELSE, DK_ENDIF,
     DK_SPACE, DK_SKIP, DK_FILE, DK_LINE, DK_LOC, DK_STABS,
-    DK_CV_LOC,
+    DK_CV_FILE, DK_CV_LOC,
     DK_CFI_SECTIONS, DK_CFI_STARTPROC, DK_CFI_ENDPROC, DK_CFI_DEF_CFA,
     DK_CFI_DEF_CFA_OFFSET, DK_CFI_ADJUST_CFA_OFFSET, DK_CFI_DEF_CFA_REGISTER,
     DK_CFI_OFFSET, DK_CFI_REL_OFFSET, DK_CFI_PERSONALITY, DK_CFI_LSDA,
@@ -396,6 +396,7 @@ private:
   bool parseDirectiveStabs();
 
   // ".cv_file", ".cv_loc"
+  bool parseDirectiveCVFile(SMLoc DirectiveLoc);
   bool parseDirectiveCVLoc();
 
   // .cfi directives
@@ -3070,6 +3071,38 @@ bool AsmParser::parseDirectiveLoc() {
   return false;
 }
 
+/// parseDirectiveCVFile
+/// ::= .cv_file number filename
+bool AsmParser::parseDirectiveCVFile(SMLoc DirectiveLoc) {
+  SMLoc FileNumberLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Integer))
+    return TokError("expected file number in '.cv_file' directive");
+
+  int64_t FileNumber = getTok().getIntVal();
+  Lex();
+
+  if (FileNumber < 1)
+    return TokError("file number less than one");
+
+  if (getLexer().isNot(AsmToken::String))
+    return TokError("unexpected token in '.cv_file' directive");
+
+  // Usually the directory and filename together, otherwise just the directory.
+  // Allow the strings to have escaped octal character sequence.
+  std::string Filename;
+  if (parseEscapedString(Filename))
+    return true;
+  Lex();
+
+  if (getLexer().isNot(AsmToken::EndOfStatement))
+    return TokError("unexpected token in '.cv_file' directive");
+
+  if (getStreamer().EmitCVFileDirective(FileNumber, Filename) == 0)
+    Error(FileNumberLoc, "file number already allocated");
+
+  return false;
+}
+
 /// parseDirectiveCVLoc
 /// ::= .cv_loc FunctionId FileNumber [LineNumber] [ColumnPos] [prologue_end]
 ///                                [is_stmt VALUE]
@@ -4458,6 +4491,7 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".line"] = DK_LINE;
   DirectiveKindMap[".loc"] = DK_LOC;
   DirectiveKindMap[".stabs"] = DK_STABS;
+  DirectiveKindMap[".cv_file"] = DK_CV_FILE;
   DirectiveKindMap[".cv_loc"] = DK_CV_LOC;
   DirectiveKindMap[".sleb128"] = DK_SLEB128;
   DirectiveKindMap[".uleb128"] = DK_ULEB128;

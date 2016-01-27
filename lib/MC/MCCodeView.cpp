@@ -27,11 +27,17 @@ bool CodeViewContext::isValidFileNumber(unsigned FileNumber) const {
 }
 
 bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
+  assert(FileNumber > 0);
   unsigned Idx = FileNumber - 1;
   if (Idx >= Filenames.size())
     Filenames.resize(Idx + 1);
+
+  if (Filename.empty())
+    Filename = "<stdin>";
+
   if (!Filenames[Idx].empty())
     return false;
+
   Filenames[Idx] = Filename;
   return true;
 }

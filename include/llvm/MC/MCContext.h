@@ -519,6 +519,9 @@ namespace llvm {
     /// \name CodeView Management
     /// @{
 
+    /// Creates an entry in the cv file table.
+    unsigned getCVFile(StringRef FileName, unsigned FileNumber);
+
     /// Saves the information from the currently parsed .cv_loc directive
     /// and sets CVLocSeen.  When the next instruction is assembled an entry
     /// in the line number table with this information and the address of the
