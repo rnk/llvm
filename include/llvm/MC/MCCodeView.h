@@ -122,8 +122,9 @@ public:
   }
 
   /// Implements the '.cv_linetable N, fn_begin, fn_end' directive.
-  void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer &OS,
-                                MCSymbol *FuncBegin, MCSymbol *FuncEnd);
+  void emitLineTableForFunction(MCObjectStreamer &OS, unsigned FuncId,
+                                const MCSymbol *FuncBegin,
+                                const MCSymbol *FuncEnd);
 
 private:
   /// An array of absolute paths. Eventually this may include the file checksum.

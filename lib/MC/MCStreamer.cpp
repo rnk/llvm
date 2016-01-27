@@ -192,6 +192,10 @@ void MCStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
                                IsStmt);
 }
 
+void MCStreamer::EmitCVLinetableDirective(unsigned FunctionId,
+                                          const MCSymbol *Begin,
+                                          const MCSymbol *End) {}
+
 void MCStreamer::EmitEHSymAttributes(const MCSymbol *Symbol,
                                      MCSymbol *EHSymbol) {
 }

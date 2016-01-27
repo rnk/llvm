@@ -1645,7 +1645,7 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     case DK_STABS:
       return parseDirectiveStabs();
     case DK_CV_FILE:
-      return parseDirectiveCVFile(IDLoc);
+      return parseDirectiveCVFile();
     case DK_CV_LOC:
       return parseDirectiveCVLoc();
     case DK_CV_LINETABLE:
@@ -3208,7 +3208,7 @@ bool AsmParser::parseDirectiveCVLinetable() {
 
   Loc = getLexer().getLoc();
   StringRef FnEndName;
-  if (parseIdentifier(FnStartName))
+  if (parseIdentifier(FnEndName))
     return Error(Loc, "expected identifier in directive");
 
   MCSymbol *FnStartSym = getContext().getOrCreateSymbol(FnStartName);

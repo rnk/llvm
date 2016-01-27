@@ -56,10 +56,10 @@ static void EmitLabelDiff(MCStreamer &Streamer, const MCSymbol *From,
   Streamer.EmitValue(AddrDelta, Size);
 }
 
-void CodeViewContext::emitLineTableForFunction(unsigned FuncId,
-                                               MCObjectStreamer &OS,
-                                               MCSymbol *FuncBegin,
-                                               MCSymbol *FuncEnd) {
+void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
+                                               unsigned FuncId,
+                                               const MCSymbol *FuncBegin,
+                                               const MCSymbol *FuncEnd) {
   OS.EmitCOFFSecRel32(FuncBegin);
   OS.EmitCOFFSectionIndex(FuncBegin);
   OS.EmitIntValue(COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS, 2);
@@ -75,7 +75,7 @@ void CodeViewContext::emitLineTableForFunction(unsigned FuncId,
           return Loc.getFileNum() != CurFileNum;
         });
     unsigned EntryCount = FileSegEnd - I;
-    OS.AddComment("Segment for file '" + Twine(Filenames[CurFileNum]) +
+    OS.AddComment("Segment for file '" + Twine(Filenames[CurFileNum - 1]) +
                   "' begins");
     OS.EmitIntValue(CurFileNum, 4); // FIXME: index in file table
     OS.EmitIntValue(EntryCount, 4);

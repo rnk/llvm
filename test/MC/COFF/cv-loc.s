@@ -1,7 +1,7 @@
 # RUN: llvm-mc < %s | FileCheck %s
 
 .cv_file 1 "a.c"
-.cv_file 1 "t.inc"
+.cv_file 2 "t.inc"
 
 # Implements this C:
 # void f(volatile int *x) {
