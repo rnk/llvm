@@ -1643,6 +1643,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveLoc();
     case DK_STABS:
       return parseDirectiveStabs();
+    case DK_CV_FILE:
+      return parseDirectiveCVFile(IDLoc);
     case DK_CV_LOC:
       return parseDirectiveCVLoc();
     case DK_CFI_SECTIONS:
@@ -3115,8 +3117,6 @@ bool AsmParser::parseDirectiveCVLoc() {
     return TokError("unexpected token in '.cv_loc' directive");
 
   int64_t FunctionId = getTok().getIntVal();
-  if (FunctionId < 1)
-    return TokError("file number less than one in '.cv_loc' directive");
   Lex();
 
   int64_t FileNumber = getTok().getIntVal();

@@ -122,7 +122,7 @@ public:
   }
 
   /// Implements the '.cv_linetable N, fn_begin, fn_end' directive.
-  void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer *OS,
+  void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer &OS,
                                 MCSymbol *FuncBegin, MCSymbol *FuncEnd);
 
 private:

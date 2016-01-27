@@ -14,16 +14,18 @@
 #include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectStreamer.h"
+#include "llvm/Support/COFF.h"
 
 using namespace llvm;
 
 CodeViewContext::CodeViewContext() {}
 
-/// This is a valid number for use with .cv_file if it has not yet been used.
+/// This is a valid number for use with .cv_loc if we've already seen a .cv_file
+/// for it.
 bool CodeViewContext::isValidFileNumber(unsigned FileNumber) const {
-  return FileNumber > 0 &&
-         (FileNumber - 1 >= Filenames.size() ||
-          (FileNumber - 1 < Filenames.size() && Filenames[FileNumber - 1].empty()));
+  if (0 < FileNumber && FileNumber < Filenames.size())
+    return !Filenames[FileNumber].empty();
+  return false;
 }
 
 bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
@@ -42,9 +44,50 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   return true;
 }
 
-void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer *OS,
-                              MCSymbol *FuncBegin, MCSymbol *FuncEnd) {
-  //OS
+static void EmitLabelDiff(MCStreamer &Streamer, const MCSymbol *From,
+                          const MCSymbol *To, unsigned int Size = 4) {
+  MCSymbolRefExpr::VariantKind Variant = MCSymbolRefExpr::VK_None;
+  MCContext &Context = Streamer.getContext();
+  const MCExpr *FromRef = MCSymbolRefExpr::create(From, Variant, Context),
+               *ToRef   = MCSymbolRefExpr::create(To, Variant, Context);
+  const MCExpr *AddrDelta =
+      MCBinaryExpr::create(MCBinaryExpr::Sub, ToRef, FromRef, Context);
+  Streamer.EmitValue(AddrDelta, Size);
+}
+
+void CodeViewContext::emitLineTableForFunction(unsigned FuncId,
+                                               MCObjectStreamer &OS,
+                                               MCSymbol *FuncBegin,
+                                               MCSymbol *FuncEnd) {
+  OS.EmitCOFFSecRel32(FuncBegin);
+  OS.EmitCOFFSectionIndex(FuncBegin);
+  OS.EmitIntValue(COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS, 2);
+  EmitLabelDiff(OS, FuncBegin, FuncEnd);
+
+  // Actual line info.
+  ArrayRef<MCCVLineEntry> Locs = getFunctionLineEntries(FuncId);
+  for (auto I = Locs.begin(), E = Locs.end(); I != E;) {
+    // Emit a file segment for the run of locations that share a file id.
+    unsigned CurFileNum = I->getFileNum();
+    auto FileSegEnd =
+        std::find_if(I, E, [CurFileNum](const MCCVLineEntry &Loc) {
+          return Loc.getFileNum() != CurFileNum;
+        });
+    unsigned EntryCount = FileSegEnd - I;
+    OS.AddComment("Segment for file '" + Twine(Filenames[CurFileNum]) +
+                  "' begins");
+    OS.EmitIntValue(CurFileNum, 4); // FIXME: index in file table
+    OS.EmitIntValue(EntryCount, 4);
+    OS.EmitIntValue(8 * EntryCount, 4);
+
+    for (; I != FileSegEnd; ++I) {
+      EmitLabelDiff(OS, FuncBegin, I->getLabel());
+      unsigned LineData = I->getLine();
+      if (I->isStmt())
+        LineData |= COFF::CVL_IsStatement;
+      OS.EmitIntValue(LineData, 4);
+    }
+  }
 }
 
 //
