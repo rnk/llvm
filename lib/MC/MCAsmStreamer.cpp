@@ -193,16 +193,18 @@ public:
   unsigned EmitDwarfFileDirective(unsigned FileNo, StringRef Directory,
                                   StringRef Filename,
                                   unsigned CUID = 0) override;
-  unsigned EmitCVFileDirective(unsigned FileNo, StringRef Filename) override;
   void EmitDwarfLocDirective(unsigned FileNo, unsigned Line,
                              unsigned Column, unsigned Flags,
                              unsigned Isa, unsigned Discriminator,
                              StringRef FileName) override;
   MCSymbol *getDwarfLineTableSymbol(unsigned CUID) override;
 
+  unsigned EmitCVFileDirective(unsigned FileNo, StringRef Filename) override;
   void EmitCVLocDirective(unsigned FunctionId, unsigned FileNo, unsigned Line,
                           unsigned Column, bool PrologueEnd, bool IsStmt,
                           StringRef FileName) override;
+  void EmitCVLinetableDirective(unsigned FunctionId, const MCSymbol *FnStart,
+                                const MCSymbol *FnEnd) override;
 
   void EmitIdent(StringRef IdentString) override;
   void EmitCFISections(bool EH, bool Debug) override;
@@ -1004,6 +1006,17 @@ void MCAsmStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
   EmitEOL();
   this->MCStreamer::EmitCVLocDirective(FunctionId, FileNo, Line, Column,
                                        PrologueEnd, IsStmt, FileName);
+}
+
+void MCAsmStreamer::EmitCVLinetableDirective(unsigned FunctionId,
+                                             const MCSymbol *FnStart,
+                                             const MCSymbol *FnEnd) {
+  OS << "\t.cv_linetable\t" << FunctionId << ", ";
+  FnStart->print(OS, MAI);
+  OS << ", ";
+  FnEnd->print(OS, MAI);
+  EmitEOL();
+  this->MCStreamer::EmitCVLinetableDirective(FunctionId, FnStart, FnEnd);
 }
 
 void MCAsmStreamer::EmitIdent(StringRef IdentString) {

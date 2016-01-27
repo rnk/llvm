@@ -650,6 +650,11 @@ public:
                                   bool PrologueEnd, bool IsStmt,
                                   StringRef FileName);
 
+  /// \brief This implements the CodeView '.cv_linetable' assembler directive.
+  virtual void EmitCVLinetableDirective(unsigned FunctionId,
+                                        const MCSymbol *FnStart,
+                                        const MCSymbol *FnEnd);
+
   /// Emit the absolute difference between two symbols.
   ///
   /// \pre Offset of \c Hi is greater than the offset \c Lo.
