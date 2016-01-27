@@ -42,6 +42,11 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   return true;
 }
 
+void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer *OS,
+                              MCSymbol *FuncBegin, MCSymbol *FuncEnd) {
+  //OS
+}
+
 //
 // This is called when an instruction is assembled into the specified section
 // and if there is information from the last .cv_loc directive that has yet to have

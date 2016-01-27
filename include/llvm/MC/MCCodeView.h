@@ -16,6 +16,8 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCSection.h"
+#include <map>
+#include <vector>
 
 namespace llvm {
 class MCContext;
@@ -102,23 +104,33 @@ public:
 
 /// Holds state from .cv_file and .cv_loc directives for later emission.
 class CodeViewContext {
-  // A collection of MCDwarfLineEntry for each section.
-  std::vector<MCCVLineEntry> MCCVLines;
-
 public:
   CodeViewContext();
-
-  /// An array of absolute paths. Eventually this may include the file checksum.
-  SmallVector<StringRef, 4> Filenames;
 
   bool isValidFileNumber(unsigned FileNumber) const;
   bool addFile(unsigned FileNumber, StringRef Filename);
   ArrayRef<StringRef> getFilenames() { return Filenames; }
 
-  // \brief Add a line entry.
+  /// \brief Add a line entry.
   void addLineEntry(const MCCVLineEntry &LineEntry) {
-    MCCVLines.push_back(LineEntry);
+    MCCVLines[LineEntry.getFunctionId()].push_back(LineEntry);
   }
+
+  ArrayRef<MCCVLineEntry> getFunctionLineEntries(unsigned FuncId) {
+    assert(MCCVLines.find(FuncId) != MCCVLines.end());
+    return MCCVLines.find(FuncId)->second;
+  }
+
+  /// Implements the '.cv_linetable N, fn_begin, fn_end' directive.
+  void emitLineTableForFunction(unsigned FuncId, MCObjectStreamer *OS,
+                                MCSymbol *FuncBegin, MCSymbol *FuncEnd);
+
+private:
+  /// An array of absolute paths. Eventually this may include the file checksum.
+  SmallVector<StringRef, 4> Filenames;
+
+  /// A collection of MCDwarfLineEntry for each section.
+  std::map<int, std::vector<MCCVLineEntry>> MCCVLines;
 };
 
 } // end namespace llvm
