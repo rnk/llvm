@@ -95,13 +95,16 @@ public:
   MCSymbol *getLabel() const { return Label; }
 
   // This is called when an instruction is assembled into the specified
-  // section and if there is information from the last .loc directive that
+  // section and if there is information from the last .cv_loc directive that
   // has yet to have a line entry made for it is made.
-  static void Make(MCObjectStreamer *MCOS, MCSection *Section);
+  static void Make(MCObjectStreamer *MCOS);
 };
 
 /// Holds state from .cv_file and .cv_loc directives for later emission.
 class CodeViewContext {
+  // A collection of MCDwarfLineEntry for each section.
+  std::vector<MCCVLineEntry> MCCVLines;
+
 public:
   CodeViewContext();
 
@@ -111,6 +114,11 @@ public:
   bool isValidFileNumber(unsigned FileNumber) const;
   bool addFile(unsigned FileNumber, StringRef Filename);
   ArrayRef<StringRef> getFilenames() { return Filenames; }
+
+  // \brief Add a line entry.
+  void addLineEntry(const MCCVLineEntry &LineEntry) {
+    MCCVLines.push_back(LineEntry);
+  }
 };
 
 } // end namespace llvm

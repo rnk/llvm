@@ -41,7 +41,7 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
 // and if there is information from the last .cv_loc directive that has yet to have
 // a line entry made for it is made.
 //
-void MCCVLineEntry::Make(MCObjectStreamer *MCOS, MCSection *Section) {
+void MCCVLineEntry::Make(MCObjectStreamer *MCOS) {
   if (!MCOS->getContext().getCVLocSeen())
     return;
 
@@ -60,10 +60,5 @@ void MCCVLineEntry::Make(MCObjectStreamer *MCOS, MCSection *Section) {
   MCOS->getContext().clearCVLocSeen();
 
   // Add the line entry to this section's entries.
-#if 0
-  MCOS->getContext()
-      .getMCCVLineTable(MCOS->getContext().getCVCompileUnitID())
-      .getMCLineSections()
-      .addLineEntry(LineEntry, Section);
-#endif
+  MCOS->getContext().getCVContext().addLineEntry(LineEntry);
 }

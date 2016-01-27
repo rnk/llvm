@@ -125,7 +125,7 @@ void MCObjectStreamer::EmitValueImpl(const MCExpr *Value, unsigned Size,
   MCDataFragment *DF = getOrCreateDataFragment();
   flushPendingLabels(DF, DF->getContents().size());
 
-  MCCVLineEntry::Make(this, getCurrentSection().first);
+  MCCVLineEntry::Make(this);
   MCDwarfLineEntry::Make(this, getCurrentSection().first);
 
   // Avoid fixups when possible.
@@ -233,7 +233,7 @@ void MCObjectStreamer::EmitInstruction(const MCInst &Inst,
 
   // Now that a machine instruction has been assembled into this section, make
   // a line entry for any .loc directive that has been seen.
-  MCCVLineEntry::Make(this, getCurrentSection().first);
+  MCCVLineEntry::Make(this);
   MCDwarfLineEntry::Make(this, getCurrentSection().first);
 
   // If this instruction doesn't need relaxation, just emit it as data.
@@ -368,16 +368,16 @@ void MCObjectStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
                                           unsigned Line, unsigned Column,
                                           bool PrologueEnd, bool IsStmt,
                                           StringRef FileName) {
-  // In case we see two .loc directives in a row, make sure the
+  // In case we see two .cv_loc directives in a row, make sure the
   // first one gets a line entry.
-  MCCVLineEntry::Make(this, getCurrentSection().first);
+  MCCVLineEntry::Make(this);
 
   this->MCStreamer::EmitCVLocDirective(FunctionId, FileNo, Line, Column,
                                        PrologueEnd, IsStmt, FileName);
 }
 
 void MCObjectStreamer::EmitBytes(StringRef Data) {
-  MCCVLineEntry::Make(this, getCurrentSection().first);
+  MCCVLineEntry::Make(this);
   MCDwarfLineEntry::Make(this, getCurrentSection().first);
   MCDataFragment *DF = getOrCreateDataFragment();
   flushPendingLabels(DF, DF->getContents().size());

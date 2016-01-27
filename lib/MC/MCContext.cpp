@@ -91,6 +91,8 @@ void MCContext::reset() {
   DwarfCompileUnitID = 0;
   CurrentDwarfLoc = MCDwarfLoc(0, 0, 0, DWARF2_FLAG_IS_STMT, 0, 0);
 
+  CVContext.reset();
+
   MachOUniquingMap.clear();
   ELFUniquingMap.clear();
   COFFUniquingMap.clear();
