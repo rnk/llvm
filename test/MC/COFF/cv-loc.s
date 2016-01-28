@@ -1,5 +1,9 @@
 # RUN: llvm-mc < %s -filetype=obj | llvm-readobj - -codeview | FileCheck %s
 
+.section .debug$S
+.long 4
+.cv_stringtable
+
 .cv_file 1 "a.c"
 .cv_file 2 "t.inc"
 
@@ -34,8 +38,6 @@ f:
 .Lfunc_end0:
 
 .section .debug$S
-.long 4
-.cv_stringtable
 .cv_filechecksums
 .cv_linetable 0, f, .Lfunc_end0
 

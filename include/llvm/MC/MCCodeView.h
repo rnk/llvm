@@ -143,7 +143,7 @@ private:
   MCDataFragment *StrTabFragment = nullptr;
   bool InsertedStrTabFragment = false;
 
-  SmallVectorImpl<char> &getStringTableContents();
+  MCDataFragment *getStringTableFragment();
 
   /// Add something to the string table.
   StringRef addToStringTable(StringRef S);

@@ -59,17 +59,17 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   return true;
 }
 
-SmallVectorImpl<char> &CodeViewContext::getStringTableContents() {
+MCDataFragment *CodeViewContext::getStringTableFragment() {
   if (!StrTabFragment) {
     StrTabFragment = new MCDataFragment();
     // Start a new string table out with a null byte.
     StrTabFragment->getContents().push_back('\0');
   }
-  return StrTabFragment->getContents();
+  return StrTabFragment;
 }
 
 StringRef CodeViewContext::addToStringTable(StringRef S) {
-  SmallVectorImpl<char> &Contents = getStringTableContents();
+  SmallVectorImpl<char> &Contents = getStringTableFragment()->getContents();
   auto Insertion =
       StringTable.insert(std::make_pair(S, unsigned(Contents.size())));
   // Return the string from the table, since it is stable.
@@ -103,10 +103,7 @@ void CodeViewContext::emitStringTable(MCObjectStreamer &OS) {
   // somewhere else. If somebody wants two string tables in their .s file, one
   // will just be empty.
   if (!InsertedStrTabFragment) {
-    if (StrTabFragment)
-      OS.insert(StrTabFragment);
-    else
-      StrTabFragment = OS.getOrCreateDataFragment();
+    OS.insert(getStringTableFragment());
     InsertedStrTabFragment = true;
   }
 
