@@ -15,10 +15,9 @@
 #define LLVM_MC_MCCODEVIEW_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/MC/MCSection.h"
-#include "llvm/MC/StringTableBuilder.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/StringSaver.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/MC/MCObjectStreamer.h"
+#include "llvm/MC/MCFragment.h"
 #include <map>
 #include <vector>
 
@@ -109,6 +108,7 @@ public:
 class CodeViewContext {
 public:
   CodeViewContext();
+  ~CodeViewContext();
 
   bool isValidFileNumber(unsigned FileNumber) const;
   bool addFile(unsigned FileNumber, StringRef Filename);
@@ -136,22 +136,26 @@ public:
   void emitFileChecksums(MCObjectStreamer &OS);
 
 private:
-  /// Stable storage for strings provided by our users.
-  BumpPtrAllocator Alloc;
+  /// Map from string to string table offset.
+  StringMap<unsigned> StringTable;
 
-  /// Wrap 'save' to avoid strlen.
-  StringRef saveString(StringRef S) {
-    return StringRef(StringSaver(Alloc).save(S), S.size());
-  }
+  /// The fragment that ultimately holds our strings.
+  MCDataFragment *StrTabFragment = nullptr;
+  bool InsertedStrTabFragment = false;
+
+  SmallVectorImpl<char> &getStringTableContents();
+
+  /// Add something to the string table.
+  StringRef addToStringTable(StringRef S);
+
+  /// Get a string table offset.
+  unsigned getStringTableOffset(StringRef S);
 
   /// An array of absolute paths. Eventually this may include the file checksum.
   SmallVector<StringRef, 4> Filenames;
 
   /// A collection of MCDwarfLineEntry for each section.
   std::map<int, std::vector<MCCVLineEntry>> MCCVLines;
-
-  /// For the CodeView string table subsection. Uses the same format as ELF.
-  StringTableBuilder StringTable;
 };
 
 } // end namespace llvm

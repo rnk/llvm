@@ -59,7 +59,6 @@ public:
   void EmitFrames(MCAsmBackend *MAB);
   void EmitCFISections(bool EH, bool Debug) override;
 
-protected:
   MCFragment *getCurrentFragment() const;
 
   void insert(MCFragment *F) {
@@ -73,6 +72,7 @@ protected:
   /// fragment is not a data fragment.
   MCDataFragment *getOrCreateDataFragment();
 
+protected:
   bool changeSectionImpl(MCSection *Section, const MCExpr *Subsection);
 
   /// If any labels have been emitted but not assigned fragments, ensure that

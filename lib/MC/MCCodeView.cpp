@@ -20,7 +20,14 @@
 using namespace llvm;
 using namespace llvm::codeview;
 
-CodeViewContext::CodeViewContext() : StringTable(StringTableBuilder::ELF) {}
+CodeViewContext::CodeViewContext() {}
+
+CodeViewContext::~CodeViewContext() {
+  // If someone inserted strings into the string table but never actually
+  // emitted them somewhere, clean up the fragment.
+  if (!InsertedStrTabFragment)
+    delete StrTabFragment;
+}
 
 /// This is a valid number for use with .cv_loc if we've already seen a .cv_file
 /// for it.
@@ -33,7 +40,7 @@ bool CodeViewContext::isValidFileNumber(unsigned FileNumber) const {
 
 bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   assert(FileNumber > 0);
-  Filename = saveString(Filename);
+  Filename = addToStringTable(Filename);
   unsigned Idx = FileNumber - 1;
   if (Idx >= Filenames.size())
     Filenames.resize(Idx + 1);
@@ -44,10 +51,43 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   if (!Filenames[Idx].empty())
     return false;
 
-  StringTable.add(Filename);
+  // FIXME: We should store the string table offset of the filename, rather than
+  // the filename itself for efficiency.
+  Filename = addToStringTable(Filename);
 
   Filenames[Idx] = Filename;
   return true;
+}
+
+SmallVectorImpl<char> &CodeViewContext::getStringTableContents() {
+  if (!StrTabFragment) {
+    StrTabFragment = new MCDataFragment();
+    // Start a new string table out with a null byte.
+    StrTabFragment->getContents().push_back('\0');
+  }
+  return StrTabFragment->getContents();
+}
+
+StringRef CodeViewContext::addToStringTable(StringRef S) {
+  SmallVectorImpl<char> &Contents = getStringTableContents();
+  auto Insertion =
+      StringTable.insert(std::make_pair(S, unsigned(Contents.size())));
+  // Return the string from the table, since it is stable.
+  S = Insertion.first->first();
+  if (Insertion.second) {
+    // The string map key is always null terminated.
+    Contents.append(S.begin(), S.end() + 1);
+  }
+  return S;
+}
+
+unsigned CodeViewContext::getStringTableOffset(StringRef S) {
+  // A string table offset of zero is always the empty string.
+  if (S.empty())
+    return 0;
+  auto I = StringTable.find(S);
+  assert(I != StringTable.end());
+  return I->second;
 }
 
 void CodeViewContext::emitStringTable(MCObjectStreamer &OS) {
@@ -59,8 +99,16 @@ void CodeViewContext::emitStringTable(MCObjectStreamer &OS) {
   OS.emitAbsoluteSymbolDiff(StringEnd, StringBegin, 4);
   OS.EmitLabel(StringBegin);
 
-  StringTable.finalizeInOrder();
-  OS.EmitBytes(StringTable.data());
+  // Put the string table data fragment here, if we haven't already put it
+  // somewhere else. If somebody wants two string tables in their .s file, one
+  // will just be empty.
+  if (!InsertedStrTabFragment) {
+    if (StrTabFragment)
+      OS.insert(StrTabFragment);
+    else
+      StrTabFragment = OS.getOrCreateDataFragment();
+    InsertedStrTabFragment = true;
+  }
 
   OS.EmitValueToAlignment(4, 0);
 
@@ -80,8 +128,7 @@ void CodeViewContext::emitFileChecksums(MCObjectStreamer &OS) {
   // user-provided file number. Each entry is currently 8 bytes, as we don't
   // emit checksums.
   for (StringRef Filename : Filenames) {
-    // A string table offset of zero is always the empty string.
-    OS.EmitIntValue(Filename.empty() ? 0 : StringTable.getOffset(Filename), 4);
+    OS.EmitIntValue(getStringTableOffset(Filename), 4);
     // Zero the next two fields and align back to 4 bytes. This indicates that
     // no checksum is present.
     OS.EmitIntValue(0, 4);
