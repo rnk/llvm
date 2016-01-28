@@ -13,6 +13,7 @@
 
 #include "CodeViewDebug.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
+#include "llvm/DebugInfo/CodeView/Line.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCSymbol.h"
@@ -97,7 +98,13 @@ void CodeViewDebug::maybeRecordLocation(DebugLoc DL,
     return;
 
   // Skip this line if it is longer than the maximum we can record.
-  if (DL.getLine() > COFF::CVL_MaxLineNumber)
+  LineInfo LI(DL.getLine(), DL.getLine(), /*IsStatement=*/true);
+  if (LI.getStartLine() != DL.getLine() || LI.isAlwaysStepInto() ||
+      LI.isNeverStepInto())
+    return;
+
+  ColumnInfo CI(DL.getCol(), /*EndColumn=*/0);
+  if (CI.getStartColumn() != DL.getCol())
     return;
 
   if (!CurFn->HaveLineInfo)

@@ -12,7 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCCodeView.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
+#include "llvm/DebugInfo/CodeView/Line.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectStreamer.h"
 #include "llvm/Support/COFF.h"
@@ -147,13 +149,15 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
   OS.EmitLabel(LineBegin);
   OS.EmitCOFFSecRel32(FuncBegin);
   OS.EmitCOFFSectionIndex(FuncBegin);
-  // FIXME: Emit colum records and set
-  // COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS.
-  OS.EmitIntValue(0, 2);
-  OS.emitAbsoluteSymbolDiff(FuncEnd, FuncBegin, 4);
 
   // Actual line info.
   ArrayRef<MCCVLineEntry> Locs = getFunctionLineEntries(FuncId);
+  bool HaveColumns = any_of(Locs, [](const MCCVLineEntry &LineEntry) {
+    return LineEntry.getColumn() != 0;
+  });
+  OS.EmitIntValue(HaveColumns ? codeview::LineFlags::HaveColumns : 0, 2);
+  OS.emitAbsoluteSymbolDiff(FuncEnd, FuncBegin, 4);
+
   for (auto I = Locs.begin(), E = Locs.end(); I != E;) {
     // Emit a file segment for the run of locations that share a file id.
     unsigned CurFileNum = I->getFileNum();
@@ -166,15 +170,26 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
                   "' begins");
     OS.EmitIntValue(8 * (CurFileNum - 1), 4);
     OS.EmitIntValue(EntryCount, 4);
-    OS.EmitIntValue(12 + 8 * EntryCount, 4);
+    uint32_t SegmentSize = 12;
+    SegmentSize += 8 * EntryCount;
+    if (HaveColumns)
+      SegmentSize += 4 * EntryCount;
+    OS.EmitIntValue(SegmentSize, 4);
 
-    for (; I != FileSegEnd; ++I) {
-      OS.emitAbsoluteSymbolDiff(I->getLabel(), FuncBegin, 4);
-      unsigned LineData = I->getLine();
-      if (I->isStmt())
-        LineData |= COFF::CVL_IsStatement;
+    for (auto J = I; J != FileSegEnd; ++J) {
+      OS.emitAbsoluteSymbolDiff(J->getLabel(), FuncBegin, 4);
+      unsigned LineData = J->getLine();
+      if (J->isStmt())
+        LineData |= codeview::LineInfo::StatementFlag;
       OS.EmitIntValue(LineData, 4);
     }
+    if (HaveColumns) {
+      for (auto J = I; J != FileSegEnd; ++J) {
+        OS.EmitIntValue(J->getColumn(), 2);
+        OS.EmitIntValue(0, 2);
+      }
+    }
+    I = FileSegEnd;
   }
   OS.EmitLabel(LineEnd);
 }
