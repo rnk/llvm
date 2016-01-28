@@ -16,6 +16,9 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCSection.h"
+#include "llvm/MC/StringTableBuilder.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/StringSaver.h"
 #include <map>
 #include <vector>
 
@@ -121,17 +124,34 @@ public:
     return MCCVLines.find(FuncId)->second;
   }
 
-  /// Implements the '.cv_linetable N, fn_begin, fn_end' directive.
+  /// Emits a line table substream.
   void emitLineTableForFunction(MCObjectStreamer &OS, unsigned FuncId,
                                 const MCSymbol *FuncBegin,
                                 const MCSymbol *FuncEnd);
 
+  /// Emits the string table substream.
+  void emitStringTable(MCObjectStreamer &OS);
+
+  /// Emits the file checksum substream.
+  void emitFileChecksums(MCObjectStreamer &OS);
+
 private:
+  /// Stable storage for strings provided by our users.
+  BumpPtrAllocator Alloc;
+
+  /// Wrap 'save' to avoid strlen.
+  StringRef saveString(StringRef S) {
+    return StringRef(StringSaver(Alloc).save(S), S.size());
+  }
+
   /// An array of absolute paths. Eventually this may include the file checksum.
   SmallVector<StringRef, 4> Filenames;
 
   /// A collection of MCDwarfLineEntry for each section.
   std::map<int, std::vector<MCCVLineEntry>> MCCVLines;
+
+  /// For the CodeView string table subsection. Uses the same format as ELF.
+  StringTableBuilder StringTable;
 };
 
 } // end namespace llvm

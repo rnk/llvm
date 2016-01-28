@@ -357,7 +357,8 @@ private:
     DK_IFNB, DK_IFC, DK_IFEQS, DK_IFNC, DK_IFNES, DK_IFDEF, DK_IFNDEF,
     DK_IFNOTDEF, DK_ELSEIF, DK_ELSE, DK_ENDIF,
     DK_SPACE, DK_SKIP, DK_FILE, DK_LINE, DK_LOC, DK_STABS,
-    DK_CV_FILE, DK_CV_LOC, DK_CV_LINETABLE,
+    DK_CV_FILE, DK_CV_LOC, DK_CV_LINETABLE, DK_CV_STRINGTABLE,
+    DK_CV_FILECHECKSUMS,
     DK_CFI_SECTIONS, DK_CFI_STARTPROC, DK_CFI_ENDPROC, DK_CFI_DEF_CFA,
     DK_CFI_DEF_CFA_OFFSET, DK_CFI_ADJUST_CFA_OFFSET, DK_CFI_DEF_CFA_REGISTER,
     DK_CFI_OFFSET, DK_CFI_REL_OFFSET, DK_CFI_PERSONALITY, DK_CFI_LSDA,
@@ -399,6 +400,8 @@ private:
   bool parseDirectiveCVFile();
   bool parseDirectiveCVLoc();
   bool parseDirectiveCVLinetable();
+  bool parseDirectiveCVStringTable();
+  bool parseDirectiveCVFileChecksums();
 
   // .cfi directives
   bool parseDirectiveCFIRegister(SMLoc DirectiveLoc);
@@ -1650,6 +1653,10 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveCVLoc();
     case DK_CV_LINETABLE:
       return parseDirectiveCVLinetable();
+    case DK_CV_STRINGTABLE:
+      return parseDirectiveCVStringTable();
+    case DK_CV_FILECHECKSUMS:
+      return parseDirectiveCVFileChecksums();
     case DK_CFI_SECTIONS:
       return parseDirectiveCFISections();
     case DK_CFI_STARTPROC:
@@ -3185,7 +3192,7 @@ bool AsmParser::parseDirectiveCVLoc() {
   return false;
 }
 
-/// parseDirectiveCVFile
+/// parseDirectiveCVLinetable
 /// ::= .cv_linetable FunctionId, FnStart, FnEnd
 bool AsmParser::parseDirectiveCVLinetable() {
   int64_t FunctionId = getTok().getIntVal();
@@ -3215,6 +3222,20 @@ bool AsmParser::parseDirectiveCVLinetable() {
   MCSymbol *FnEndSym = getContext().getOrCreateSymbol(FnEndName);
 
   getStreamer().EmitCVLinetableDirective(FunctionId, FnStartSym, FnEndSym);
+  return false;
+}
+
+/// parseDirectiveCVStringTable
+/// ::= .cv_stringtable
+bool AsmParser::parseDirectiveCVStringTable() {
+  getStreamer().EmitCVStringTableDirective();
+  return false;
+}
+
+/// parseDirectiveCVFileChecksums
+/// ::= .cv_filechecksums
+bool AsmParser::parseDirectiveCVFileChecksums() {
+  getStreamer().EmitCVFileChecksumsDirective();
   return false;
 }
 
@@ -4532,6 +4553,8 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".cv_file"] = DK_CV_FILE;
   DirectiveKindMap[".cv_loc"] = DK_CV_LOC;
   DirectiveKindMap[".cv_linetable"] = DK_CV_LINETABLE;
+  DirectiveKindMap[".cv_stringtable"] = DK_CV_STRINGTABLE;
+  DirectiveKindMap[".cv_filechecksums"] = DK_CV_FILECHECKSUMS;
   DirectiveKindMap[".sleb128"] = DK_SLEB128;
   DirectiveKindMap[".uleb128"] = DK_ULEB128;
   DirectiveKindMap[".cfi_sections"] = DK_CFI_SECTIONS;

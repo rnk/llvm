@@ -205,6 +205,8 @@ public:
                           StringRef FileName) override;
   void EmitCVLinetableDirective(unsigned FunctionId, const MCSymbol *FnStart,
                                 const MCSymbol *FnEnd) override;
+  void EmitCVStringTableDirective() override;
+  void EmitCVFileChecksumsDirective() override;
 
   void EmitIdent(StringRef IdentString) override;
   void EmitCFISections(bool EH, bool Debug) override;
@@ -1017,6 +1019,16 @@ void MCAsmStreamer::EmitCVLinetableDirective(unsigned FunctionId,
   FnEnd->print(OS, MAI);
   EmitEOL();
   this->MCStreamer::EmitCVLinetableDirective(FunctionId, FnStart, FnEnd);
+}
+
+void MCAsmStreamer::EmitCVStringTableDirective() {
+  OS << "\t.cv_stringtable";
+  EmitEOL();
+}
+
+void MCAsmStreamer::EmitCVFileChecksumsDirective() {
+  OS << "\t.cv_filechecksums";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitIdent(StringRef IdentString) {

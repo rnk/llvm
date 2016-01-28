@@ -655,6 +655,12 @@ public:
                                         const MCSymbol *FnStart,
                                         const MCSymbol *FnEnd);
 
+  /// \brief This implements the CodeView '.cv_stringtable' assembler directive.
+  virtual void EmitCVStringTableDirective() {}
+
+  /// \brief This implements the CodeView '.cv_filechecksums' assembler directive.
+  virtual void EmitCVFileChecksumsDirective() {}
+
   /// Emit the absolute difference between two symbols.
   ///
   /// \pre Offset of \c Hi is greater than the offset \c Lo.

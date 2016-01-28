@@ -384,6 +384,14 @@ void MCObjectStreamer::EmitCVLinetableDirective(unsigned FunctionId,
   this->MCStreamer::EmitCVLinetableDirective(FunctionId, Begin, End);
 }
 
+void MCObjectStreamer::EmitCVStringTableDirective() {
+  getContext().getCVContext().emitStringTable(*this);
+}
+void MCObjectStreamer::EmitCVFileChecksumsDirective() {
+  getContext().getCVContext().emitFileChecksums(*this);
+}
+
+
 void MCObjectStreamer::EmitBytes(StringRef Data) {
   MCCVLineEntry::Make(this);
   MCDwarfLineEntry::Make(this, getCurrentSection().first);

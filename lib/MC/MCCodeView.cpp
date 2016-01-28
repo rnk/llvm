@@ -20,7 +20,7 @@
 using namespace llvm;
 using namespace llvm::codeview;
 
-CodeViewContext::CodeViewContext() {}
+CodeViewContext::CodeViewContext() : StringTable(StringTableBuilder::ELF) {}
 
 /// This is a valid number for use with .cv_loc if we've already seen a .cv_file
 /// for it.
@@ -33,6 +33,7 @@ bool CodeViewContext::isValidFileNumber(unsigned FileNumber) const {
 
 bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   assert(FileNumber > 0);
+  Filename = saveString(Filename);
   unsigned Idx = FileNumber - 1;
   if (Idx >= Filenames.size())
     Filenames.resize(Idx + 1);
@@ -43,19 +44,50 @@ bool CodeViewContext::addFile(unsigned FileNumber, StringRef Filename) {
   if (!Filenames[Idx].empty())
     return false;
 
+  StringTable.add(Filename);
+
   Filenames[Idx] = Filename;
   return true;
 }
 
-static void EmitLabelDiff(MCStreamer &Streamer, const MCSymbol *From,
-                          const MCSymbol *To, unsigned int Size = 4) {
-  MCSymbolRefExpr::VariantKind Variant = MCSymbolRefExpr::VK_None;
-  MCContext &Context = Streamer.getContext();
-  const MCExpr *FromRef = MCSymbolRefExpr::create(From, Variant, Context),
-               *ToRef   = MCSymbolRefExpr::create(To, Variant, Context);
-  const MCExpr *AddrDelta =
-      MCBinaryExpr::create(MCBinaryExpr::Sub, ToRef, FromRef, Context);
-  Streamer.EmitValue(AddrDelta, Size);
+void CodeViewContext::emitStringTable(MCObjectStreamer &OS) {
+  MCContext &Ctx = OS.getContext();
+  MCSymbol *StringBegin = Ctx.createTempSymbol("strtab_begin"),
+           *StringEnd = Ctx.createTempSymbol("strtab_end");
+
+  OS.EmitIntValue(unsigned(ModuleSubstreamKind::StringTable), 4);
+  OS.emitAbsoluteSymbolDiff(StringEnd, StringBegin, 4);
+  OS.EmitLabel(StringBegin);
+
+  StringTable.finalizeInOrder();
+  OS.EmitBytes(StringTable.data());
+
+  OS.EmitValueToAlignment(4, 0);
+
+  OS.EmitLabel(StringEnd);
+}
+
+void CodeViewContext::emitFileChecksums(MCObjectStreamer &OS) {
+  MCContext &Ctx = OS.getContext();
+  MCSymbol *FileBegin = Ctx.createTempSymbol("filechecksums_begin"),
+           *FileEnd = Ctx.createTempSymbol("filechecksums_end");
+
+  OS.EmitIntValue(unsigned(ModuleSubstreamKind::FileChecksums), 4);
+  OS.emitAbsoluteSymbolDiff(FileEnd, FileBegin, 4);
+  OS.EmitLabel(FileBegin);
+
+  // Emit an array of FileChecksum entries. We index into this table using the
+  // user-provided file number. Each entry is currently 8 bytes, as we don't
+  // emit checksums.
+  for (StringRef Filename : Filenames) {
+    // A string table offset of zero is always the empty string.
+    OS.EmitIntValue(Filename.empty() ? 0 : StringTable.getOffset(Filename), 4);
+    // Zero the next two fields and align back to 4 bytes. This indicates that
+    // no checksum is present.
+    OS.EmitIntValue(0, 4);
+  }
+
+  OS.EmitLabel(FileEnd);
 }
 
 void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
@@ -65,6 +97,7 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
   MCContext &Ctx = OS.getContext();
   MCSymbol *LineBegin = Ctx.createTempSymbol("linetable_begin"),
            *LineEnd = Ctx.createTempSymbol("linetable_end");
+
   OS.EmitIntValue(unsigned(ModuleSubstreamKind::Lines), 4);
   OS.emitAbsoluteSymbolDiff(LineEnd, LineBegin, 4);
   OS.EmitLabel(LineBegin);
@@ -73,7 +106,7 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
   // FIXME: Emit colum records and set
   // COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS.
   OS.EmitIntValue(0, 2);
-  EmitLabelDiff(OS, FuncBegin, FuncEnd);
+  OS.emitAbsoluteSymbolDiff(FuncEnd, FuncBegin, 4);
 
   // Actual line info.
   ArrayRef<MCCVLineEntry> Locs = getFunctionLineEntries(FuncId);
@@ -87,12 +120,12 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
     unsigned EntryCount = FileSegEnd - I;
     OS.AddComment("Segment for file '" + Twine(Filenames[CurFileNum - 1]) +
                   "' begins");
-    OS.EmitIntValue(8 * (CurFileNum - 1), 4); // FIXME: index in file table
+    OS.EmitIntValue(8 * (CurFileNum - 1), 4);
     OS.EmitIntValue(EntryCount, 4);
     OS.EmitIntValue(12 + 8 * EntryCount, 4);
 
     for (; I != FileSegEnd; ++I) {
-      EmitLabelDiff(OS, FuncBegin, I->getLabel());
+      OS.emitAbsoluteSymbolDiff(I->getLabel(), FuncBegin, 4);
       unsigned LineData = I->getLine();
       if (I->isStmt())
         LineData |= COFF::CVL_IsStatement;

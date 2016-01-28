@@ -11,13 +11,13 @@
 # }
 
 .text
-.def	 f;
-	.scl	2;
-	.type	32;
-	.endef
-	.text
-	.globl	f
-	.align	16, 0x90
+.def     f;
+        .scl    2;
+        .type   32;
+        .endef
+        .text
+        .globl  f
+        .align  16, 0x90
 f:
 .Lfunc_begin0:
   .cv_loc 0 1 5 2
@@ -35,22 +35,8 @@ f:
 
 .section .debug$S
 .long 4
-.long 0xF4 # Filechecksums substream
-.long .Lfilechecksums_end - .Lfilechecksums_begin
-.Lfilechecksums_begin:
-.long 1
-.long 0
-.long 5
-.long 0
-.Lfilechecksums_end:
-.long 0xF3 # String table substream
-.long .Lstrtab_end - .Lstrtab_begin
-.Lstrtab_begin:
-.byte 0
-.asciz "a.c"
-.asciz "t.h"
-.align 4
-.Lstrtab_end:
+.cv_stringtable
+.cv_filechecksums
 .cv_linetable 0, f, .Lfunc_end0
 
 # CHECK: FunctionLineTable [
@@ -66,7 +52,7 @@ f:
 # CHECK:     ]
 # CHECK:   ]
 # CHECK:   FilenameSegment [
-# CHECK:     Filename: t.h (0x8)
+# CHECK:     Filename: t.inc (0x8)
 # CHECK:     +0x2 [
 # CHECK:       LineNumberStart: 0
 # CHECK:       LineNumberEndDelta: 0
