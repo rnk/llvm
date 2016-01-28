@@ -1,4 +1,4 @@
-# RUN: llvm-mc < %s -filetype=obj | llvm-readobj - -codeview | FileCheck %s
+# RUN: llvm-mc < %s -triple=x86_64-pc-win32 -filetype=obj | llvm-readobj - -codeview | FileCheck %s
 
 .section .debug$S
 .long 4
@@ -43,14 +43,16 @@ f:
 
 # CHECK: FunctionLineTable [
 # CHECK:   LinkageName: f
-# CHECK:   Flags: 0x0
+# CHECK:   Flags: 0x1
 # CHECK:   CodeSize: 0x9
 # CHECK:   FilenameSegment [
 # CHECK:     Filename: a.c (0x0)
 # CHECK:     +0x0 [
 # CHECK:       LineNumberStart: 5
 # CHECK:       LineNumberEndDelta: 0
-# CHECK:       IsStatement: No
+# CHECK:       IsStatement: Yes
+# CHECK:       ColStart: 2
+# CHECK:       ColEnd: 0
 # CHECK:     ]
 # CHECK:   ]
 # CHECK:   FilenameSegment [
@@ -58,12 +60,16 @@ f:
 # CHECK:     +0x2 [
 # CHECK:       LineNumberStart: 0
 # CHECK:       LineNumberEndDelta: 0
-# CHECK:       IsStatement: No
+# CHECK:       IsStatement: Yes
+# CHECK:       ColStart: 0
+# CHECK:       ColEnd: 0
 # CHECK:     ]
 # CHECK:     +0x4 [
 # CHECK:       LineNumberStart: 1
 # CHECK:       LineNumberEndDelta: 0
-# CHECK:       IsStatement: No
+# CHECK:       IsStatement: Yes
+# CHECK:       ColStart: 0
+# CHECK:       ColEnd: 0
 # CHECK:     ]
 # CHECK:   ]
 # CHECK:   FilenameSegment [
@@ -71,7 +77,9 @@ f:
 # CHECK:     +0x6 [
 # CHECK:       LineNumberStart: 6
 # CHECK:       LineNumberEndDelta: 0
-# CHECK:       IsStatement: No
+# CHECK:       IsStatement: Yes
+# CHECK:       ColStart: 2
+# CHECK:       ColEnd: 0
 # CHECK:     ]
 # CHECK:   ]
 # CHECK: ]
