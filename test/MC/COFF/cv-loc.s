@@ -11,6 +11,13 @@
 # }
 
 .text
+.def	 f;
+	.scl	2;
+	.type	32;
+	.endef
+	.text
+	.globl	f
+	.align	16, 0x90
 f:
 .Lfunc_begin0:
   .cv_loc 0 1 5 2
@@ -26,12 +33,12 @@ f:
   retq
 .Lfunc_end0:
 
-.section ".debug$S"
+.section .debug$S
 .long 4
 .long 0xF2 # Lines substream
-.long .Llinetable_begin0 - .Llinetable_end0
+.long .Llinetable_end0 - .Llinetable_begin0
 .Llinetable_begin0:
-.cv_linetable 0, .Lfunc_begin0, .Lfunc_end0
+.cv_linetable 0, f, .Lfunc_end0
 .Llinetable_end0:
 
 # CHECK: asdf

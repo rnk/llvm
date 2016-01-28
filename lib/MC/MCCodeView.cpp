@@ -62,7 +62,8 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
                                                const MCSymbol *FuncEnd) {
   OS.EmitCOFFSecRel32(FuncBegin);
   OS.EmitCOFFSectionIndex(FuncBegin);
-  OS.EmitIntValue(COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS, 2);
+  //OS.EmitIntValue(COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS, 2);
+  OS.EmitIntValue(0, 2);
   EmitLabelDiff(OS, FuncBegin, FuncEnd);
 
   // Actual line info.
@@ -79,7 +80,7 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
                   "' begins");
     OS.EmitIntValue(CurFileNum, 4); // FIXME: index in file table
     OS.EmitIntValue(EntryCount, 4);
-    OS.EmitIntValue(8 * EntryCount, 4);
+    OS.EmitIntValue(12 + 8 * EntryCount, 4);
 
     for (; I != FileSegEnd; ++I) {
       EmitLabelDiff(OS, FuncBegin, I->getLabel());
