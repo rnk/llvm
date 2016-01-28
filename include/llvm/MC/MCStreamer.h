@@ -705,9 +705,6 @@ public:
   virtual void EmitWinEHHandler(const MCSymbol *Sym, bool Unwind, bool Except);
   virtual void EmitWinEHHandlerData();
 
-  virtual void EmitCodeViewFileChecksumTable();
-  virtual void EmitCodeViewStringTable();
-
   virtual void EmitSyntaxDirective();
 
   /// \brief Emit a .reloc directive.

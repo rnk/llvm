@@ -971,8 +971,6 @@ unsigned MCAsmStreamer::EmitCVFileDirective(unsigned FileNo,
   if (!getContext().getCVFile(Filename, FileNo))
     return 0;
 
-  SmallString<128> FullPathName;
-
   OS << "\t.cv_file\t" << FileNo << ' ';
 
   PrintQuotedString(Filename, OS);

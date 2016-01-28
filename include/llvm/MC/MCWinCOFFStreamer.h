@@ -66,9 +66,6 @@ public:
   void EmitWinEHHandlerData() override;
   void FinishImpl() override;
 
-  void EmitCodeViewFileChecksumTable() override;
-  void EmitCodeViewStringTable() override;
-
   /// \}
 
 protected:
