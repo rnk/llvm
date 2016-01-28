@@ -12,11 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCCodeView.h"
+#include "llvm/DebugInfo/CodeView/CodeView.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectStreamer.h"
 #include "llvm/Support/COFF.h"
 
 using namespace llvm;
+using namespace llvm::codeview;
 
 CodeViewContext::CodeViewContext() {}
 
@@ -60,9 +62,16 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
                                                unsigned FuncId,
                                                const MCSymbol *FuncBegin,
                                                const MCSymbol *FuncEnd) {
+  MCContext &Ctx = OS.getContext();
+  MCSymbol *LineBegin = Ctx.createTempSymbol("linetable_begin"),
+           *LineEnd = Ctx.createTempSymbol("linetable_end");
+  OS.EmitIntValue(unsigned(ModuleSubstreamKind::Lines), 4);
+  OS.emitAbsoluteSymbolDiff(LineEnd, LineBegin, 4);
+  OS.EmitLabel(LineBegin);
   OS.EmitCOFFSecRel32(FuncBegin);
   OS.EmitCOFFSectionIndex(FuncBegin);
-  // FIXME: Emit colum records and set COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS.
+  // FIXME: Emit colum records and set
+  // COFF::DEBUG_LINE_TABLES_HAVE_COLUMN_RECORDS.
   OS.EmitIntValue(0, 2);
   EmitLabelDiff(OS, FuncBegin, FuncEnd);
 
@@ -90,6 +99,7 @@ void CodeViewContext::emitLineTableForFunction(MCObjectStreamer &OS,
       OS.EmitIntValue(LineData, 4);
     }
   }
+  OS.EmitLabel(LineEnd);
 }
 
 //

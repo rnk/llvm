@@ -51,11 +51,7 @@ f:
 .asciz "t.h"
 .align 4
 .Lstrtab_end:
-.long 0xF2 # Lines substream
-.long .Llinetable_end0 - .Llinetable_begin0
-.Llinetable_begin0:
 .cv_linetable 0, f, .Lfunc_end0
-.Llinetable_end0:
 
 # CHECK: FunctionLineTable [
 # CHECK:   LinkageName: f
