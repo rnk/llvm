@@ -227,12 +227,21 @@ static uint32_t encodeSignedNumber(uint32_t Data) {
 void CodeViewContext::emitInlineLineTableForFunction(
     MCObjectStreamer &OS, unsigned PrimaryFunctionId, unsigned SourceFileId,
     unsigned SourceLineNum, ArrayRef<unsigned> SecondaryFunctionIds) {
-  std::vector<MCCVLineEntry> Locs = getFunctionLineEntries(PrimaryFunctionId);
+  // Create and insert a fragment into the current section that will be encoded
+  // later.
+  new MCCVInlineLineTableFragment(PrimaryFunctionId, SourceFileId,
+                                  SourceLineNum, SecondaryFunctionIds,
+                                  OS.getCurrentSectionOnly());
+}
+
+void CodeViewContext::encodeInlineLineTable(MCAsmLayout &Layout,
+                                            MCCVInlineLineTableFragment &Frag) {
+  std::vector<MCCVLineEntry> Locs = getFunctionLineEntries(Frag.SiteFuncId);
   std::vector<std::pair<BinaryAnnotationsOpCode, uint32_t>> Annotations;
 
   const MCCVLineEntry *LastLoc = nullptr;
-  unsigned LastFileId = SourceFileId;
-  unsigned LastLineNum = SourceLineNum;
+  unsigned LastFileId = Frag.StartFileId;
+  unsigned LastLineNum = Frag.StartLineNum;
 
   for (const MCCVLineEntry &Loc : Locs) {
     if (!LastLoc) {
@@ -252,14 +261,14 @@ void CodeViewContext::emitInlineLineTableForFunction(
     LastLineNum = Loc.getLine();
   }
 
-  SmallString<32> Buffer;
+  SmallVectorImpl<char> &Buffer = Frag.getContents();
+  Buffer.clear(); // Clear old contents if we went through relaxation.
   for (auto Annotation : Annotations) {
     BinaryAnnotationsOpCode Opcode = Annotation.first;
     uint32_t Operand = Annotation.second;
     compressAnnotation(Opcode, Buffer);
     compressAnnotation(Operand, Buffer);
   }
-  OS.EmitBytes(Buffer);
 }
 
 //

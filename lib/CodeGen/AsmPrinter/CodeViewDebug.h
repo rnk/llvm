@@ -59,6 +59,10 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public AsmPrinterHandler {
 
   InlineSite &getInlineSite(const DILocation *Loc);
 
+  static void collectInlineSiteChildren(SmallVectorImpl<unsigned> &Children,
+                                        const FunctionInfo &FI,
+                                        const InlineSite &Site);
+
   /// Remember some debug info about each function. Keep it in a stable order to
   /// emit at the end of the TU.
   MapVector<const Function *, FunctionInfo> FnDebugInfo;

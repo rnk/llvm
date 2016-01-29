@@ -39,6 +39,16 @@
 ; ASM: addl    $7, "?x@@3HC"
 ; ASM: .cv_loc 0 1 17 1                # t.cpp:17:1
 
+; ASM: .section .debug$S,"dr"
+; ASM: .short 4429
+; ASM: .asciz
+; ASM: .cv_inline_linetable 1 1 8 contains 2
+; ASM: .short 4429
+; ASM: .asciz
+; ASM: .cv_inline_linetable 2 1 2
+; ASM: .short  4430
+; ASM: .short  4430
+
 ; OBJ: ProcStart {
 ; OBJ:   PtrParent: 0x0
 ; OBJ:   PtrEnd: 0x0

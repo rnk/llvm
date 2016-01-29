@@ -269,6 +269,18 @@ static void EmitLabelDiff(MCStreamer &Streamer,
   Streamer.EmitValue(AddrDelta, Size);
 }
 
+void CodeViewDebug::collectInlineSiteChildren(
+    SmallVectorImpl<unsigned> &Children, const FunctionInfo &FI,
+    const InlineSite &Site) {
+  for (const DILocation *ChildSiteLoc : Site.ChildSites) {
+    auto I = FI.InlineSites.find(ChildSiteLoc);
+    assert(I != FI.InlineSites.end());
+    const InlineSite &ChildSite = I->second;
+    Children.push_back(ChildSite.SiteFuncId);
+    collectInlineSiteChildren(Children, FI, ChildSite);
+  }
+}
+
 void CodeViewDebug::emitInlinedCallSite(const FunctionInfo &FI,
                                         const DILocation *InlinedAt,
                                         const InlineSite &Site) {
@@ -290,7 +302,13 @@ void CodeViewDebug::emitInlinedCallSite(const FunctionInfo &FI,
   Asm->OutStreamer->EmitBytes(
       StringRef(reinterpret_cast<const char *>(&SiteBytes), sizeof(SiteBytes)));
 
-  // FIXME: annotations
+  unsigned FileId = maybeRecordFile(Site.Inlinee->getFile());
+  unsigned StartLineNum = Site.Inlinee->getLine();
+  SmallVector<unsigned, 3> SecondaryFuncIds;
+  collectInlineSiteChildren(SecondaryFuncIds, FI, Site);
+
+  Asm->OutStreamer->EmitCVInlineLinetableDirective(
+      Site.SiteFuncId, FileId, StartLineNum, SecondaryFuncIds);
 
   OS.EmitLabel(InlineEnd);
 

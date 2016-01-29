@@ -147,6 +147,10 @@ public:
                                       unsigned SourceLineNum,
                                       ArrayRef<unsigned> SecondaryFunctionIds);
 
+  /// Encodes the binary annotations once we have a layout.
+  void encodeInlineLineTable(MCAsmLayout &Layout,
+                             MCCVInlineLineTableFragment &F);
+
   /// Emits the string table substream.
   void emitStringTable(MCObjectStreamer &OS);
 
