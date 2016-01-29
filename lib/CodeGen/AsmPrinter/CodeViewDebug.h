@@ -70,6 +70,8 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public AsmPrinterHandler {
   /// Map from DIFile to .cv_file id.
   DenseMap<const DIFile *, unsigned> FileIdMap;
 
+  SmallSetVector<const DISubprogram *, 4> InlinedSubprograms;
+
   DenseMap<const DISubprogram *, codeview::TypeIndex> SubprogramToFuncId;
 
   unsigned TypeCount = 0;
@@ -96,6 +98,8 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public AsmPrinterHandler {
   }
 
   void emitTypeInformation();
+
+  void emitInlineeLinesSubsection();
 
   void emitDebugInfoForFunction(const Function *GV, FunctionInfo &FI);
 

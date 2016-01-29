@@ -40,6 +40,20 @@
 ; ASM: .cv_loc 0 1 17 1                # t.cpp:17:1
 
 ; ASM: .section .debug$S,"dr"
+; ASM: .long   246                     # Inlinee lines subsection
+; ASM: .long   [[inline_end:.*]]-[[inline_beg:.*]]
+; ASM: [[inline_beg]]:
+; ASM: .long   0
+; ASM: .long   4099                    # Inlined function bar starts at t.cpp:8
+; ASM: .long   1
+; ASM: .long   8
+; ASM: .long   4100                    # Inlined function foo starts at t.cpp:2
+; ASM: .long   1
+; ASM: .long   2
+; ASM: [[inline_end]]:
+
+; ASM: .long   241                     # Symbol subsection for baz
+; ASM: .long   Ltmp3-Ltmp2
 ; ASM: .short 4429
 ; ASM: .asciz
 ; ASM: .cv_inline_linetable 1 1 8 contains 2
@@ -49,40 +63,57 @@
 ; ASM: .short  4430
 ; ASM: .short  4430
 
-; OBJ: ProcStart {
-; OBJ:   PtrParent: 0x0
-; OBJ:   PtrEnd: 0x0
-; OBJ:   PtrNext: 0x0
-; OBJ:   CodeSize: 0x3D
-; OBJ:   DbgStart: 0x0
-; OBJ:   DbgEnd: 0x0
-; OBJ:   FunctionType: 0x0
-; OBJ:   CodeOffset: ?baz@@YAXXZ+0x0
-; OBJ:   Segment: 0x0
-; OBJ:   Flags [ (0x0)
-; OBJ:   ]
-; OBJ:   DisplayName: baz
-; OBJ:   LinkageName: ?baz@@YAXXZ
-; OBJ: }
-; OBJ: InlineSite {
-; OBJ:   PtrParent: 0x0
-; OBJ:   PtrEnd: 0x0
-; OBJ:   Inlinee: bar (0x1003)
-; OBJ:   BinaryAnnotations [
-; OBJ:   ]
-; OBJ: }
-; OBJ: InlineSite {
-; OBJ:   PtrParent: 0x0
-; OBJ:   PtrEnd: 0x0
-; OBJ:   Inlinee: foo (0x1004)
-; OBJ:   BinaryAnnotations [
-; OBJ:   ]
-; OBJ: }
-; OBJ: InlineSiteEnd {
-; OBJ: }
-; OBJ: InlineSiteEnd {
-; OBJ: }
-; OBJ: ProcEnd
+; OBJ: Subsection [
+; OBJ:   SubSectionType: InlineeLines (0xF6)
+; OBJ:   SubSectionSize: 0x1C
+; OBJ:   InlineeSourceLine {
+; OBJ:     Inlinee: bar (0x1003)
+; OBJ:     FileID:  (0x1)
+; OBJ:     SourceLineNum: 8
+; OBJ:   }
+; OBJ:   InlineeSourceLine {
+; OBJ:     Inlinee: foo (0x1004)
+; OBJ:     FileID:  (0x1)
+; OBJ:     SourceLineNum: 2
+; OBJ:   }
+; OBJ: ]
+; OBJ: Subsection [
+; OBJ:   SubSectionType: Symbols (0xF1)
+; OBJ:   ProcStart {
+; OBJ:     PtrParent: 0x0
+; OBJ:     PtrEnd: 0x0
+; OBJ:     PtrNext: 0x0
+; OBJ:     CodeSize: 0x3D
+; OBJ:     DbgStart: 0x0
+; OBJ:     DbgEnd: 0x0
+; OBJ:     FunctionType: 0x0
+; OBJ:     CodeOffset: ?baz@@YAXXZ+0x0
+; OBJ:     Segment: 0x0
+; OBJ:     Flags [ (0x0)
+; OBJ:     ]
+; OBJ:     DisplayName: baz
+; OBJ:     LinkageName: ?baz@@YAXXZ
+; OBJ:   }
+; OBJ:   InlineSite {
+; OBJ:     PtrParent: 0x0
+; OBJ:     PtrEnd: 0x0
+; OBJ:     Inlinee: bar (0x1003)
+; OBJ:     BinaryAnnotations [
+; OBJ:     ]
+; OBJ:   }
+; OBJ:   InlineSite {
+; OBJ:     PtrParent: 0x0
+; OBJ:     PtrEnd: 0x0
+; OBJ:     Inlinee: foo (0x1004)
+; OBJ:     BinaryAnnotations [
+; OBJ:     ]
+; OBJ:   }
+; OBJ:   InlineSiteEnd {
+; OBJ:   }
+; OBJ:   InlineSiteEnd {
+; OBJ:   }
+; OBJ:   ProcEnd
+; OBJ: ]
 
 ; ModuleID = 't.cpp'
 target datalayout = "e-m:w-i64:64-f80:128-n8:16:32:64-S128"

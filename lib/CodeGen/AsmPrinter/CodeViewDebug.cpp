@@ -96,6 +96,7 @@ CodeViewDebug::InlineSite &CodeViewDebug::getInlineSite(const DILocation *Loc) {
     InlineSite &Site = Insertion.first->second;
     Site.SiteFuncId = NextFuncId++;
     Site.Inlinee = Loc->getScope()->getSubprogram();
+    InlinedSubprograms.insert(Loc->getScope()->getSubprogram());
   }
   return Insertion.first->second;
 }
@@ -188,6 +189,9 @@ void CodeViewDebug::endModule() {
   // of the payload followed by the payload itself.  The subsections are 4-byte
   // aligned.
 
+  // Make a subsection for all the inlined subprograms.
+  emitInlineeLinesSubsection();
+
   // Emit per-function debug information.
   for (auto &P : FnDebugInfo)
     emitDebugInfoForFunction(P.first, P.second);
@@ -255,6 +259,33 @@ void CodeViewDebug::emitTypeInformation() {
       SubprogramToFuncId.insert(std::make_pair(SP, FuncIdIdx));
     }
   }
+}
+
+void CodeViewDebug::emitInlineeLinesSubsection() {
+  MCStreamer &OS = *Asm->OutStreamer;
+  MCSymbol *InlineBegin = Asm->MMI->getContext().createTempSymbol(),
+           *InlineEnd = Asm->MMI->getContext().createTempSymbol();
+
+  OS.AddComment("Inlinee lines subsection");
+  OS.EmitIntValue(unsigned(ModuleSubstreamKind::InlineeLines), 4);
+  OS.emitAbsoluteSymbolDiff(InlineEnd, InlineBegin, 4);
+  OS.EmitLabel(InlineBegin);
+
+  // We don't provide any extra file info.
+  // FIXME: Find out if debuggers use this info.
+  OS.EmitIntValue(unsigned(InlineeLinesSignature::Normal), 4);
+
+  for (const DISubprogram *SP : InlinedSubprograms) {
+    TypeIndex TypeId = SubprogramToFuncId[SP];
+    unsigned FileId = maybeRecordFile(SP->getFile());
+    OS.AddComment("Inlined function " + SP->getDisplayName() + " starts at " +
+                  SP->getFilename() + Twine(':') + Twine(SP->getLine()));
+    OS.EmitIntValue(TypeId.getIndex(), 4);
+    OS.EmitIntValue(FileId, 4);
+    OS.EmitIntValue(SP->getLine(), 4);
+  }
+
+  OS.EmitLabel(InlineEnd);
 }
 
 static void EmitLabelDiff(MCStreamer &Streamer,
