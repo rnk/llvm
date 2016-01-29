@@ -145,6 +145,7 @@ public:
                                       unsigned PrimaryFunctionId,
                                       unsigned SourceFileId,
                                       unsigned SourceLineNum,
+                                      const MCSymbol *FnStartSym,
                                       ArrayRef<unsigned> SecondaryFunctionIds);
 
   /// Encodes the binary annotations once we have a layout.

@@ -338,8 +338,8 @@ void CodeViewDebug::emitInlinedCallSite(const FunctionInfo &FI,
   SmallVector<unsigned, 3> SecondaryFuncIds;
   collectInlineSiteChildren(SecondaryFuncIds, FI, Site);
 
-  Asm->OutStreamer->EmitCVInlineLinetableDirective(
-      Site.SiteFuncId, FileId, StartLineNum, SecondaryFuncIds);
+  OS.EmitCVInlineLinetableDirective(Site.SiteFuncId, FileId, StartLineNum,
+                                    FI.Begin, SecondaryFuncIds);
 
   OS.EmitLabel(InlineEnd);
 
@@ -432,6 +432,7 @@ void CodeViewDebug::beginFunction(const MachineFunction *MF) {
   assert(FnDebugInfo.count(GV) == false);
   CurFn = &FnDebugInfo[GV];
   CurFn->FuncId = NextFuncId++;
+  CurFn->Begin = Asm->getFunctionBegin();
 
   // Find the end of the function prolog.
   // FIXME: is there a simpler a way to do this? Can we just search

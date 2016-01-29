@@ -226,12 +226,13 @@ static uint32_t encodeSignedNumber(uint32_t Data) {
 
 void CodeViewContext::emitInlineLineTableForFunction(
     MCObjectStreamer &OS, unsigned PrimaryFunctionId, unsigned SourceFileId,
-    unsigned SourceLineNum, ArrayRef<unsigned> SecondaryFunctionIds) {
+    unsigned SourceLineNum, const MCSymbol *FnStartSym,
+    ArrayRef<unsigned> SecondaryFunctionIds) {
   // Create and insert a fragment into the current section that will be encoded
   // later.
-  new MCCVInlineLineTableFragment(PrimaryFunctionId, SourceFileId,
-                                  SourceLineNum, SecondaryFunctionIds,
-                                  OS.getCurrentSectionOnly());
+  new MCCVInlineLineTableFragment(
+      PrimaryFunctionId, SourceFileId, SourceLineNum, FnStartSym,
+      SecondaryFunctionIds, OS.getCurrentSectionOnly());
 }
 
 void CodeViewContext::encodeInlineLineTable(MCAsmLayout &Layout,

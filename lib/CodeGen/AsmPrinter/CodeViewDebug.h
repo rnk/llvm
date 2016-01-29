@@ -48,7 +48,8 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public AsmPrinterHandler {
     MapVector<const DILocation *, InlineSite> InlineSites;
 
     DebugLoc LastLoc;
-    MCSymbol *End = nullptr;
+    const MCSymbol *Begin = nullptr;
+    const MCSymbol *End = nullptr;
     unsigned FuncId = 0;
     unsigned LastFileId = 0;
     bool HaveLineInfo = false;
