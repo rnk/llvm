@@ -514,6 +514,8 @@ public:
   /// \name Accessors
   /// @{
 
+  const MCSymbol *getFnStartSym() const { return FnStartSym; }
+
   SmallString<8> &getContents() { return Contents; }
   const SmallString<8> &getContents() const { return Contents; }
 
