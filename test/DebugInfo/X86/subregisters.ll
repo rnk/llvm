@@ -6,8 +6,14 @@
 ;
 ; rdar://problem/16015314
 ;
-; CHECK:  DW_AT_location [DW_FORM_block1]       (<0x03> 54 93 04 )
-; CHECK:  DW_AT_name [DW_FORM_strp]{{.*}} "a"
+; CHECK: DW_TAG_variable
+; CHECK:  DW_AT_location [DW_FORM_data4]       (0x00000000)
+; CHECK-NEXT:  DW_AT_name [DW_FORM_strp]{{.*}} "a"
+;
+; CHECK: .debug_loc contents:
+; CHECK: 0x00000000: Beginning address offset: 0x0000000000000002
+; CHECK:                Ending address offset: 0x0000000000000014
+; CHECK:                 Location description: 54 93 04
 ;
 ; struct bar {
 ;   int a;

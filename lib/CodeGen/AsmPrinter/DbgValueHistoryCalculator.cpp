@@ -162,7 +162,7 @@ static void collectChangingRegs(const MachineFunction *MF,
                  ++AI)
               Regs.set(*AI);
           } else if (MO.isRegMask()) {
-            Regs.setBitsInMask(MO.getRegMask());
+            Regs.setBitsNotInMask(MO.getRegMask());
           }
         }
       }
@@ -191,8 +191,10 @@ void llvm::calculateDbgValueHistory(const MachineFunction *MF,
           } else if (MO.isRegMask()) {
             for (int I = ChangingRegs.find_first(); I != -1;
                  I = ChangingRegs.find_next(I)) {
-              if (MO.clobbersPhysReg(I))
+              if (MO.clobbersPhysReg(I)) {
+                //llvm::errs() << "clobber " << MI << " I " << I << '\n';
                 clobberRegisterUses(RegVars, I, Result, MI);
+              }
             }
           }
         }

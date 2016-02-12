@@ -55,13 +55,13 @@ entry:
 }
 
 
-; F1: DW_AT_location [DW_FORM_sec_offset]   (0x00000033)
-; F1: DW_AT_name [DW_FORM_strp]     ( .debug_str[0x0000006b] = "x")
+; F1:      DW_AT_location [DW_FORM_sec_offset]   (0x00000047)
+; F1-NEXT: DW_AT_name [DW_FORM_strp]     ( .debug_str[0x0000006b] = "x")
 
 ; x -> DW_OP_reg1(51)
-; F1: 0x00000033: Beginning address offset: 0x0000000000000080
-; F1:                Ending address offset: 0x0000000000000088
-; F1:                 Location description: 51
+; F1:      0x00000047: Beginning address offset: 0x0000000000000080
+; F1-NEXT:                Ending address offset: 0x0000000000000088
+; F1-NEXT:                 Location description: 51
 
 define i32 @f1(i32 signext %a, i32 signext %b, i32 signext %c, i32 signext %d, i32 signext %e) !dbg !15 {
 entry:

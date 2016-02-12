@@ -14,14 +14,16 @@
 ; Location of "range" string is spilled from %rdx to stack and is
 ; addressed via %rbp.
 ; CHECK: movq %rdx, {{[-0-9]+}}(%rbp)
-; CHECK-NEXT: [[START_LABEL:.Ltmp[0-9]+]]
-; This location should be valid until the end of the function.
+; CHECK-NEXT: [[START_LABEL:.Ltmp[0-9]+]]:
+; This location should be valid until rbp is popped.
+; CHECK: popq %rbp
+; CHECK-NEXT: [[END_LABEL:.Ltmp[0-9]+]]:
 
 ; Verify that we have proper range in debug_loc section:
 ; CHECK: .Ldebug_loc{{[0-9]+}}:
 ; CHECK: DW_OP_breg1
 ; CHECK:      .quad [[START_LABEL]]-.Lfunc_begin0
-; CHECK-NEXT: .quad .Lfunc_end0-.Lfunc_begin0
+; CHECK-NEXT: .quad [[END_LABEL]]-.Lfunc_begin0
 ; CHECK: DW_OP_breg6
 ; CHECK: DW_OP_deref
 

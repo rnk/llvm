@@ -209,17 +209,25 @@ void LiveDebugValues::transferDebugValue(MachineInstr &MI,
 void LiveDebugValues::transferRegisterDef(MachineInstr &MI,
                                           VarLocList &OpenRanges) {
   for (const MachineOperand &MO : MI.operands()) {
-    if (!(MO.isReg() && MO.isDef() && MO.getReg() &&
-          TRI->isPhysicalRegister(MO.getReg())))
-      continue;
-    // Remove ranges of all aliased registers.
-    for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
+    if (MO.isReg() && MO.isDef() && MO.getReg() &&
+        TRI->isPhysicalRegister(MO.getReg())) {
+      // Remove ranges of all aliased registers.
+      for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
+        OpenRanges.erase(std::remove_if(OpenRanges.begin(), OpenRanges.end(),
+                                        [&](const VarLoc &V) {
+                                          return (*RAI ==
+                                                  isDescribedByReg(*V.MI));
+                                        }),
+                         OpenRanges.end());
+    } else if (MO.isRegMask()) {
+      // Remove ranges of all clobbered registers.
       OpenRanges.erase(std::remove_if(OpenRanges.begin(), OpenRanges.end(),
                                       [&](const VarLoc &V) {
-                                        return (*RAI ==
-                                                isDescribedByReg(*V.MI));
+                                        unsigned Reg = isDescribedByReg(*V.MI);
+                                        return Reg && MO.clobbersPhysReg(Reg);
                                       }),
                        OpenRanges.end());
+    }
   }
 }
 
