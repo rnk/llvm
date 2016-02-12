@@ -193,10 +193,20 @@ void llvm::calculateDbgValueHistory(const MachineFunction *MF,
       if (!MI.isDebugValue()) {
         // Not a DBG_VALUE instruction. It may clobber registers which describe
         // some variables.
-        applyToClobberedRegisters(MI, TRI, [&](unsigned RegNo) {
-          if (ChangingRegs.test(RegNo))
-            clobberRegisterUses(RegVars, RegNo, Result, MI);
-        });
+        for (const MachineOperand &MO : MI.operands()) {
+          if (MO.isReg() && MO.isDef() && MO.getReg()) {
+            for (MCRegAliasIterator AI(MO.getReg(), TRI, true); AI.isValid();
+                 ++AI)
+              if (ChangingRegs.test(*AI))
+                clobberRegisterUses(RegVars, *AI, Result, MI);
+          } else if (MO.isRegMask()) {
+            for (int I = ChangingRegs.find_first(), E = ChangingRegs.size();
+                 I != E; ++I) {
+              if (MO.clobbersPhysReg(I))
+                clobberRegisterUses(RegVars, I, Result, MI);
+            }
+          }
+        }
         continue;
       }
 
