@@ -122,26 +122,6 @@ static void clobberRegisterUses(RegDescribedVarsMap &RegVars, unsigned RegNo,
   clobberRegisterUses(RegVars, I, HistMap, ClobberingInstr);
 }
 
-// \brief Collect all registers clobbered by @MI and apply the functor
-// @Func to their RegNo.
-// @Func should be a functor with a void(unsigned) signature. We're
-// not using std::function here for performance reasons. It has a
-// small but measurable impact. By using a functor instead of a
-// std::set& here, we can avoid the overhead of constructing
-// temporaries in calculateDbgValueHistory, which has a significant
-// performance impact.
-template<typename Callable>
-static void applyToClobberedRegisters(const MachineInstr &MI,
-                                      const TargetRegisterInfo *TRI,
-                                      Callable Func) {
-  for (const MachineOperand &MO : MI.operands()) {
-    if (!MO.isReg() || !MO.isDef() || !MO.getReg())
-      continue;
-    for (MCRegAliasIterator AI(MO.getReg(), TRI, true); AI.isValid(); ++AI)
-      Func(*AI);
-  }
-}
-
 // \brief Returns the first instruction in @MBB which corresponds to
 // the function epilogue, or nullptr if @MBB doesn't contain an epilogue.
 static const MachineInstr *getFirstEpilogueInst(const MachineBasicBlock &MBB) {
@@ -175,8 +155,17 @@ static void collectChangingRegs(const MachineFunction *MF,
     for (const auto &MI : MBB) {
       if (&MI == FirstEpilogueInst)
         break;
-      if (!MI.getFlag(MachineInstr::FrameSetup))
-        applyToClobberedRegisters(MI, TRI, [&](unsigned r) { Regs.set(r); });
+      if (!MI.getFlag(MachineInstr::FrameSetup)) {
+        for (const MachineOperand &MO : MI.operands()) {
+          if (MO.isReg() && MO.isDef() && MO.getReg()) {
+            for (MCRegAliasIterator AI(MO.getReg(), TRI, true); AI.isValid();
+                 ++AI)
+              Regs.set(*AI);
+          } else if (MO.isRegMask()) {
+            Regs.setBitsInMask(MO.getRegMask());
+          }
+        }
+      }
     }
   }
 }
@@ -200,8 +189,8 @@ void llvm::calculateDbgValueHistory(const MachineFunction *MF,
               if (ChangingRegs.test(*AI))
                 clobberRegisterUses(RegVars, *AI, Result, MI);
           } else if (MO.isRegMask()) {
-            for (int I = ChangingRegs.find_first(), E = ChangingRegs.size();
-                 I != E; ++I) {
+            for (int I = ChangingRegs.find_first(); I != -1;
+                 I = ChangingRegs.find_next(I)) {
               if (MO.clobbersPhysReg(I))
                 clobberRegisterUses(RegVars, I, Result, MI);
             }
