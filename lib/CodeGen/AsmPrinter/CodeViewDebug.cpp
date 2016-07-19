@@ -1465,6 +1465,8 @@ struct llvm::ClassInfo {
   /// Base classes.
   std::vector<const DIDerivedType *> Inheritance;
 
+  unsigned PrimaryVFTableSize = 0;
+
   /// Direct members.
   MemberList Members;
   // Direct overloaded methods gathered by name.
@@ -1521,8 +1523,20 @@ ClassInfo CodeViewDebug::collectClassInfo(const DICompositeType *Ty) {
       } else if (DDTy->getTag() == dwarf::DW_TAG_friend) {
         // Ignore friend members. It appears that MSVC emitted info about
         // friends in the past, but modern versions do not.
+      } else if (DDTy->getTag() == dwarf::DW_TAG_LLVM_msvftable) {
+        // Look at the primary vftable to get the shape of the VFPtr member
+        // record. The primary vftable lacks an overridden vftable stored in the
+        // baseType field.
+        if (!DDTy->getBaseType()) {
+          assert(Info.PrimaryVFTableSize == 0 &&
+                 "expected one primary vftable");
+          Info.PrimaryVFTableSize =
+              cast<MDTuple>(DDTy->getExtraData())->getNumOperands();
+          assert(Info.PrimaryVFTableSize > 0 && "empty vftable");
+        }
+        // Defer emission of vftables until the end of the TU.
+        DeferredVFTables.push_back(DDTy);
       }
-      // FIXME: Get Clang to emit function virtual table here and handle it.
     } else if (auto *Composite = dyn_cast<DICompositeType>(Element)) {
       Info.NestedClasses.push_back(Composite);
     }
@@ -1630,6 +1644,7 @@ CodeViewDebug::lowerRecordFieldList(const DICompositeType *Ty) {
 
   // Create base classes.
   for (const DIDerivedType *I : Info.Inheritance) {
+    MemberCount++;
     if (I->getFlags() & DINode::FlagVirtual) {
       // Virtual base.
       // FIXME: Emit VBPtrOffset when the frontend provides it.
@@ -1651,16 +1666,23 @@ CodeViewDebug::lowerRecordFieldList(const DICompositeType *Ty) {
 
   // Create members.
   for (ClassInfo::MemberInfo &MemberInfo : Info.Members) {
+    MemberCount++;
     const DIDerivedType *Member = MemberInfo.MemberTypeNode;
     TypeIndex MemberBaseType = getTypeIndex(Member->getBaseType());
     StringRef MemberName = Member->getName();
     MemberAccess Access =
         translateAccessFlags(Ty->getTag(), Member->getFlags());
 
+    // The vtable pointer is represented as an artificial field.
+    if (Member->getFlags() & DINode::FlagArtificial &&
+        Member->getName().startswith("_vptr$")) {
+      Fields.writeVFPtr(VFPtrRecord(getVFPTypeIndex(Info.PrimaryVFTableSize)));
+      continue;
+    }
+
     if (Member->isStaticMember()) {
       Fields.writeStaticDataMember(
           StaticDataMemberRecord(Access, MemberBaseType, MemberName));
-      MemberCount++;
       continue;
     }
 
@@ -1680,7 +1702,6 @@ CodeViewDebug::lowerRecordFieldList(const DICompositeType *Ty) {
     uint64_t MemberOffsetInBytes = MemberOffsetInBits / 8;
     Fields.writeDataMember(DataMemberRecord(Access, MemberBaseType,
                                             MemberOffsetInBytes, MemberName));
-    MemberCount++;
   }
 
   // Create methods
@@ -1742,6 +1763,33 @@ TypeIndex CodeViewDebug::getVBPTypeIndex() {
   }
 
   return VBPType;
+}
+
+TypeIndex CodeViewDebug::getVFPTypeIndex(unsigned VSlotCount) {
+  // If we didn't find any VFTables in the DICompositeType elements, just
+  // pretend the vtable has one virtual method slot.
+  if (VSlotCount == 0)
+    VSlotCount = 1;
+
+  // There are no empty vtables, so the type index in slot zero points to a
+  // vftable shape with one virtual method slot.
+  unsigned Idx = VSlotCount - 1;
+  if (Idx >= VFPTypes.size())
+    VFPTypes.resize(Idx + 1);
+  if (VFPTypes[Idx].getIndex() != 0)
+    return VFPTypes[Idx];
+
+  SmallVector<VFTableSlotKind, 4> Slots(VSlotCount, VFTableSlotKind::Near);
+  TypeIndex VShapeTI = TypeTable.writeVFTableShape(VFTableShapeRecord(Slots));
+
+  PointerKind PK =
+      getPointerSizeInBytes() == 8 ? PointerKind::Near64 : PointerKind::Near32;
+  PointerMode PM = PointerMode::Pointer;
+  PointerOptions PO = PointerOptions::None;
+  TypeIndex TI = TypeTable.writePointer(
+      PointerRecord(VShapeTI, PK, PM, PO, getPointerSizeInBytes()));
+  VFPTypes[Idx] = TI;
+  return TI;
 }
 
 TypeIndex CodeViewDebug::getTypeIndex(DITypeRef TypeRef, DITypeRef ClassTyRef) {
@@ -2038,6 +2086,45 @@ void CodeViewDebug::emitDebugInfoForRetainedTypes() {
       }
     }
   }
+
+  // Pass 1: Compute complete type indices for every vftable.
+  for (const DIDerivedType *VFT : DeferredVFTables)
+    getCompleteTypeIndex(cast<DICompositeType>(VFT->getScope()));
+
+  // Pass 2: Emit all vftables.
+  for (const DIDerivedType *VFT : DeferredVFTables)
+    getMSVFTableTypeIndex(VFT);
+}
+
+TypeIndex CodeViewDebug::getMSVFTableTypeIndex(const DIDerivedType *VFT) {
+  // VFTables reference each other and may not be topologically sorted, so check
+  // the cache first.
+  auto I = TypeIndices.find({VFT, nullptr});
+  if (I != TypeIndices.end())
+    return I->second;
+
+  // Get the *complete* type index, not the forward decl.
+  TypeIndex ClassTI =
+      CompleteTypeIndices[cast<DICompositeType>(VFT->getScope())];
+
+  // Get the overridden vftable type index.
+  TypeIndex OverriddenTI;
+  if (const auto *OverriddenVFT =
+          cast_or_null<DIDerivedType>(VFT->getBaseType()))
+    OverriddenTI = getMSVFTableTypeIndex(OverriddenVFT);
+
+  // Get the method names out of the MDStringArray in extra data.
+  std::vector<StringRef> MethodNames;
+  MDStringArray Methods(cast<MDTuple>(VFT->getExtraData()));
+  for (MDString *MethodName : Methods)
+    MethodNames.push_back(MethodName->getString());
+  TypeIndex TI = TypeTable.writeVFTable(
+      VFTableRecord(ClassTI, OverriddenTI, VFT->getOffsetInBits() / 8,
+                    VFT->getName(), MethodNames));
+
+  // Cache this index in the map.
+  TypeIndices[{VFT, nullptr}] = TI;
+  return TI;
 }
 
 void CodeViewDebug::emitDebugInfoForGlobal(const DIGlobalVariable *DIGV,

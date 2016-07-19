@@ -157,10 +157,17 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public DebugHandlerBase {
   /// finished.
   SmallVector<const DICompositeType *, 4> DeferredCompleteTypes;
 
+  /// LLVM vftable types. These reference complete type indices, so we have to
+  /// emit them last.
+  SmallVector<const DIDerivedType *, 4> DeferredVFTables;
+
   /// Number of type lowering frames active on the stack.
   unsigned TypeEmissionLevel = 0;
 
   codeview::TypeIndex VBPType;
+
+  /// VFPtr types, indexed by number of virtual call slots in the table.
+  SmallVector<codeview::TypeIndex, 4> VFPTypes;
 
   const DISubprogram *CurrentSubprogram = nullptr;
 
@@ -240,6 +247,10 @@ class LLVM_LIBRARY_VISIBILITY CodeViewDebug : public DebugHandlerBase {
   codeview::TypeIndex getScopeIndex(const DIScope *Scope);
 
   codeview::TypeIndex getVBPTypeIndex();
+
+  codeview::TypeIndex getVFPTypeIndex(unsigned VSlotCount);
+
+  codeview::TypeIndex getMSVFTableTypeIndex(const DIDerivedType *VFTTy);
 
   void addToUDTs(const DIType *Ty, codeview::TypeIndex TI);
 

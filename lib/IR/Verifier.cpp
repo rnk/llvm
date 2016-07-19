@@ -837,6 +837,7 @@ void Verifier::visitDIDerivedType(const DIDerivedType &N) {
                N.getTag() == dwarf::DW_TAG_restrict_type ||
                N.getTag() == dwarf::DW_TAG_member ||
                N.getTag() == dwarf::DW_TAG_inheritance ||
+               N.getTag() == dwarf::DW_TAG_LLVM_msvftable ||
                N.getTag() == dwarf::DW_TAG_friend,
            "invalid tag", &N);
   if (N.getTag() == dwarf::DW_TAG_ptr_to_member_type) {

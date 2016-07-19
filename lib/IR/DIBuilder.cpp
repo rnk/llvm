@@ -268,6 +268,17 @@ DIDerivedType *DIBuilder::createMemberType(DIScope *Scope, StringRef Name,
                             SizeInBits, AlignInBits, OffsetInBits, Flags);
 }
 
+DIDerivedType *DIBuilder::createMSVFTable(DIScope *Scope, StringRef Name,
+                                          uint64_t VFPtrOffsetInBits,
+                                          DIType *OverriddenVFTable,
+                                          MDStringArray Methods,
+                                          unsigned Flags) {
+  return DIDerivedType::get(VMContext, dwarf::DW_TAG_LLVM_msvftable, Name,
+                            nullptr, 0, getNonCompileUnitScope(Scope),
+                            OverriddenVFTable, 0, 0, VFPtrOffsetInBits, Flags,
+                            Methods.get());
+}
+
 static ConstantAsMetadata *getConstantOrNull(Constant *C) {
   if (C)
     return ConstantAsMetadata::get(C);

@@ -123,6 +123,7 @@ HANDLE_DW_TAG(0xb001, BORLAND_Delphi_string)
 HANDLE_DW_TAG(0xb002, BORLAND_Delphi_dynamic_array)
 HANDLE_DW_TAG(0xb003, BORLAND_Delphi_set)
 HANDLE_DW_TAG(0xb004, BORLAND_Delphi_variant)
+HANDLE_DW_TAG(0xc000, LLVM_msvftable) // Only used in LLVM IR
 
 HANDLE_DW_OP(0x03, addr)
 HANDLE_DW_OP(0x06, deref)

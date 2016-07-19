@@ -194,6 +194,19 @@ namespace llvm {
                                     uint64_t OffsetInBits, unsigned Flags,
                                     DIType *Ty);
 
+    /// Create debug info describing MS ABI vftables. Primarily used when
+    /// emitting CodeView, as DWARF debuggers do not know about this tag.
+    /// \param Scope             The complete class
+    /// \param Name              The linkage name of the vftable
+    /// \param VFPtrOffsetInBits Offset of vfptr in the complete class type
+    /// \param OverriddenVFTable VFTable overridden from base class or null
+    /// \param Methods           Linkage names of methods in the vftable
+    /// \param Flags             Member flags
+    DIDerivedType *createMSVFTable(DIScope *Scope, StringRef Name,
+                                   uint64_t VFPtrOffsetInBits,
+                                   DIType *OverriddenVFTable,
+                                   MDStringArray Methods, unsigned Flags);
+
     /// Create debugging information entry for a bit field member.
     /// \param Scope               Member scope.
     /// \param Name                Member name.
