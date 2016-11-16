@@ -1660,6 +1660,7 @@ bool AddressSanitizerModule::InstrumentGlobals(IRBuilder<> &IRB, Module &M) {
         ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
     NewGlobal->takeName(G);
     G->eraseFromParent();
+    G = NewGlobal;
 
     if (UseComdatMetadata) {
       // Get or create a COMDAT for G so that we can use it with our metadata.
