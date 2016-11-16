@@ -121,12 +121,6 @@ static const char *const kAsanUnpoisonStackMemoryName =
     "__asan_unpoison_stack_memory";
 static const char *const kAsanGlobalsRegisteredFlagName =
     "__asan_globals_registered";
-static const char *const kAsanGlobalsStart = "__asan_globals_start";
-static const char *const kAsanGlobalsEnd = "__asan_globals_end";
-static const char *const kAsanRegisterDsoGlobals =
-    "__asan_register_dso_globals";
-static const char *const kAsanUnregisterDsoGlobals =
-    "__asan_unregister_dso_globals";
 
 static const char *const kAsanOptionDetectUseAfterReturn =
     "__asan_option_detect_stack_use_after_return";
@@ -605,11 +599,6 @@ private:
   void initializeCallbacks(Module &M);
 
   bool InstrumentGlobals(IRBuilder<> &IRB, Module &M);
-  Function *insertGlobalRegistrationHelper(Module &M, Constant *GlobalsStart,
-                                           Constant *GlobalsEnd,
-                                           Constant *SizeOfGlobalStructTy,
-                                           StringRef HelperName,
-                                           Function *RuntimeHook);
   bool ShouldInstrumentGlobal(GlobalVariable *G);
   bool ShouldUseMachOGlobalsSection() const;
   void poisonOneInitializer(Function &GlobalInit, GlobalValue *ModuleName);
@@ -1761,16 +1750,18 @@ bool AddressSanitizerModule::InstrumentGlobals(IRBuilder<> &IRB, Module &M) {
     for (size_t i = 0; i < n; i++) {
       // Get or create a COMDAT for G.
       GlobalVariable *G = GlobalsToChange[i];
-      if (!G->hasComdat()) {
-        // If G is unnamed, it must be internal. Give it an artificial name so
-        // we can put it in a comdat.
-        if (!G->hasName()) {
-          assert(G->hasLocalLinkage());
-          G->setName(kAsanGenPrefix);
-        }
-        G->setComdat(M.getOrInsertComdat(G->getName()));
-      }
       Comdat *C = G->getComdat();
+      if (!C) {
+        if (!G->hasName()) {
+          // If G is unnamed, it must be internal. Give it an artificial name so
+          // we can put it in a comdat.
+          assert(G->hasLocalLinkage());
+          G->setName(Twine(kAsanGenPrefix) + "_anon_global");
+        }
+        C = M.getOrInsertComdat(G->getName());
+        C->setSelectionKind(Comdat::NoDuplicates);
+        G->setComdat(C);
+      }
 
       // Create a global, put it in the ".ASAN$GL" section. This name was chosen
       // to encode efficiently into a COFF section table.
@@ -1795,38 +1786,10 @@ bool AddressSanitizerModule::InstrumentGlobals(IRBuilder<> &IRB, Module &M) {
   if (HasDynamicallyInitializedGlobals)
     createInitializerPoisonCalls(M, ModuleName);
 
-  if (TargetTriple.isOSBinFormatCOFF()) {
-    // These two global variables are provided by the ASan runtime. They bracket
-    // the global variable metadata array.
-    Constant *GlobalsStart =
-        new GlobalVariable(M, IntptrTy, false, GlobalVariable::ExternalLinkage,
-                           nullptr, kAsanGlobalsStart);
-    Constant *GlobalsEnd =
-        new GlobalVariable(M, IntptrTy, false, GlobalVariable::ExternalLinkage,
-                           nullptr, kAsanGlobalsEnd);
-    GlobalsStart = ConstantExpr::getGetElementPtr(IntptrTy, GlobalsStart,
-                                                  IRB.getInt32(1), false);
-    GlobalsStart = ConstantExpr::getPtrToInt(GlobalsStart, IntptrTy);
-    GlobalsEnd = ConstantExpr::getPtrToInt(GlobalsEnd, IntptrTy);
-    Constant *SizeOfGlobalStructTy =
-        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(GlobalStructTy));
-
-    Function *Ctor = insertGlobalRegistrationHelper(
-        M, GlobalsStart, GlobalsEnd, SizeOfGlobalStructTy,
-        kAsanRegisterDsoGlobals, AsanRegisterGlobals);
-    Function *Dtor = insertGlobalRegistrationHelper(
-        M, GlobalsStart, GlobalsEnd, SizeOfGlobalStructTy,
-        kAsanUnregisterDsoGlobals, AsanUnregisterGlobals);
-
-    // Add a new ctors and dtors entry for global registration. Use the helper
-    // function itself as the key for its ctors/dtors entry, so that the linker
-    // discards all but one function pointer entry. This ensures that
-    // registration and unregistration runs exactly once per DSO without any
-    // global variables.
-    appendToGlobalCtors(M, Ctor, kAsanCtorAndDtorPriority, Ctor);
-    appendToGlobalDtors(M, Dtor, kAsanCtorAndDtorPriority, Dtor);
+  // The WinASan RTL doesn't need dynamic global registration because it will
+  // look in the .ASAN$GL section.
+  if (TargetTriple.isOSBinFormatCOFF())
     return true;
-  }
 
   // Create a call to register the globals with the runtime.
   if (ShouldUseMachOGlobalsSection()) {
@@ -1859,30 +1822,6 @@ bool AddressSanitizerModule::InstrumentGlobals(IRBuilder<> &IRB, Module &M) {
 
   DEBUG(dbgs() << M);
   return true;
-}
-
-Function *AddressSanitizerModule::insertGlobalRegistrationHelper(
-    Module &M, Constant *GlobalsStart, Constant *GlobalsEnd,
-    Constant *SizeOfGlobalStructTy, StringRef HelperName,
-    Function *RuntimeHook) {
-  // Make a hidden linkonce ODR comdat helper function with the provided unique
-  // name. The goal is to have exactly one of these in each DSO that has ASan
-  // instrumented globals.
-  Function *HelperFunc =
-      Function::Create(FunctionType::get(Type::getVoidTy(*C), false),
-                       GlobalValue::LinkOnceODRLinkage, HelperName, &M);
-  HelperFunc->setVisibility(GlobalValue::HiddenVisibility);
-  if (TargetTriple.supportsCOMDAT())
-    HelperFunc->setComdat(M.getOrInsertComdat(HelperName));
-
-  IRBuilder<> IRB(BasicBlock::Create(*C, "entry", HelperFunc));
-
-  // The count is: (globals_end - globals_start) / sizeof(global_ty)
-  Value *GlobalsCount = IRB.CreateUDiv(IRB.CreateSub(GlobalsEnd, GlobalsStart),
-                                       SizeOfGlobalStructTy);
-  IRB.CreateCall(RuntimeHook, {GlobalsStart, GlobalsCount});
-  IRB.CreateRetVoid();
-  return HelperFunc;
 }
 
 bool AddressSanitizerModule::runOnModule(Module &M) {
