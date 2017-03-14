@@ -21,6 +21,7 @@
 #include "llvm-c/Types.h"
 #include <cassert>
 #include <iterator>
+#include <memory>
 
 namespace llvm {
 
@@ -201,7 +202,18 @@ protected:
 public:
   Value(const Value &) = delete;
   void operator=(const Value &) = delete;
-  virtual ~Value();
+
+protected:
+  /// Value's destructor should be virtual by design, but that would require
+  /// that Value and all of its subclasses have a vtable that effectively
+  /// duplicates the information in the value ID. As a size optimization, the
+  /// destructor has been protected, and the caller should manually call
+  /// deleteValue.
+  ~Value(); // Use deleteValue() to delete a generic Value.
+public:
+
+  /// Delete a pointer to a generic Value.
+  void deleteValue();
 
   /// \brief Support for debugging, callable in GDB: V->dump()
   void dump() const;
@@ -623,6 +635,13 @@ protected:
   unsigned short getSubclassDataFromValue() const { return SubclassData; }
   void setValueSubclassData(unsigned short D) { SubclassData = D; }
 };
+
+struct ValueDeleter { void operator()(Value *V) { V->deleteValue(); } };
+
+/// Use this instead of std::unique_ptr<Value> or std::unique_ptr<Instruction>.
+/// Those don't work because Value and Instruction's destructors are protected,
+/// aren't virtual, and won't destroy the complete object.
+typedef std::unique_ptr<Value, ValueDeleter> unique_value;
 
 inline raw_ostream &operator<<(raw_ostream &OS, const Value &V) {
   V.print(OS);

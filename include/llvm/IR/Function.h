@@ -115,7 +115,7 @@ private:
 public:
   Function(const Function&) = delete;
   void operator=(const Function&) = delete;
-  ~Function() override;
+  ~Function();
 
   static Function *Create(FunctionType *Ty, LinkageTypes Linkage,
                           const Twine &N = "", Module *M = nullptr) {
@@ -485,7 +485,7 @@ public:
 
   /// copyAttributesFrom - copy all additional attributes (those not needed to
   /// create a Function) from the Function Src to this one.
-  void copyAttributesFrom(const GlobalValue *Src) override;
+  void copyAttributesFrom(const Function *Src);
 
   /// deleteBody - This method deletes the body of the function, and converts
   /// the linkage to external.
@@ -498,12 +498,12 @@ public:
   /// removeFromParent - This method unlinks 'this' from the containing module,
   /// but does not delete it.
   ///
-  void removeFromParent() override;
+  void removeFromParent();
 
   /// eraseFromParent - This method unlinks 'this' from the containing module
   /// and deletes it.
   ///
-  void eraseFromParent() override;
+  void eraseFromParent();
 
   /// Steal arguments from another function.
   ///

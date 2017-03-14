@@ -2019,6 +2019,15 @@ bool MemorySSA::dominates(const MemoryAccess *Dominator,
 
 const static char LiveOnEntryStr[] = "liveOnEntry";
 
+void MemoryAccess::print(raw_ostream &OS) const {
+  switch (getValueID()) {
+  case MemoryPhiVal: return static_cast<const MemoryPhi *>(this)->print(OS);
+  case MemoryDefVal: return static_cast<const MemoryDef *>(this)->print(OS);
+  case MemoryUseVal: return static_cast<const MemoryUse *>(this)->print(OS);
+  }
+  llvm_unreachable("invalid value id");
+}
+
 void MemoryDef::print(raw_ostream &OS) const {
   MemoryAccess *UO = getDefiningAccess();
 
@@ -2055,8 +2064,6 @@ void MemoryPhi::print(raw_ostream &OS) const {
   }
   OS << ')';
 }
-
-MemoryAccess::~MemoryAccess() {}
 
 void MemoryUse::print(raw_ostream &OS) const {
   MemoryAccess *UO = getDefiningAccess();
@@ -2309,3 +2316,20 @@ MemoryAccess *DoNothingMemorySSAWalker::getClobberingMemoryAccess(
   return StartingAccess;
 }
 } // namespace llvm
+
+// Stamp out value callbacks to delete Memory SSA Value objects.
+#define DEFINE_MEMORY_VALUE_CALLBACKS(Class)                                   \
+  namespace {                                                                  \
+  class Class##Callbacks : public ValueCallbacks {                             \
+  public:                                                                      \
+    void deleteValue(Value *V) override { delete static_cast<Class *>(V); }    \
+  };                                                                           \
+  } /* end namespace */                                                        \
+  ValueCallbacks *llvm::Class::getValueCallbacks() {                           \
+    static Class##Callbacks CB;                                                \
+    return &CB;                                                                \
+  }
+DEFINE_MEMORY_VALUE_CALLBACKS(MemoryPhi)
+DEFINE_MEMORY_VALUE_CALLBACKS(MemoryDef)
+DEFINE_MEMORY_VALUE_CALLBACKS(MemoryUse)
+#undef DEFINE_MEMORY_VALUE_CALLBACKS

@@ -84,6 +84,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/PHITransAddr.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/DerivedUser.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/OperandTraits.h"
@@ -127,7 +128,7 @@ using const_memoryaccess_def_iterator =
 // \brief The base for all memory accesses. All memory accesses in a block are
 // linked together using an intrusive list.
 class MemoryAccess
-    : public User,
+    : public DerivedUser,
       public ilist_node<MemoryAccess, ilist_tag<MSSAHelpers::AllAccessTag>>,
       public ilist_node<MemoryAccess, ilist_tag<MSSAHelpers::DefsOnlyTag>> {
 public:
@@ -145,15 +146,14 @@ public:
 
   MemoryAccess(const MemoryAccess &) = delete;
   MemoryAccess &operator=(const MemoryAccess &) = delete;
-  ~MemoryAccess() override;
 
   void *operator new(size_t, unsigned) = delete;
   void *operator new(size_t) = delete;
 
   BasicBlock *getBlock() const { return Block; }
 
-  virtual void print(raw_ostream &OS) const = 0;
-  virtual void dump() const;
+  void print(raw_ostream &OS) const;
+  void dump() const;
 
   /// \brief The user iterators for a memory access
   typedef user_iterator iterator;
@@ -207,11 +207,12 @@ protected:
 
   /// \brief Used for debugging and tracking things about MemoryAccesses.
   /// Guaranteed unique among MemoryAccesses, no guarantees otherwise.
-  virtual unsigned getID() const = 0;
+  inline unsigned getID() const;
 
-  MemoryAccess(LLVMContext &C, unsigned Vty, BasicBlock *BB,
+  MemoryAccess(LLVMContext &C, unsigned Vty, ValueCallbacks *VC, BasicBlock *BB,
                unsigned NumOperands)
-      : User(Type::getVoidTy(C), Vty, nullptr, NumOperands), Block(BB) {}
+      : DerivedUser(Type::getVoidTy(C), Vty, nullptr, NumOperands, VC),
+        Block(BB) {}
 
 private:
   BasicBlock *Block;
@@ -250,8 +251,8 @@ protected:
   friend class MemorySSA;
   friend class MemorySSAUpdater;
   MemoryUseOrDef(LLVMContext &C, MemoryAccess *DMA, unsigned Vty,
-                 Instruction *MI, BasicBlock *BB)
-      : MemoryAccess(C, Vty, BB, 1), MemoryInst(MI) {
+                 ValueCallbacks *VC, Instruction *MI, BasicBlock *BB)
+      : MemoryAccess(C, Vty, VC, BB, 1), MemoryInst(MI) {
     setDefiningAccess(DMA);
   }
 
@@ -276,7 +277,8 @@ public:
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(MemoryAccess);
 
   MemoryUse(LLVMContext &C, MemoryAccess *DMA, Instruction *MI, BasicBlock *BB)
-      : MemoryUseOrDef(C, DMA, MemoryUseVal, MI, BB), OptimizedID(0) {}
+      : MemoryUseOrDef(C, DMA, MemoryUseVal, getValueCallbacks(), MI, BB),
+        OptimizedID(0) {}
 
   // allocate space for exactly one operand
   void *operator new(size_t s) { return User::operator new(s, 1); }
@@ -286,7 +288,7 @@ public:
     return MA->getValueID() == MemoryUseVal;
   }
 
-  void print(raw_ostream &OS) const override;
+  void print(raw_ostream &OS) const;
 
   void setDefiningAccess(MemoryAccess *DMA, bool Optimized = false) {
     if (Optimized)
@@ -306,11 +308,9 @@ public:
 protected:
   friend class MemorySSA;
 
-  unsigned getID() const override {
-    llvm_unreachable("MemoryUses do not have IDs");
-  }
-
 private:
+  ValueCallbacks *getValueCallbacks();
+
   unsigned int OptimizedID;
 };
 
@@ -333,7 +333,8 @@ public:
 
   MemoryDef(LLVMContext &C, MemoryAccess *DMA, Instruction *MI, BasicBlock *BB,
             unsigned Ver)
-      : MemoryUseOrDef(C, DMA, MemoryDefVal, MI, BB), ID(Ver) {}
+      : MemoryUseOrDef(C, DMA, MemoryDefVal, getValueCallbacks(), MI, BB),
+        ID(Ver) {}
 
   // allocate space for exactly one operand
   void *operator new(size_t s) { return User::operator new(s, 1); }
@@ -343,14 +344,15 @@ public:
     return MA->getValueID() == MemoryDefVal;
   }
 
-  void print(raw_ostream &OS) const override;
+  void print(raw_ostream &OS) const;
 
-protected:
   friend class MemorySSA;
 
-  unsigned getID() const override { return ID; }
+  unsigned getID() const { return ID; }
 
 private:
+  ValueCallbacks *getValueCallbacks();
+
   const unsigned ID;
 };
 
@@ -399,7 +401,8 @@ public:
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(MemoryAccess);
 
   MemoryPhi(LLVMContext &C, BasicBlock *BB, unsigned Ver, unsigned NumPreds = 0)
-      : MemoryAccess(C, MemoryPhiVal, BB, 0), ID(Ver), ReservedSpace(NumPreds) {
+      : MemoryAccess(C, MemoryPhiVal, getValueCallbacks(), BB, 0), ID(Ver),
+        ReservedSpace(NumPreds) {
     allocHungoffUses(ReservedSpace);
   }
 
@@ -501,7 +504,9 @@ public:
     return V->getValueID() == MemoryPhiVal;
   }
 
-  void print(raw_ostream &OS) const override;
+  void print(raw_ostream &OS) const;
+
+  unsigned getID() const { return ID; }
 
 protected:
   friend class MemorySSA;
@@ -512,8 +517,6 @@ protected:
   void allocHungoffUses(unsigned N) {
     User::allocHungoffUses(N, /* IsPhi */ true);
   }
-
-  unsigned getID() const final { return ID; }
 
 private:
   // For debugging only
@@ -528,7 +531,17 @@ private:
     ReservedSpace = std::max(E + E / 2, 2u);
     growHungoffUses(ReservedSpace, /* IsPhi */ true);
   }
+
+  ValueCallbacks *getValueCallbacks();
 };
+
+inline unsigned MemoryAccess::getID() const {
+  assert((isa<MemoryDef>(this) || isa<MemoryPhi>(this)) &&
+         "only memory defs and phis have ids");
+  if (const auto *MD = dyn_cast<MemoryDef>(this))
+    return MD->getID();
+  return cast<MemoryPhi>(this)->getID();
+}
 
 template <> struct OperandTraits<MemoryPhi> : public HungoffOperandTraits<2> {};
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(MemoryPhi, MemoryAccess)

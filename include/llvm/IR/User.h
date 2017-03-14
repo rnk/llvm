@@ -46,8 +46,6 @@ class User : public Value {
   template <unsigned>
   friend struct HungoffOperandTraits;
 
-  virtual void anchor();
-
   LLVM_ATTRIBUTE_ALWAYS_INLINE inline static void *
   allocateFixedOperandUser(size_t, unsigned, unsigned);
 
@@ -95,8 +93,10 @@ protected:
 
 public:
   User(const User &) = delete;
-  ~User() override = default;
+protected:
+  ~User() = default;
 
+public:
   /// \brief Free memory allocated for User and Use objects.
   void operator delete(void *Usr);
   /// \brief Placement delete - required by std, but never called.

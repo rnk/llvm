@@ -43,8 +43,6 @@ namespace llvm {
 /// UnaryConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement unary constant exprs.
 class UnaryConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   UnaryConstantExpr(unsigned Opcode, Constant *C, Type *Ty)
     : ConstantExpr(Ty, Opcode, &Op<0>(), 1) {
@@ -64,8 +62,6 @@ public:
 /// BinaryConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement binary constant exprs.
 class BinaryConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   BinaryConstantExpr(unsigned Opcode, Constant *C1, Constant *C2,
                      unsigned Flags)
@@ -89,8 +85,6 @@ public:
 /// SelectConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement select constant exprs.
 class SelectConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   SelectConstantExpr(Constant *C1, Constant *C2, Constant *C3)
     : ConstantExpr(C2->getType(), Instruction::Select, &Op<0>(), 3) {
@@ -114,8 +108,6 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// extractelement constant exprs.
 class ExtractElementConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   ExtractElementConstantExpr(Constant *C1, Constant *C2)
     : ConstantExpr(cast<VectorType>(C1->getType())->getElementType(),
@@ -139,8 +131,6 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// insertelement constant exprs.
 class InsertElementConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   InsertElementConstantExpr(Constant *C1, Constant *C2, Constant *C3)
     : ConstantExpr(C1->getType(), Instruction::InsertElement,
@@ -165,8 +155,6 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// shufflevector constant exprs.
 class ShuffleVectorConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   ShuffleVectorConstantExpr(Constant *C1, Constant *C2, Constant *C3)
   : ConstantExpr(VectorType::get(
@@ -194,8 +182,6 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// extractvalue constant exprs.
 class ExtractValueConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   ExtractValueConstantExpr(Constant *Agg, ArrayRef<unsigned> IdxList,
                            Type *DestTy)
@@ -229,8 +215,6 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// insertvalue constant exprs.
 class InsertValueConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   InsertValueConstantExpr(Constant *Agg, Constant *Val,
                           ArrayRef<unsigned> IdxList, Type *DestTy)
@@ -270,8 +254,6 @@ class GetElementPtrConstantExpr : public ConstantExpr {
   GetElementPtrConstantExpr(Type *SrcElementTy, Constant *C,
                             ArrayRef<Constant *> IdxList, Type *DestTy);
 
-  void anchor() override;
-
 public:
   static GetElementPtrConstantExpr *Create(Type *SrcElementTy, Constant *C,
                                            ArrayRef<Constant *> IdxList,
@@ -300,8 +282,6 @@ public:
 // behind the scenes to implement ICmp and FCmp constant expressions. This is
 // needed in order to store the predicate value for these instructions.
 class CompareConstantExpr : public ConstantExpr {
-  void anchor() override;
-
 public:
   unsigned short predicate;
   CompareConstantExpr(Type *ty, Instruction::OtherOps opc,

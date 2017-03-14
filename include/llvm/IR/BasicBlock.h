@@ -48,8 +48,8 @@ class TerminatorInst;
 /// occur because it may be useful in the intermediate stage of constructing or
 /// modifying a program. However, the verifier will ensure that basic blocks
 /// are "well formed".
-class BasicBlock : public Value, // Basic blocks are data objects also
-                   public ilist_node_with_parent<BasicBlock, Function> {
+class BasicBlock final : public Value, // Basic blocks are data objects also
+                         public ilist_node_with_parent<BasicBlock, Function> {
 public:
   typedef SymbolTableList<Instruction> InstListType;
 
@@ -74,7 +74,7 @@ private:
 public:
   BasicBlock(const BasicBlock &) = delete;
   BasicBlock &operator=(const BasicBlock &) = delete;
-  ~BasicBlock() override;
+  ~BasicBlock();
 
   /// \brief Get the context in which this basic block lives.
   LLVMContext &getContext() const;

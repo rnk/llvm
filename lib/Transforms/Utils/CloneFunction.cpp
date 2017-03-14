@@ -298,7 +298,7 @@ void PruningFunctionCloner::CloneBlock(const BasicBlock *BB,
 
         if (!NewInst->mayHaveSideEffects()) {
           VMap[&*II] = V;
-          delete NewInst;
+          NewInst->deleteValue();
           continue;
         }
       }

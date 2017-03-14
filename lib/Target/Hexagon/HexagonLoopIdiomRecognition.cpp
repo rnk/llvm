@@ -385,7 +385,7 @@ void Simplifier::Context::cleanup() {
   for (Value *V : Clones) {
     Instruction *U = cast<Instruction>(V);
     if (!U->getParent())
-      delete U;
+      U->deleteValue();
   }
 }
 

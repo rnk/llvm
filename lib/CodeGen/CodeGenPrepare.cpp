@@ -2792,7 +2792,7 @@ class TypePromotionTransaction {
     /// words, this helps to do as if the instruction was removed.
     OperandsHider Hider;
     /// Keep track of the uses replaced, if any.
-    UsesReplacer *Replacer;
+    std::unique_ptr<UsesReplacer> Replacer;
 
   public:
     /// \brief Remove all reference of \p Inst and optinally replace all its
@@ -2802,15 +2802,15 @@ class TypePromotionTransaction {
         : TypePromotionAction(Inst), Inserter(Inst), Hider(Inst),
           Replacer(nullptr) {
       if (New)
-        Replacer = new UsesReplacer(Inst, New);
+        Replacer.reset(new UsesReplacer(Inst, New));
       DEBUG(dbgs() << "Do: InstructionRemover: " << *Inst << "\n");
       Inst->removeFromParent();
     }
 
-    ~InstructionRemover() override { delete Replacer; }
+    ~InstructionRemover() override = default;
 
     /// \brief Really remove the instruction.
-    void commit() override { delete Inst; }
+    void commit() override { Inst->deleteValue(); }
 
     /// \brief Resurrect the instruction and reassign it to the proper uses if
     /// new value was provided when build this action.
