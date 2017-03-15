@@ -39,12 +39,8 @@ template class llvm::SymbolTableListTraits<BasicBlock>;
 
 void Argument::anchor() { }
 
-Argument::Argument(Type *Ty, const Twine &Name, Function *Par)
-  : Value(Ty, Value::ArgumentVal) {
-  Parent = nullptr;
-
-  if (Par)
-    Par->getArgumentList().push_back(this);
+Argument::Argument(Type *Ty, const Twine &Name)
+    : Value(Ty, Value::ArgumentVal), Parent(nullptr) {
   setName(Name);
 }
 
